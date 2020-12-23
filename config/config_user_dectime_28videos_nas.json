@@ -38,12 +38,6 @@
     "1x1"
   ],
   "videos_list": {
-    "video_04_nas": {
-      "original": "4.mp4",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
     "video_19_nas": {
       "original": "19.mp4",
       "offset": "0",
@@ -70,6 +64,12 @@
     },
     "video_24_nas": {
       "original": "24.mp4",
+      "offset": "0",
+      "duration": 60,
+      "group": 0
+    },
+    "video_04_nas": {
+      "original": "4.mp4",
       "offset": "0",
       "duration": 60,
       "group": 0
