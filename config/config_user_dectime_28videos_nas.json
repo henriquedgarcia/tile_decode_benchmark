@@ -1,31 +1,88 @@
 {
+  "project": "nasrabadi_28videos_11q_17p_erp",
   "scale": "4320x2160",
   "projection": "equirectangular",
   "factor": "crf",
   "fps": 30,
   "gop": 30,
-  "crf_list": [
+  "quality_list": [
     16,
+    19,
     22,
+    25,
     28,
+    31,
     34,
+    37,
     40,
+    43,
     46
   ],
   "tile_list": [
-    "7x6",
+    "12x8",
+    "12x6",
+    "9x8",
+    "9x6",
+    "12x4",
+    "6x8",
+    "9x4",
     "6x6",
-    "6x5",
+    "12x2",
     "6x4",
-    "6x3",
-    "4x3",
+    "3x8",
+    "9x2",
+    "3x6",
+    "6x2",
+    "3x4",
     "3x2",
     "1x1"
   ],
   "videos_list": {
+    "video_04_nas": {
+      "original": "4.mp4",
+      "offset": "0",
+      "duration": 60,
+      "group": 0
+    },
+    "video_19_nas": {
+      "original": "19.mp4",
+      "offset": "0",
+      "duration": 60,
+      "group": 0
+    },
+    "video_20_nas": {
+      "original": "20.mp4",
+      "offset": "0",
+      "duration": 60,
+      "group": 0
+    },
+    "video_22_nas": {
+      "original": "22.mp4",
+      "offset": "0",
+      "duration": 60,
+      "group": 0
+    },
+    "video_23_nas": {
+      "original": "23.mp4",
+      "offset": "0",
+      "duration": 60,
+      "group": 0
+    },
+    "video_24_nas": {
+      "original": "24.mp4",
+      "offset": "0",
+      "duration": 60,
+      "group": 0
+    },
     "angel_falls_nas": {
       "original": "angel_falls.mp4",
       "offset": "5:30",
+      "duration": 60,
+      "group": 0
+    },
+    "blue_angels_nas": {
+      "original": "blue_angels.mp4",
+      "offset": "1:00",
       "duration": 60,
       "group": 0
     },
@@ -33,7 +90,7 @@
       "original": "cable_cam.mp4",
       "offset": "0:15",
       "duration": 60,
-      "group": "3"
+      "group": 0
     },
     "chariot_race_nas": {
       "original": "chariot_race.mp4",
@@ -107,6 +164,12 @@
       "duration": 60,
       "group": 0
     },
+    "pac_man_nas": {
+      "original": "pac_man.mp4",
+      "offset": "0",
+      "duration": 60,
+      "group": 0
+    },
     "penthouse_nas": {
       "original": "penthouse.mp4",
       "offset": "0:04",
@@ -116,6 +179,12 @@
     "petite_anse_nas": {
       "original": "petite_anse.mp4",
       "offset": "0:45",
+      "duration": 60,
+      "group": 0
+      },
+    "rhinos_nas": {
+      "original": "rhinos.mp4",
+      "offset": "0:18",
       "duration": 60,
       "group": 0
     },
