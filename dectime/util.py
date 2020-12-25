@@ -123,10 +123,10 @@ class Config:
 
 class Factors:
     _video: Union[Video, None] = None
-    _pattern: Union[Pattern, None] = None
-    _quality: Union[int, None] = None
-    _tile: Union[Tile, None] = None
-    _chunk: Union[int, None] = None
+    _pattern = Pattern('1x1', Frame('1x1'))
+    _quality = 28
+    _tile = _pattern.tiles_list[0]
+    _chunk = 1
 
     @property
     def video(self) -> Video:
