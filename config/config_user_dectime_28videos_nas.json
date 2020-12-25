@@ -1,5 +1,10 @@
 {
   "project": "nasrabadi_28videos_11q_17p_erp",
+  "original_folder": "original",
+  "lossless_folder": "lossless",
+  "compressed_folder": "compressed",
+  "segment_folder": "segment",
+  "dectime_folder": "dectime",
   "scale": "4320x2160",
   "projection": "equirectangular",
   "factor": "crf",

@@ -93,6 +93,12 @@ class Config:
         with open(f'{config}', 'r') as f:
             self.config_data = json.load(f)
 
+        self.original_folder = 'original'
+        self.lossless_folder = 'lossless'
+        self.compressed_folder = 'compressed'
+        self.segment_folder = 'segment'
+        self.dectime_folder = 'dectime'
+
         self.project = self.config_data['project']
         self.factor = self.config_data['factor']
         self.frame = Frame(self.config_data['scale'])
@@ -257,21 +263,16 @@ class Paths(Factors, Params):
 
 
 class VideoState(Paths):
-    def __init__(self, config: str,
-                 original_folder='original',
-                 lossless_folder='lossless',
-                 compressed_folder='compressed',
-                 segment_folder='segment',
-                 dectime_folder='dectime'):
+    def __init__(self, config: str):
         """
         Class to creat tile files path to process.
         :param config: Config file.
-        :param original_folder: Folder that contain the original files.
-        :param lossless_folder: Folder to put intermediate lossless
+        original_folder: Folder that contain the original files.
+        lossless_folder: Folder to put intermediate lossless
         full-frame video.
-        :param compressed_folder: Folder to put compressed tiles.
-        :param segment_folder: Folder to put the segments of tiles.
-        :param dectime_folder: Folder to put decode log.
+        compressed_folder: Folder to put compressed tiles.
+        segment_folder: Folder to put the segments of tiles.
+        dectime_folder: Folder to put decode log.
         """
         self.config = Config(config)
         self.project = f'results/{self.config.project}'
@@ -285,8 +286,8 @@ class VideoState(Paths):
         self.quality_list: list = self.config.quality_list
         self.pattern_list: list = self.config.pattern_list
 
-        self._original_folder = original_folder
-        self._lossless_folder = lossless_folder
-        self._compressed_folder = compressed_folder
-        self._segment_folder = segment_folder
-        self._dectime_folder = dectime_folder
+        self._original_folder = self.config.original_folder
+        self._lossless_folder = self.config.lossless_folder
+        self._compressed_folder = self.config.compressed_folder
+        self._segment_folder = self.config.segment_folder
+        self._dectime_folder = self.config.dectime_folder
