@@ -21,11 +21,15 @@ class Dectime:
         self.results = util.AutoDict()
 
     @staticmethod
-    def _check_existence(file_path, overwrite):
-        if path.isfile(f'{file_path}') and not overwrite:
-            msg = 'Skipping' if overwrite else 'Overwriting'
-            print(f'The file "{file_path}" exist. {msg}')
-            return True
+    def _check_existence(file_path, overwrite=False):
+        if path.isfile(f'{file_path}'):
+            if overwrite:
+                print(f'The file "{file_path}" exist. Overwriting')
+                return False
+            else:
+                print(f'The file "{file_path}" exist. Skipping')
+                return True
+        return False
 
     def prepare_videos(self, overwrite=False) -> None:
         """
