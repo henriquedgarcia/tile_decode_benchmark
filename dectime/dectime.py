@@ -1,8 +1,10 @@
+import os
+import pandas as pd
 import dectime.util as util
 from os import path
 import subprocess
 from enum import Enum
-
+from typing import Union
 
 
 class Role(Enum):
@@ -200,3 +202,92 @@ class Dectime:
                             if role is Role.RESULTS:
                                 self.decode()
                                 continue
+
+
+class CheckDectime:
+    class Check(Enum):
+        ORIGINAL = 0
+        LOSSLESS = 1
+        COMPRESSED = 2
+        SEGMENT = 3
+        DECTIME = 4
+
+    def __init__(self, config=f'results/config_user_dectime_28videos_nas.json'):
+        self.state = util.VideoState(config)
+
+        self.role: Union[CheckDectime.Check, None] = None
+        self.counter = {}
+        self.error_df = dict(video=[], msg=[])
+
+        self.configure()
+        self.check()
+
+    def configure(self) -> None:
+        c = None
+        while c not in ['0', '1', '2', '3', '4']:
+            c = input('Options:\n'
+                      '0 - Check original\n'
+                      '1 - Check lossless\n'
+                      '2 - Check encoded\n'
+                      '3 - Check segments\n'
+                      '4 - Check dectime\n'
+                      ': ', )
+        self.role = self.Check(int(c))
+
+    def check(self):
+        for self.state.video in self.state.videos_list:
+            if self.role is Role.ORIGINAL:
+                self.check_filesize(self.state.original_file)
+                continue
+            if self.role is Role.LOSSLESS:
+                self.check_filesize(self.state.original_file)
+                continue
+
+            for self.state.pattern in self.state.pattern_list:
+                for self.state.quality in self.state.quality_list:
+                    for self.state.tile in self.state.pattern.tiles_list:
+                        if self.role is Role.COMPRESSED:
+                            self.check_filesize(self.state.original_file)
+                            continue
+                        if self.role is Role.SEGMENT:
+                            self.check_filesize(self.state.original_file)
+                            continue
+
+                        for self.state.chunk in self.state.video.chunks:
+                            if self.role is Role.DECTIME:
+                                self.check_filesize(self.state.original_file)
+                                continue
+        self.save_report()
+
+    def check_filesize(self, file_path) -> None:
+        print(f'Checking {self.state.video.name}'
+              f'-{self.state.pattern.pattern}-{self.state.quality}'
+              f'-tile{self.state.tile.id}'
+              f'-chunk{self.state.chunk}')
+
+        try:
+            filesize = os.path.getsize(f'{file_path}')
+            if filesize == 0:
+                msg = f'size_0'
+            else:
+                msg = f'ok'
+        except FileNotFoundError:
+            msg = f'not_found'
+
+        self.error_df['video'].append(file_path)
+        self.error_df['msg'].append(msg)
+
+    def save_report(self):
+        error_df = pd.DataFrame(self.error_df)
+        error_df.to_csv(f"{self.state.project}/check_dectime"
+                        f"_{self.state.config.project}.log")
+        msg = error_df['msg']  # a Pandas Serie
+
+        ok = len(msg[msg == 'ok'])
+        size_0 = len(msg[msg == 'size_0'])
+        not_found = len(msg[msg == 'not_found'])
+
+        print('RESUMO:')
+        print(f"ok = {ok}")
+        print(f"size_0 = {size_0}")
+        print(f"not_found = {not_found}")
