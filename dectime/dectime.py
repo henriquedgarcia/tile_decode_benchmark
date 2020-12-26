@@ -4,6 +4,7 @@ import subprocess
 from enum import Enum
 
 
+
 class Role(Enum):
     PREPARE = 0
     COMPRESS = 1
@@ -77,7 +78,6 @@ class Dectime:
                                   f'info=0:'
                                   f'scenecut=0\'')
         command['v_filter'] = (f'-vf "'
-                               # f'scale={frame.scale},setdar=2,'
                                f'crop=w={tile.w}:h={tile.h}:'
                                f'x={tile.x}:y={tile.y}'
                                f'"')
