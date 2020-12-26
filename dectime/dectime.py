@@ -224,6 +224,7 @@ class CheckDectime:
 
         self.configure()
         self.check()
+        self.save_report()
 
     def configure(self) -> None:
         c = None
@@ -260,7 +261,17 @@ class CheckDectime:
                             if self.role is Role.DECTIME:
                                 self.check_filesize(self.state.original_file)
                                 continue
-        self.save_report()
+        self.error_df = pd.DataFrame(self.error_df)
+
+        print('RESUMO:')
+        msg = error_df['msg']  # a Pandas Serie
+        ok = len(msg[msg == 'ok'])
+        size_0 = len(msg[msg == 'size_0'])
+        not_found = len(msg[msg == 'not_found'])
+
+        print(f"ok = {ok}")
+        print(f"size_0 = {size_0}")
+        print(f"not_found = {not_found}")
 
     def check_filesize(self, file_path) -> None:
         print(f'Checking {self.state.video.name}'
@@ -280,17 +291,9 @@ class CheckDectime:
         self.error_df['video'].append(file_path)
         self.error_df['msg'].append(msg)
 
-    def save_report(self):
-        error_df = pd.DataFrame(self.error_df)
-        error_df.to_csv(f"{self.state.project}/check_dectime"
+    def save_report(self, savepath=None):
+        if savepath is None:
+            savepath = (f"{self.state.project}/check_dectime"
                         f"_{self.state.config.project}.log")
-        msg = error_df['msg']  # a Pandas Serie
+        self.error_df.to_csv(savepath)
 
-        ok = len(msg[msg == 'ok'])
-        size_0 = len(msg[msg == 'size_0'])
-        not_found = len(msg[msg == 'not_found'])
-
-        print('RESUMO:')
-        print(f"ok = {ok}")
-        print(f"size_0 = {size_0}")
-        print(f"not_found = {not_found}")
