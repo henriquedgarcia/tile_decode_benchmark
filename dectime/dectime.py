@@ -64,7 +64,6 @@ class Dectime:
         lossless_file = self.state.lossless_file
         quality = self.state.quality
         gop = self.state.gop
-        frame = self.state.frame
         tile = self.state.tile
         command = dict()
 
