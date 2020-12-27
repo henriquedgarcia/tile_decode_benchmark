@@ -215,16 +215,18 @@ class CheckDectime:
         SEGMENT = 3
         DECTIME = 4
 
-    def __init__(self, config=f'results/config_user_dectime_28videos_nas.json'):
-        self.state = util.VideoState(config)
+    def __init__(self, config,
+                 automate=False):
+        self.state = VideoState(config)
 
         self.role: Union[CheckDectime.Check, None] = None
         self.counter = {}
-        self.error_df = dict(video=[], msg=[])
+        self.error_df: Union[dict, pd.DataFrame] = dict(video=[], msg=[])
 
         self.configure()
-        self.check()
-        self.save_report()
+        if automate is True:
+            self.check()
+            self.save_report()
 
     def configure(self) -> None:
         c = None
@@ -261,10 +263,10 @@ class CheckDectime:
                             if self.role is Role.DECTIME:
                                 self.check_filesize(self.state.original_file)
                                 continue
-        self.error_df = pd.DataFrame(self.error_df)
 
+        self.error_df = pd.DataFrame(self.error_df)
         print('RESUMO:')
-        msg = error_df['msg']  # a Pandas Serie
+        msg = self.error_df['msg']  # a Pandas Serie
         ok = len(msg[msg == 'ok'])
         size_0 = len(msg[msg == 'size_0'])
         not_found = len(msg[msg == 'not_found'])
@@ -296,4 +298,3 @@ class CheckDectime:
             savepath = (f"{self.state.project}/check_dectime"
                         f"_{self.state.config.project}.log")
         self.error_df.to_csv(savepath)
-
