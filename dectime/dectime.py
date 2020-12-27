@@ -1,10 +1,13 @@
 import os
-import pandas as pd
-import dectime.util as util
-from os import path
 import subprocess
 from enum import Enum
+from os import path
 from typing import Union
+
+import pandas as pd
+
+import dectime.util as util
+from dectime.video_state import VideoState
 
 
 class Role(Enum):
