@@ -12,5 +12,3 @@ class AutoDict(dict):
     def __missing__(self, key):
         value = self[key] = eval(f'{self.return_type}()')
         return value
-
-
