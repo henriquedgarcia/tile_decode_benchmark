@@ -17,7 +17,7 @@ class Role(Enum):
 
 class Dectime:
     def __init__(self, config: str):
-        self.state = util.VideoState(config)
+        self.state = VideoState(config)
         self.results = util.AutoDict()
 
     @staticmethod
