@@ -95,6 +95,7 @@ class Config:
         self.quality_list = self.config_data['quality_list']
         self.videos_list = []
         self.pattern_list = []
+        self.distributions = []
 
         self._videos_list()
         self._pattern_list()
