@@ -5,6 +5,19 @@
   "compressed_folder": "compressed",
   "segment_folder": "segment",
   "dectime_folder": "dectime",
+  "distributions": [
+    "burr12",
+    "fatiguelife",
+    "gamma",
+    "invgauss",
+    "rayleigh",
+    "lognorm",
+    "genpareto",
+    "pareto",
+    "halfnorm",
+    "expon"
+  ],
+  "error_metric": "rmse",
   "scale": "4320x2160",
   "projection": "equirectangular",
   "factor": "crf",
@@ -172,7 +185,7 @@
       "offset": "0:45",
       "duration": 60,
       "group": 0
-      },
+    },
     "rhinos_nas": {
       "original": "rhinos.mp4",
       "offset": "0:18",
