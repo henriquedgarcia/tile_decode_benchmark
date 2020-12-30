@@ -128,7 +128,8 @@ class Dectime:
         command = " ".join(list(command.values()))
         print(command)
 
-        with open(dectime_file, 'a', encoding='utf-8') as f:
+        log = dectime_file[:-4]
+        with open(log, 'a', encoding='utf-8') as f:
             subprocess.run(command, shell=True, stdout=f,
                            stderr=subprocess.STDOUT)
 
