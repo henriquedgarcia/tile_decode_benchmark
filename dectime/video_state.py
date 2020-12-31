@@ -247,7 +247,7 @@ class Paths(Factors, Params):
 
     @property
     def dectime_file(self):
-        return f'{self.dectime_folder}/tile{self.tile}_{self.chunk:03}.mp4'
+        return f'{self.dectime_folder}/tile{self.tile}_{self.chunk:03}.log'
 
 
 class VideoState(Paths):
