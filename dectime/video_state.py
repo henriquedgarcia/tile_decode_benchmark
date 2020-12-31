@@ -258,8 +258,8 @@ class VideoState(Paths):
         original_folder: Folder that contain the original files.
         lossless_folder: Folder to put intermediate lossless
         full-frame video.
-        compressed_folder: Folder to put compressed tiles.
-        segment_folder: Folder to put the segments of tiles.
+        compressed_folder: Folder to put compressed tiles_list.
+        segment_folder: Folder to put the segments of tiles_list.
         dectime_folder: Folder to put decode log.
         """
         self.config = Config(config)
