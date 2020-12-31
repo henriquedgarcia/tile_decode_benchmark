@@ -108,7 +108,7 @@ class Config:
             self.videos_list.append(video_tuple)
 
     def _pattern_list(self):
-        pattern_list = self.config_data['tile_list']
+        pattern_list = self.config_data['pattern_list']
 
         for pattern_str in pattern_list:
             pattern = Pattern(pattern_str, self.frame)
