@@ -1,8 +1,7 @@
 import os
 from typing import Union
 
-from dectime.util import splitx
-from dectime.util import Config
+from dectime.util import splitx, Config
 
 
 class Frame:
