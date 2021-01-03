@@ -1,0 +1,45 @@
+{
+  "project": "test_pacman",
+  "original_folder": "original",
+  "lossless_folder": "lossless",
+  "compressed_folder": "compressed",
+  "segment_folder": "segment",
+  "dectime_folder": "dectime",
+  "distributions": [
+    "burr12",
+    "fatiguelife",
+    "gamma",
+    "invgauss",
+    "rayleigh",
+    "lognorm",
+    "genpareto",
+    "pareto",
+    "halfnorm",
+    "expon"
+  ],
+  "error_metric": "rmse", "projection": "equirectangular",
+  "decode_num": 3,
+  "scale": "4320x2160",
+  "factor": "crf",
+  "fps": 30,
+  "gop": 30,
+  "quality_list": [
+    16,
+    28,
+    40
+  ],
+  "pattern_list": [
+    "7x6",
+    "6x4",
+    "3x2",
+    "1x1"
+  ],
+  "videos_list": {
+    "pac_man_nas": {
+      "original": "pac_man.mp4",
+      "offset": "0:00",
+      "duration": 60,
+      "group": 0
+    }
+  }
+}
