@@ -146,7 +146,7 @@ class Dectime:
             subprocess.run(command, shell=True, stdout=f,
                            stderr=subprocess.STDOUT)
 
-    def collect_result(self) -> util.AutoDict:
+    def collect_result(self):
         # Collect decode time
         self.results[
             self.state.video.name][
