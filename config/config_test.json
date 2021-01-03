@@ -17,7 +17,8 @@
     "halfnorm",
     "expon"
   ],
-  "error_metric": "rmse", "projection": "equirectangular",
+  "error_metric": "rmse",
+  "projection": "equirectangular",
   "decode_num": 3,
   "scale": "4320x2160",
   "factor": "crf",
