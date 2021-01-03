@@ -19,6 +19,7 @@
   ],
   "error_metric": "rmse",
   "projection": "equirectangular",
+  "decode_num": 3,
   "scale": "3240x2160",
   "factor": "crf",
   "fps": 30,
@@ -31,7 +32,7 @@
     40,
     46
   ],
-  "tile_list": [
+  "pattern_list": [
     "7x6",
     "6x6",
     "6x5",
