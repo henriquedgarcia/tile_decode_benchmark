@@ -220,7 +220,7 @@ class Dectime:
                                 self.decode()
                                 continue
                             if role is Role.RESULTS:
-                                self.decode()
+                                self.collect_result()
                                 continue
 
 
