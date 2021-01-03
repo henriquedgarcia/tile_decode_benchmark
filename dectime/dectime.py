@@ -33,7 +33,8 @@ class Dectime:
         if ['qp_avg']       : The ffmpeg calculated average QP for a encoding.
     """
     def __init__(self, config: str):
-        self.state = VideoState(config)
+        self.config = util.Config(config)
+        self.state = VideoState(self.config)
         self.results = util.AutoDict()
 
     @staticmethod
