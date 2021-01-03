@@ -19,6 +19,19 @@ class Role(Enum):
 
 
 class Dectime:
+    """
+    The result dict have a following structure:
+    results[video_name][tile_pattern][quality][tile_id][chunk_id][type]
+    [video_name]      : The video name
+    [tile_pattern]    : The tile pattern. eg. "6x4"
+    [quality]         : Quality. A int like in crf or qp.
+    [tile_id]         : the tile number. ex. max = 6*4
+    [chunk_id or distorcion]:
+        if [chunk_id]     : A id for chunk. With 1s chunk, 60s video have 60 chunks
+           [type]         : "utime" (User time), or "bitrate" (Bit rate in kbps) of a chunk.
+        if ['psnr']         : the ffmpeg calculated psnr for tile (before segmentation)
+        if ['qp_avg']       : The ffmpeg calculated average QP for a encoding.
+    """
     def __init__(self, config: str):
         self.state = VideoState(config)
         self.results = util.AutoDict()
