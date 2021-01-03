@@ -27,6 +27,7 @@ class Config:
         self.compressed_folder = 'compressed'
         self.segment_folder = 'segment'
         self.dectime_folder = 'dectime'
+        self.decode_num = self.config_data['decode_times']
 
         self.project = self.config_data['project']
         self.factor = self.config_data['factor']
