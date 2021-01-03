@@ -1,5 +1,4 @@
 import json
-from dectime.video_state import Frame, Video, Pattern
 
 
 def splitx(string: str) -> tuple:
@@ -18,6 +17,8 @@ class AutoDict(dict):
 
 class Config:
     def __init__(self, config: str):
+        from dectime.video_state import Frame
+
         with open(f'{config}', 'r') as f:
             self.config_data = json.load(f)
 
@@ -43,12 +44,16 @@ class Config:
         print()
 
     def _videos_list(self):
+        from dectime.video_state import Video
+
         videos_list = self.config_data['videos_list']
         for name in videos_list:
             video_tuple = Video(name, videos_list[name])
             self.videos_list.append(video_tuple)
 
     def _pattern_list(self):
+        from dectime.video_state import Pattern
+
         pattern_list = self.config_data['pattern_list']
 
         for pattern_str in pattern_list:
