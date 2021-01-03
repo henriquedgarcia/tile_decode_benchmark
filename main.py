@@ -1,5 +1,4 @@
-from dectime.dectime import Dectime, Role
-# from dectime.dectime import CheckDectime
+from dectime.dectime import Dectime, Role, CheckDectime
 
 
 def main():
