@@ -7,7 +7,7 @@ def splitx(string: str) -> tuple:
 
 
 class AutoDict(dict):
-    def __init__(self, return_type='dict'):
+    def __init__(self, return_type='AutoDict'):
         super().__init__()
         self.return_type = return_type
 
