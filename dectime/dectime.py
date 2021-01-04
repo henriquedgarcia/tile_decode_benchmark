@@ -6,6 +6,7 @@ from enum import Enum
 from os import path
 from typing import Union
 
+import numpy as np
 import pandas as pd
 
 import dectime.util as util
@@ -150,13 +151,18 @@ class Dectime:
                            stderr=subprocess.STDOUT)
 
     def collect_result(self):
+        print(f'Collecting {self.state.video.name}'
+              f'-{self.state.pattern.pattern}'
+              f'-{self.state.quality}'
+              f'-{self.state.tile.id}'
+              f'-{self.state.chunk}')
         # Collect decode time
         self.results[
             self.state.video.name][
             self.state.pattern.pattern][
             self.state.quality][
             self.state.tile.id][
-            self.state.chunk] = self._collect_dectime()
+            self.state.chunk].update(self._collect_dectime())
 
         # Collect quality
         if self.state.chunk == 1:
@@ -164,7 +170,7 @@ class Dectime:
                 self.state.video.name][
                 self.state.pattern.pattern][
                 self.state.quality][
-                self.state.tile.id] = self._collect_psnr()
+                self.state.tile.id].update(self._collect_psnr())
         return self.results
 
     def _collect_dectime(self) -> util.AutoDict:
@@ -177,11 +183,13 @@ class Dectime:
         dectime_file = self.state.dectime_file
         segment_file = self.state.segment_file
 
-        get_time = lambda line: float(line.strip().split('=')[1][:-1])
+        get_time = lambda line: \
+            float(line.strip().split(' ')[1].split('=')[1][:-1])
         with open(dectime_file, 'r', encoding='utf-8') as f:
-            dectime['utime'] = [get_time(line) for line in f
-                                if 'bench:' in line]
-
+            times = [get_time(line) for line in f
+                     if 'utime' in line]
+        dectime['utime'] = {'avg': np.average(times),
+                            'std': np.std(times)}
         chunk_size = path.getsize(segment_file)
         dectime['bitrate'] = chunk_size * 8 / (self.state.gop / self.state.fps)
 
@@ -201,6 +209,10 @@ class Dectime:
                     psnr['qp_avg'] = get_qp(line)
                     break
         return psnr
+
+    def save_result(self, filename):
+        with open(filename, 'w', encoding='utf-8') as fp:
+            json.dump(self.results, fp, separators=(',', ':'))
 
     def run(self, role):
         for self.state.video in self.state.videos_list:
@@ -225,6 +237,8 @@ class Dectime:
                             if role is Role.RESULTS:
                                 self.collect_result()
                                 continue
+        if role is Role.RESULTS:
+            self.save_result(self.state.result_file)
 
 
 class CheckDectime:
