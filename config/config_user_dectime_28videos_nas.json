@@ -18,7 +18,7 @@
     "expon"
   ],
   "error_metric": "rmse",
-  "decode_num": 3,
+  "decoding_num": 3,
   "scale": "4320x2160",
   "projection": "equirectangular",
   "factor": "crf",
