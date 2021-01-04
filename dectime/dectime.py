@@ -29,7 +29,7 @@ class Dectime:
     [tile_pattern]    : The tile pattern. eg. "6x4"
     [quality]         : Quality. A int like in crf or qp.
     [tile_id]         : the tile number. ex. max = 6*4
-    [chunk_id or distorcion]:
+    [chunk_id or error/distortion]:
         if [chunk_id]     : A id for chunk. With 1s chunk, 60s video have 60 chunks
            [type]         : "utime" (User time), or "bitrate" (Bit rate in kbps) of a chunk.
         if ['psnr']         : the ffmpeg calculated psnr for tile (before segmentation)
