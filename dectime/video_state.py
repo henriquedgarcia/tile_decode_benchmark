@@ -208,6 +208,11 @@ class Paths(Factors, Params):
     def dectime_file(self):
         return f'{self.dectime_folder}/tile{self.tile.id}_{self.chunk:03}.log'
 
+    @property
+    def result_file(self):
+        filename = f'{self.project}/dectime_raw.json'
+        return filename
+
 
 class VideoState(Paths):
     def __init__(self, config: Config):
