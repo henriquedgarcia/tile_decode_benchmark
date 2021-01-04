@@ -233,12 +233,12 @@ class CheckDectime:
         SEGMENT = 3
         DECTIME = 4
 
-    def __init__(self, config,
+    def __init__(self, config_file,
                  automate=False):
-        self.state = VideoState(config)
+        self.config = util.Config(config_file)
+        self.state = VideoState(config=self.config)
 
         self.role: Union[CheckDectime.Check, None] = None
-        self.counter = {}
         self.error_df: Union[dict, pd.DataFrame] = dict(video=[], msg=[])
 
         self.configure()
@@ -260,59 +260,78 @@ class CheckDectime:
 
     def check(self):
         for self.state.video in self.state.videos_list:
-            if self.role is Role.ORIGINAL:
-                self.check_filesize(self.state.original_file)
+            if self.role is self.Check.ORIGINAL:
+                self.check_video_state(self.state.original_file)
                 continue
-            if self.role is Role.LOSSLESS:
-                self.check_filesize(self.state.original_file)
+            if self.role is self.Check.LOSSLESS:
+                self.check_video_state(self.state.lossless_file)
                 continue
 
             for self.state.pattern in self.state.pattern_list:
                 for self.state.quality in self.state.quality_list:
                     for self.state.tile in self.state.pattern.tiles_list:
-                        if self.role is Role.COMPRESSED:
-                            self.check_filesize(self.state.original_file)
-                            continue
-                        if self.role is Role.SEGMENT:
-                            self.check_filesize(self.state.original_file)
+                        if self.role is self.Check.COMPRESSED:
+                            self.check_video_state(self.state.compressed_file)
                             continue
 
                         for self.state.chunk in self.state.video.chunks:
-                            if self.role is Role.DECTIME:
-                                self.check_filesize(self.state.original_file)
+                            if self.role is self.Check.SEGMENT:
+                                self.check_video_state(self.state.segment_file)
+                                continue
+                            if self.role is self.Check.DECTIME:
+                                self.check_video_state(self.state.dectime_file)
                                 continue
 
         self.error_df = pd.DataFrame(self.error_df)
         print('RESUMO:')
         msg = self.error_df['msg']  # a Pandas Serie
-        ok = len(msg[msg == 'ok'])
-        size_0 = len(msg[msg == 'size_0'])
-        not_found = len(msg[msg == 'not_found'])
+        print(json.dumps(collections.Counter(msg), indent=2))
 
-        print(f"ok = {ok}")
-        print(f"size_0 = {size_0}")
-        print(f"not_found = {not_found}")
-
-    def check_filesize(self, file_path) -> None:
-        print(f'Checking {self.state.video.name}'
-              f'-{self.state.pattern.pattern}-{self.state.quality}'
-              f'-tile{self.state.tile.id}'
-              f'-chunk{self.state.chunk}')
+    def check_video_state(self, video_file) -> None:
+        print(f'Checking {video_file}')
 
         try:
-            filesize = os.path.getsize(f'{file_path}')
+            filesize = os.path.getsize(f'{video_file}')
             if filesize == 0:
                 msg = f'size_0'
             else:
-                msg = f'ok'
+                if self.role is self.Check.DECTIME:
+                    with open(video_file, 'r', encoding='utf-8') as f:
+                        count_decode = 0
+                        for line in f:
+                            if 'utime' in line: count_decode += 1
+                        if count_decode > 0:
+                            msg = f'decoded_{count_decode}_times'
+                        else:
+                            msg = f'decode_error'
+                elif self.role is self.Check.COMPRESSED:
+                    logfile = f'{video_file[:-4]}.log'
+                    try:
+                        filesize = os.path.getsize(f'{logfile}')
+                        if filesize > 0:
+                            with open(logfile, 'r', encoding='utf-8') as f:
+                                for line in f:
+                                    if 'Global PSNR' in line:
+                                        log = True
+                                if log:
+                                    msg = f'apparently ok'
+                                else:
+                                    msg = f'encoding_log_error'
+                        else:
+                            msg = f'encoding_error'
+                    except FileNotFoundError:
+                        msg = f'encoding_log_not_found'
+                else:
+                    msg = f'apparently ok'
+
         except FileNotFoundError:
             msg = f'not_found'
 
-        self.error_df['video'].append(file_path)
+        self.error_df['video'].append(video_file)
         self.error_df['msg'].append(msg)
 
     def save_report(self, savepath=None):
         if savepath is None:
             savepath = (f"{self.state.project}/check_dectime"
-                        f"_{self.state.config.project}.log")
+                        f"_{self.role.name}.log")
         self.error_df.to_csv(savepath)
