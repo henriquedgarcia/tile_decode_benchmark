@@ -32,6 +32,7 @@ class Dectime:
         if ['psnr']         : the ffmpeg calculated psnr for tile (before segmentation)
         if ['qp_avg']       : The ffmpeg calculated average QP for a encoding.
     """
+
     def __init__(self, config: str):
         self.config = util.Config(config)
         self.state = VideoState(self.config)
@@ -72,7 +73,7 @@ class Dectime:
         command = " ".join(list(command.values()))
         print(command)
 
-        log = f'{uncompressed_file[:-4]}.txt'
+        log = f'{uncompressed_file[:-4]}.log'
         with open(log, 'w', encoding='utf-8') as f:
             subprocess.run(command, shell=True,
                            stderr=subprocess.STDOUT,
@@ -107,13 +108,13 @@ class Dectime:
         command = " ".join(list(command.values()))
         print(command)
 
-        log = f'{compressed_file[:-4]}.txt'
+        log = f'{compressed_file[:-4]}.log'
         with open(log, 'a', encoding='utf-8') as f:
             subprocess.run(command, shell=True, stderr=subprocess.STDOUT,
                            stdout=f)
 
     def segment(self, overwrite=False):
-        log = f'{self.state.segment_folder}/tile{self.state.tile.id}.txt'
+        log = f'{self.state.segment_folder}/tile{self.state.tile.id}.log'
         if self._check_existence(log, overwrite): return
         compressed_file = self.state.compressed_file
         segment_folder = self.state.segment_folder
@@ -190,7 +191,7 @@ class Dectime:
         get_psnr = lambda l: float(l.strip().split(',')[3].split(':')[1])
         get_qp = lambda l: float(l.strip().split(',')[2].split(':')[1])
 
-        with open(f'{self.state.compressed_file:-4}.txt', 'r',
+        with open(f'{self.state.compressed_file[:-4]}.log', 'r',
                   encoding='utf-8') as f:
             for line in f:
                 if 'Global PSNR' in line:
