@@ -1,5 +1,5 @@
 {
-  "project": "nasrabadi_28videos_11q_17p_erp",
+  "project": "nasrabadi_28videos_6q_8p_cmp",
   "original_folder": "original",
   "lossless_folder": "lossless",
   "compressed_folder": "compressed",
@@ -19,8 +19,8 @@
   ],
   "error_metric": "rmse",
   "decoding_num": 3,
-  "scale": "4320x2160",
-  "projection": "equirectangular",
+  "scale": "2880x1920",
+  "projection": "cubemap",
   "factor": "crf",
   "fps": 30,
   "gop": 30,
@@ -43,42 +43,6 @@
     "1x1"
   ],
   "videos_list": {
-    "video_19_nas": {
-      "original": "19.mp4",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
-    "video_20_nas": {
-      "original": "20.mp4",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
-    "video_22_nas": {
-      "original": "22.mp4",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
-    "video_23_nas": {
-      "original": "23.mp4",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
-    "video_24_nas": {
-      "original": "24.mp4",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
-    "video_04_nas": {
-      "original": "4.mp4",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
     "angel_falls_nas": {
       "original": "angel_falls.mp4",
       "offset": "5:30",
@@ -202,6 +166,42 @@
     "three_peaks_nas": {
       "original": "three_peaks.mp4",
       "offset": "0:00",
+      "duration": 60,
+      "group": 0
+    },
+    "video_19_nas": {
+      "original": "19.mp4",
+      "offset": "0",
+      "duration": 60,
+      "group": 0
+    },
+    "video_20_nas": {
+      "original": "20.mp4",
+      "offset": "0",
+      "duration": 60,
+      "group": 0
+    },
+    "video_22_nas": {
+      "original": "22.mp4",
+      "offset": "0",
+      "duration": 60,
+      "group": 0
+    },
+    "video_23_nas": {
+      "original": "23.mp4",
+      "offset": "0",
+      "duration": 60,
+      "group": 0
+    },
+    "video_24_nas": {
+      "original": "24.mp4",
+      "offset": "0",
+      "duration": 60,
+      "group": 0
+    },
+    "video_04_nas": {
+      "original": "4.mp4",
+      "offset": "0",
       "duration": 60,
       "group": 0
     },
