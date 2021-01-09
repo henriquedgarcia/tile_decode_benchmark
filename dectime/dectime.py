@@ -350,4 +350,5 @@ class CheckDectime:
         if savepath is None:
             savepath = (f"{self.state.project}/check_dectime"
                         f"_{self.role.name}.log")
+            os.makedirs(f"{self.state.project}/check_dectime", exist_ok=True)
         self.error_df.to_csv(savepath)
