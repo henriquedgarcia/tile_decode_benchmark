@@ -60,3 +60,14 @@ class Config:
         for pattern_str in pattern_list:
             pattern = Pattern(pattern_str, self.frame)
             self.pattern_list.append(pattern)
+def run_command(command) -> int:
+    process = subprocess.Popen(command, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, shell=True)
+    while True:
+        output = process.stdout.readline()
+        if output == '' and process.poll() is not None:
+            break
+        if output:
+            print(output.strip())
+    return_code = process.poll()
+    return return_code
