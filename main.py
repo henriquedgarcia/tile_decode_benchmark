@@ -14,9 +14,6 @@ def main():
     # tile_dectime.run(Role.RESULTS)
 
     # CheckDectime(config_file=config, automate=True)
-    # CheckDectime(
-    #     config_file=f'config_file/config_user_dectime_28videos_nas.json',
-    #     automate=True)
 
     print('Finish.')
 
