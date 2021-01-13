@@ -38,7 +38,7 @@ class Config:
         self.compressed_folder = 'compressed'
         self.segment_folder = 'segment'
         self.dectime_folder = 'dectime'
-        self.decode_num = self.config_data['decoding_num']
+        self.decoding_num = self.config_data['decoding_num']
 
         self.project = self.config_data['project']
         self.factor = self.config_data['factor']
@@ -50,6 +50,10 @@ class Config:
         self.videos_list = []
         self.pattern_list = []
         self.distributions = []
+
+        self.error_metric = ''
+        self.decoding_num = 0
+        self.projection = ''
 
         self._videos_list()
         self._pattern_list()
