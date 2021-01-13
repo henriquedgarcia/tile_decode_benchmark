@@ -19,6 +19,7 @@ class Role(Enum):
     SEGMENT = 2
     DECODE = 3
     RESULTS = 4
+    SITI = 5
 
 
 class Dectime:
@@ -242,6 +243,9 @@ class Dectime:
         for self.state.video in self.state.videos_list:
             if role is Role.PREPARE:
                 self.prepare_videos()
+                continue
+            if role is Role.SITI:
+                self.calcule_siti()
                 continue
 
             for self.state.pattern in self.state.pattern_list:
