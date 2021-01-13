@@ -214,6 +214,30 @@ class Dectime:
         with open(filename, 'w', encoding='utf-8') as fp:
             json.dump(self.results, fp, separators=(',', ':'))
 
+    def calcule_siti(self):
+        from dectime.video_state import Pattern
+
+        filename = self.state.compressed_file
+        folder, _ = os.path.split(filename)
+        _, tail = os.path.split(folder)
+        folder = f'{self.state.project}/siti/{tail}'
+        os.makedirs(folder, exist_ok=True)
+
+        self.state.quality = 28
+        self.state.pattern = Pattern('1x1', self.config.frame)
+        self.state.tile = self.state.pattern.tiles_list[0]
+
+        if not os.path.isfile(self.state.compressed_file):
+            self.compress()
+
+        siti = util.SiTi(filename=self.state.compressed_file,
+                         scale=self.config.frame.scale,
+                         plot_siti=True,
+                         folder=folder)
+        siti.calc_siti(verbose=True)
+        siti.save_siti()
+        siti.save_stats()
+
     def run(self, role):
         for self.state.video in self.state.videos_list:
             if role is Role.PREPARE:
