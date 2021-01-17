@@ -233,7 +233,7 @@ class Dectime:
 
         siti = util.SiTi(filename=self.state.compressed_file,
                          scale=self.config.frame.scale,
-                         plot_siti=True,
+                         plot_siti=False,
                          folder=folder)
         siti.calc_siti(verbose=True)
         siti.save_siti()
