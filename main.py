@@ -1,4 +1,5 @@
 from dectime.dectime import Dectime, Role, CheckDectime
+from dectime.dectime_analysis import PaperPlots
 
 
 def main():
@@ -7,6 +8,7 @@ def main():
     tile_dectime = Dectime(config)
 
     # tile_dectime.run(Role.PREPARE)
+    # tile_dectime.run(Role.SITI)
     # tile_dectime.run(Role.COMPRESS)
     # tile_dectime.run(Role.SEGMENT)
     # for _ in range(tile_dectime.config.decode_num):
@@ -14,6 +16,10 @@ def main():
     # tile_dectime.run(Role.RESULTS)
 
     # CheckDectime(config_file=config, automate=True)
+
+    # plots = PaperPlots(config)
+    # plots.hist_by_pattern()
+    # plots.plot_siti(one_plot=True)
 
     print('Finish.')
 
