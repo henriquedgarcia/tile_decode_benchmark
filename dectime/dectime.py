@@ -263,7 +263,9 @@ class Dectime:
                                 self.collect_result()
                                 continue
         if role is Role.RESULTS:
-            self.save_result(self.state.result_file)
+            print(f'Saving {self.state.dectime_raw_json}')
+            util.save_json(self.results, self.state.dectime_raw_json,
+                           compact=True)
 
 
 class CheckDectime:
