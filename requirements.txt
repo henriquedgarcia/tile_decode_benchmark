@@ -1,0 +1,8 @@
+python>=3.6
+numpy
+pandas
+scikit-video
+scipy
+matplotlib
+cycler
+fitter
