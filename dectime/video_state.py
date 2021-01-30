@@ -205,7 +205,7 @@ class Paths(Factors, Params):
         return folder
 
     @property
-    def dectime_file(self):
+    def dectime_log(self):
         return f'{self.dectime_folder}/tile{self.tile.id}_{self.chunk:03}.log'
 
     @property

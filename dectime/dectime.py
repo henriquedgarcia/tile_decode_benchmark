@@ -137,7 +137,7 @@ class Dectime:
 
     def decode(self):
         segment_file = self.state.segment_file
-        dectime_file = self.state.dectime_file
+        dectime_file = self.state.dectime_log
         command = dict()
 
         command['program'] = 'ffmpeg'
@@ -182,7 +182,7 @@ class Dectime:
         :return:
         """
         dectime = util.AutoDict()
-        dectime_file = self.state.dectime_file
+        dectime_file = self.state.dectime_log
         segment_file = self.state.segment_file
 
         get_time = lambda line: \
@@ -320,7 +320,7 @@ class CheckDectime:
                                 self.check_video_state(self.state.segment_file)
                                 continue
                             if self.role is self.Check.DECTIME:
-                                self.check_video_state(self.state.dectime_file)
+                                self.check_video_state(self.state.dectime_log)
                                 continue
 
         self.error_df = pd.DataFrame(self.error_df)
