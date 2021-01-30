@@ -254,17 +254,23 @@ class SiTi:
             json.dump(stats, f, separators=(',', ':'))
 
 
-def run_command(command) -> int:
-    process = subprocess.Popen(command, stdout=subprocess.PIPE,
-                               stderr=subprocess.STDOUT, shell=True)
+def run_command(command) -> subprocess.Popen:
+    """
+    Run a shell command with subprocess module with realtime output.
+    :param command:
+    :return:
+    """
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT)
     while True:
         output = process.stdout.readline()
         if output == '' and process.poll() is not None:
             break
         if output:
             print(output.strip())
-    return_code = process.poll()
-    return return_code
+    process.stdout.seek(0)
+    return process
+
 
 def save_json(data: dict, filename, compact=False):
     if compact:
