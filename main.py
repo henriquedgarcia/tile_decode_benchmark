@@ -19,10 +19,11 @@ def main():
     # CheckDectime(config_file=config, automate=True)
 
     """Process graphs and sheets"""
-    # plots = PaperPlots(config)
-    # plots.hist_by_pattern()
     # plots.plot_siti(one_plot=True)
-
+    HistByPattern(folder='HistByPattern', config=config,
+                  figsize=(16.0, 4.8)).create()
+    HistByPatternByQuality(folder='HistByPatternByQuality', config=config,
+                           figsize=(16.0, 4.8)).create()
     print('Finish.')
 
 
