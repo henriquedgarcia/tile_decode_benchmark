@@ -34,6 +34,9 @@ class Config:
         self.compressed_folder = 'compressed'
         self.segment_folder = 'segment'
         self.dectime_folder = 'dectime'
+        self.stats_folder = 'stats'
+        self.graphs_folder = "graphs"
+
         self.decoding_num = self.config_data['decoding_num']
 
         self.project = self.config_data['project']
@@ -41,11 +44,11 @@ class Config:
         self.frame = Frame(self.config_data['scale'])
         self.fps = self.config_data['fps']
         self.gop = self.config_data['gop']
+        self.distributions = self.config_data['distributions']
 
         self.quality_list = self.config_data['quality_list']
+        self.tiling_list = []
         self.videos_list = []
-        self.pattern_list = []
-        self.distributions = []
 
         self.error_metric = ''
         self.decoding_num = 0
@@ -64,13 +67,13 @@ class Config:
             self.videos_list.append(video_tuple)
 
     def _pattern_list(self):
-        from dectime.video_state import Pattern
+        from dectime.video_state import Tiling
 
-        pattern_list = self.config_data['pattern_list']
+        pattern_list = self.config_data['tiling_list']
 
-        for pattern_str in pattern_list:
-            pattern = Pattern(pattern_str, self.frame)
-            self.pattern_list.append(pattern)
+        for pattern in pattern_list:
+            tiling = Tiling(pattern, self.frame)
+            self.tiling_list.append(tiling)
 
 
 class SiTi:
