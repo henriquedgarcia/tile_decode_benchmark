@@ -22,9 +22,12 @@ class DectimeHandler:
     - Depois será capaz de ler o Json, selecionar só os dados pertinentes
     e calcular as estatísticas necessárias."""
 
+    class Data(NamedTuple):
+        time: list = []
+        rate: list = []
+
     # Struct statistics results
     percentile = {0: 0.0, 25: 0.0, 50: 0.0, 75: 0.0, 100: 0.0}
-
     stats = {'average_t': 0.0, 'std_t': 0.0, 'percentile_t': percentile.copy(),
              'average_r': 0.0, 'std_r': 0.0, 'percentile_r': percentile.copy(),
              'corr': 0.0, 'fitter': None}
