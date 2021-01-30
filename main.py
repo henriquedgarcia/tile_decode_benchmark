@@ -1,5 +1,5 @@
 from dectime.dectime import Dectime, Role, CheckDectime
-from dectime.dectime_analysis import PaperPlots
+from dectime.dectime_analysis import HistByPattern, HistByPatternByQuality
 
 
 def main():
