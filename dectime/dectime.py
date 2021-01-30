@@ -343,10 +343,8 @@ class CheckDectime:
                         count_decode = 0
                         for line in f:
                             if 'utime' in line: count_decode += 1
-                        if count_decode > 0:
-                            msg = f'decoded_{count_decode}_times'
-                        else:
-                            msg = f'decode_error'
+                        msg = (f'decoded_{count_decode}_times'
+                               if count_decode > 0 else 'decode_error')
                 elif self.role is self.Check.COMPRESSED:
                     logfile = f'{video_file[:-4]}.log'
                     try:
@@ -354,12 +352,10 @@ class CheckDectime:
                         if filesize > 0:
                             with open(logfile, 'r', encoding='utf-8') as f:
                                 for line in f:
-                                    if 'Global PSNR' in line:
-                                        log = True
-                                if log:
-                                    msg = f'apparently ok'
-                                else:
-                                    msg = f'encoding_log_error'
+                                    log = (True if 'Global PSNR' in line
+                                           else False)
+                                msg = ('apparently ok' if log
+                                       else 'encoding_log_error')
                         else:
                             msg = f'encoding_error'
                     except FileNotFoundError:
