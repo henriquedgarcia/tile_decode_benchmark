@@ -190,10 +190,10 @@ class Dectime:
         with open(dectime_file, 'r', encoding='utf-8') as f:
             times = [get_time(line) for line in f
                      if 'utime' in line]
-        dectime['utime'] = {'avg': np.average(times),
-                            'std': np.std(times)}
+        dectime['time'] = {'avg': np.average(times),
+                           'std': np.std(times)}
         chunk_size = path.getsize(segment_file)
-        dectime['bitrate'] = chunk_size * 8 / (self.state.gop / self.state.fps)
+        dectime['rate'] = chunk_size * 8 / (self.state.gop / self.state.fps)
 
         return dectime
 
