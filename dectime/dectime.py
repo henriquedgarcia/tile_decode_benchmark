@@ -326,7 +326,7 @@ class CheckDectime:
                                 continue
 
         self.error_df = pd.DataFrame(self.error_df)
-        print('RESUMO:')
+        print(f'RESUMO: {self.role.name}')
         msg = self.error_df['msg']  # a Pandas Serie
         print(json.dumps(collections.Counter(msg), indent=2))
 
