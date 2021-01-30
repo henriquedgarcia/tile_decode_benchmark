@@ -3,15 +3,17 @@ from enum import Enum
 from cycler import cycler
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import matplotlib.axes as axes
 import matplotlib.figure as figure
 from typing import Union, List
 import os
 import pandas as pd
-from dectime.video_state import Pattern, Tile, Video, Config, VideoState
-# from dectime.util import AutoDict
+from dectime.video_state import Tiling, Tile, Video, Config, VideoState
+from dectime.util import AutoDict
 import json
-import fitter.main
+from fitter.fitter import Fitter
+from typing import NamedTuple, Dict, Tuple
 
 
 class DectimeHandler:
