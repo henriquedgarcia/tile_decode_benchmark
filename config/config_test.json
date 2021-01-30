@@ -1,10 +1,5 @@
 {
   "project": "test_pacman",
-  "original_folder": "original",
-  "lossless_folder": "lossless",
-  "compressed_folder": "compressed",
-  "segment_folder": "segment",
-  "dectime_folder": "dectime",
   "distributions": [
     "burr12",
     "fatiguelife",
@@ -18,9 +13,9 @@
     "expon"
   ],
   "error_metric": "rmse",
-  "projection": "equirectangular",
   "decoding_num": 3,
-  "scale": "4320x2160",
+  "scale": "2880x1920",
+  "projection": "cubemap",
   "factor": "crf",
   "fps": 30,
   "gop": 30,
@@ -29,7 +24,7 @@
     28,
     40
   ],
-  "pattern_list": [
+  "tiling_list": [
     "7x6",
     "6x4",
     "3x2",
