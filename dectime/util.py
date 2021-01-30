@@ -12,10 +12,6 @@ import subprocess
 from typing import List, Union
 
 
-def splitx(string: str) -> tuple:
-    return tuple(map(int, string.split('x')))
-
-
 class AutoDict(dict):
     def __init__(self, return_type='AutoDict'):
         super().__init__()
@@ -283,3 +279,5 @@ def save_json(data: dict, filename, compact=False):
         json.dump(data, fp, separators=separators, indent=indent)
 
 
+def splitx(string: str) -> tuple:
+    return tuple(map(int, string.split('x')))
