@@ -126,3 +126,68 @@ class ErrorMetric(Enum):
     NRMSE = 1
     SSE = 2
 
+
+class BasePlot:
+    fitter = AutoDict()
+    data = AutoDict()
+    df_error = AutoDict()
+    colormap = [plt.get_cmap('tab20')(i) for i in range(20)]
+    color_list = ("#000000", "#ff8888", "#687964", "#11cc22", "#0f2080",
+                  "#ff9910", "#ffc428", "#990099", "#f5793a", "#c9bd9e",
+                  "#85c0f9")
+
+    fitted_dataframe: pd.DataFrame
+    stats_dataframe: pd.DataFrame
+    paper_dataframe: pd.DataFrame
+    config: Config
+
+    def __init__(self, config: str, folder: str, figsize: Tuple[float, float],
+                 bins: Union[str, int] = 'auto',
+                 error_metric: ErrorMetric = ErrorMetric.RMSE):
+        self.error_metric = error_metric
+        self.bins = bins
+        self.config = Config(config)
+        self.project: str = self.config.project
+        self.data_handler: DectimeHandler = DectimeHandler(self.config)
+        self.tiling_list: List[Tiling] = self.config.tiling_list
+        self.quality_list: List[int] = self.config.quality_list
+        self.factor: str = self.config.factor
+        self.dist: List[str] = self.config.distributions
+        os.makedirs(f'{self.workfolder}/data', exist_ok=True)
+        self.workfolder: str = f'results/{self.project}/graphs/{folder}'
+
+        mpl.rc('figure', figsize=figsize, dpi=300, autolayout=True)
+        mpl.rc('lines', linewidth=0.5, markersize=3)
+        mpl.rc('axes', linewidth=0.5, prop_cycle=cycler(color=self.colormap))
+
+    @staticmethod
+    def _calc_stats(data1, data2):
+        # Percentiles & Correlation
+        per = [0, 25, 50, 75, 100]
+        corr = np.corrcoef((data1, data2))[1][0]
+
+        # Struct statistics results
+        percentile_data1 = np.percentile(data1, per).T
+        stats_data1 = dict(average=np.average(data1),
+                           std=float(np.std(data1)),
+                           correlation=corr,
+                           min=percentile_data1[0],
+                           quartile1=percentile_data1[1],
+                           median=percentile_data1[2],
+                           quartile3=percentile_data1[3],
+                           max=percentile_data1[4],
+                           )
+
+        percentile_data2 = np.percentile(data2, per).T
+        stats_data2 = dict(average=np.average(data2),
+                           std=float(np.std(data2)),
+                           correlation=corr,
+                           min=percentile_data2[0],
+                           quartile1=percentile_data2[1],
+                           median=percentile_data2[2],
+                           quartile3=percentile_data2[3],
+                           max=percentile_data2[4],
+                           )
+
+        return stats_data1, stats_data2
+
