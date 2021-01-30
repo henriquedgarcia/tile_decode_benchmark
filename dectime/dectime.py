@@ -32,7 +32,7 @@ class Dectime:
     [tile_id]         : the tile number. ex. max = 6*4
     [chunk_id or error/distortion]:
         if [chunk_id]     : A id for chunk. With 1s chunk, 60s video have 60 chunks
-           [type]         : "utime" (User time), or "bitrate" (Bit rate in kbps) of a chunk.
+           [type]         : "utime" (User time), or "bit rate" (Bit rate in kbps) of a chunk.
         if ['psnr']         : the ffmpeg calculated psnr for tile (before segmentation)
         if ['qp_avg']       : The ffmpeg calculated average QP for a encoding.
     """
