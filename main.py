@@ -3,8 +3,10 @@ from dectime.dectime_analysis import HistByPattern, HistByPatternByQuality
 
 
 def main():
-    # config = f'config/config_user_dectime_28videos_nas.json'
-    # tile_dectime = Dectime(config)
+    config = f'config/config_user_dectime_28videos_nas.json'
+    # config = f'config/config_user_dectime_9videos_co_lo.json'
+    # config = f'config/config_test.json'
+    tile_dectime = Dectime(config)
 
     """Processing Calling"""
     # tile_dectime.run(Role.PREPARE)
@@ -16,14 +18,14 @@ def main():
     # tile_dectime.run(Role.RESULTS)
 
     """Check files"""
-    # CheckDectime(config_file=config, automate=True)
+    CheckDectime(config_file=config, automate=True)
 
     """Process graphs and sheets"""
     # plots.plot_siti(one_plot=True)
-    HistByPattern(folder='HistByPattern', config=config,
-                  figsize=(16.0, 4.8)).create()
-    HistByPatternByQuality(folder='HistByPatternByQuality', config=config,
-                           figsize=(16.0, 4.8)).create()
+    # HistByPattern(folder='HistByPattern', config=config,
+    #               figsize=(16.0, 4.8)).create()
+    # HistByPatternByQuality(folder='HistByPatternByQuality', config=config,
+    #                        figsize=(16.0, 4.8)).create()
     print('Finish.')
 
 
