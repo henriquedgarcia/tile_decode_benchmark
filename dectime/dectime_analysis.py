@@ -121,4 +121,8 @@ class DectimeHandler:
 
         return DectimeHandler.Data(time, rate)
 
+class ErrorMetric(Enum):
+    RMSE = 0
+    NRMSE = 1
+    SSE = 2
 
