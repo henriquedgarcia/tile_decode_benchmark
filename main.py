@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from dectime.dectime import Dectime, Role, CheckDectime
 from dectime.dectime_analysis import HistByPattern, HistByPatternByQuality
 
