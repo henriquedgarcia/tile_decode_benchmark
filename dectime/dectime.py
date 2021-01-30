@@ -213,7 +213,7 @@ class Dectime:
         return psnr
 
     def calcule_siti(self):
-        from dectime.video_state import Pattern
+        from dectime.video_state import Tiling
 
         filename = self.state.compressed_file
         folder, _ = os.path.split(filename)
@@ -222,7 +222,7 @@ class Dectime:
         os.makedirs(folder, exist_ok=True)
 
         self.state.quality = 28
-        self.state.pattern = Pattern('1x1', self.config.frame)
+        self.state.pattern = Tiling('1x1', self.config.frame)
         self.state.tile = self.state.pattern.tiles_list[0]
 
         if not os.path.isfile(self.state.compressed_file):

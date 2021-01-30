@@ -30,7 +30,7 @@ class Tile:
         self.y = y
 
 
-class Pattern:
+class Tiling:
     pattern: str
     m: int
     n: int
@@ -76,7 +76,7 @@ class Video:
 
 class Factors:
     _video: Union[Video, None] = None
-    _pattern = Pattern('1x1', Frame('1x1'))
+    _pattern = Tiling('1x1', Frame('1x1'))
     _quality = 28
     _tile = _pattern.tiles_list[0]
     _chunk = 1
@@ -92,7 +92,7 @@ class Factors:
         self._video = value
 
     @property
-    def pattern(self) -> Pattern:
+    def pattern(self) -> Tiling:
         assert self._pattern is not None, "The pattern variable is not defined."
         return self._pattern
 
@@ -235,7 +235,7 @@ class VideoState(Paths):
 
         self.videos_list: list = config.videos_list
         self.quality_list: list = config.quality_list
-        self.pattern_list: list = config.pattern_list
+        self.pattern_list: list = config.tiling_list
 
         self._original_folder = config.original_folder
         self._lossless_folder = config.lossless_folder
