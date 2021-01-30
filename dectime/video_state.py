@@ -209,7 +209,7 @@ class Paths(Factors, Params):
         return f'{self.dectime_folder}/tile{self.tile.id}_{self.chunk:03}.log'
 
     @property
-    def result_file(self):
+    def dectime_raw_json(self):
         filename = f'{self.project}/dectime_raw.json'
         return filename
 
