@@ -102,7 +102,7 @@ class SiTi:
     @staticmethod
     def sobel(frame):
         """
-        Apply Sobel filter
+        Apply 1st order 2D Sobel filter
         :param frame:
         :return:
         """
@@ -111,7 +111,7 @@ class SiTi:
         sob = np.hypot(sobx, soby)
         return sob
 
-    def calc_si(self, frame: np.ndarray) -> (float, np.ndarray):
+    def _calc_si(self, frame: np.ndarray) -> (float, np.ndarray):
         """
         Calcule Spatial Information for a video frame.
         :param frame: A luma video frame in numpy ndarray format.
@@ -122,7 +122,7 @@ class SiTi:
         self.si.append(si)
         return si, sobel
 
-    def calc_ti(self, frame: np.ndarray) -> (float, np.ndarray):
+    def _calc_ti(self, frame: np.ndarray) -> (float, np.ndarray):
         """
         Calcule Temporal Information for a video frame. If is a first frame,
         the information is zero.
@@ -130,7 +130,7 @@ class SiTi:
         :return: Temporal information and diference frame. If first frame the
         diference is zero array on same shape of frame.
         """
-        if self.previous_frame is not None:
+        if self.previous_frame:
             difference = frame - self.previous_frame
             ti = difference.std()
         else:
@@ -154,8 +154,8 @@ class SiTi:
             width = frame.shape[1]
             height = frame.shape[2]
             frame = frame.reshape((width, height)).astype('float32')
-            value_si, sobel = self.calc_si(frame)
-            value_ti, difference = self.calc_ti(frame)
+            value_si, sobel = self._calc_si(frame)
+            value_ti, difference = self._calc_ti(frame)
             if verbose:
                 print(f"{self.frame_counter:04}, "
                       f"si={value_si:05.3f}, ti={value_ti:05.3f}")
@@ -223,12 +223,11 @@ class SiTi:
                            f'{self.folder}/siti.mp4',
                            shell=True, encoding='utf-8')
 
-    def save_siti(self, overwrite=False):
+    def save_siti(self, overwrite=False, filename='siti.csv'):
         if self.jump_siti and not overwrite:
             return
-        df = pd.DataFrame({'si': self.si,
-                           'ti': self.ti})
-        df.to_csv(f'{self.folder}/siti.csv', index_label='frame')
+        df = pd.DataFrame({'si': self.si, 'ti': self.ti})
+        df.to_csv(f'{self.folder}/{filename}', index_label='frame')
 
     def save_stats(self, overwrite=False):
         if self.jump_siti and not overwrite:
