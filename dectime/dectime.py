@@ -154,10 +154,11 @@ class Dectime:
     def collect_result(self):
         print(f'Collecting {self.state.video.name}'
               f'-{self.state.pattern.pattern}'
-              f'-{self.state.quality}'
-              f'-{self.state.tile.id}'
-              f'-{self.state.chunk}')
-        # Collect decode time
+              f'-{self.state.factor}{self.state.quality}'
+              f'-tile{self.state.tile.id}'
+              f'-chunk{self.state.chunk}')
+
+        # Collect decode time {avg:float, std:float} and bit rate in bps
         self.results[
             self.state.video.name][
             self.state.pattern.pattern][
