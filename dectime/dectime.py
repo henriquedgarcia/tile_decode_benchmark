@@ -212,10 +212,6 @@ class Dectime:
                     break
         return psnr
 
-    def save_result(self, filename):
-        with open(filename, 'w', encoding='utf-8') as fp:
-            json.dump(self.results, fp, separators=(',', ':'))
-
     def calcule_siti(self):
         from dectime.video_state import Pattern
 

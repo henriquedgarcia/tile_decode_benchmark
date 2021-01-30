@@ -265,3 +265,16 @@ def run_command(command) -> int:
             print(output.strip())
     return_code = process.poll()
     return return_code
+
+def save_json(data: dict, filename, compact=False):
+    if compact:
+        separators = (',', ':')
+        indent = None
+    else:
+        separators = None
+        indent = 2
+
+    with open(filename, 'w', encoding='utf-8') as fp:
+        json.dump(data, fp, separators=separators, indent=indent)
+
+
