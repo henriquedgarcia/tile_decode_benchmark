@@ -14,8 +14,8 @@ def main():
     # tile_dectime.run(Role.SITI)
     # tile_dectime.run(Role.COMPRESS)
     # tile_dectime.run(Role.SEGMENT)
-    # for _ in range(tile_dectime.config.decode_num):
     #     tile_dectime.run(Role.DECODE)
+    # for _ in range(tile_dectime.config.decoding_num):
     # tile_dectime.run(Role.RESULTS)
 
     """Check files"""
