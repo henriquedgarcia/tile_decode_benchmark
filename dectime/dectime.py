@@ -354,14 +354,18 @@ class CheckDectime:
                                 for line in f:
                                     log = (True if 'Global PSNR' in line
                                            else False)
-                                msg = ('apparently ok' if log
-                                       else 'encoding_log_error')
+                                if log:
+                                    msg = 'apparently ok'
+                                    return
+                                else:
+                                    msg = 'encoding_log_error'
                         else:
                             msg = f'encoding_error'
                     except FileNotFoundError:
                         msg = f'encoding_log_not_found'
                 else:
                     msg = f'apparently ok'
+                    return
 
         except FileNotFoundError:
             msg = f'not_found'
