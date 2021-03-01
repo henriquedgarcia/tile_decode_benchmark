@@ -144,12 +144,11 @@ class SiTi:
     def calc_siti(self, verbose=False):
         vreader = skvideo.io.vreader(fname=self.filename, as_grey=True)
         jump_debug = True if os.path.isfile(
-            f'{self.folder}/siti.mp4') else False
+                f'{self.folder}/siti.mp4') else False
         self.jump_siti = True if os.path.isfile(
-            f'{self.folder}/siti.csv') else False
+                f'{self.folder}/siti.csv') else False
         for self.frame_counter, frame in enumerate(vreader, 1):
-            if self.jump_siti:
-                break
+            if self.jump_siti: break
             width = frame.shape[1]
             height = frame.shape[2]
             frame = frame.reshape((width, height)).astype('float32')
