@@ -641,3 +641,87 @@ class HistByPatternByQuality(BasePlot):
             fig.savefig(f'{self.workfolder}/{df_name}')
 
 
+class BarByPatternByQuality(HistByPatternByQuality):
+    workfolder: str = ''
+
+    def __init__(self, config):
+        folder = 'BarByPatternByQuality'
+        figsize = (16.0, 4.8)
+        super(HistByPatternByQuality, self).__init__(config, folder=folder,
+                                                     figsize=figsize)
+
+    def make_fit(self, overwrite=False):
+        with self.workfolder_ctx(f'results/{self.project}/graphs/'
+                                 f'HistByPatternByQuality'):
+            super().make_fit()
+
+        # my_workfolder = self.workfolder
+        # self.workfolder = f'results/{self.project}/graphs/HistByPatternByQuality'
+        # self._load_dataframes()
+
+        # self.workfolder = my_workfolder
+
+    def make_dataframe(self, overwrite=False):
+        with self.workfolder_ctx(f'results/{self.project}/graphs/'
+                                 f'HistByPatternByQuality'):
+            super().make_dataframe()
+
+    def make_plot(self, overwrite=False):
+        """Usado no SVR e Electronic Imaging"""
+
+        fig = plt.figure()
+        df = self.paper_df
+
+        for n, tilling in enumerate(self.tiling_list, 1):
+            if n > 2 * 4: break
+            pattern = tilling.pattern
+            ax_t = fig.add_subplot(2, 4, n)
+            ax_r = ax_t.twinx()
+
+            data_pattern: Union[pd.DataFrame, list] = df[df['pattern'] == pattern]
+            qlt_list = data_pattern['quality']
+            time_avg = data_pattern['Mean Time']
+            time_std = data_pattern['Deviation Time']
+
+            rate_avg = data_pattern['Mean Rate']
+
+            self.make_bar(ax_t, ax_r,
+                          x=qlt_list, y1=time_avg, y2=rate_avg,
+                          bar1=time_std)
+            ax_t.set_title(f'{pattern}')
+
+            if n in [4, 8]:
+                ax_r.set_ylabel('Bitrate (Mbps)')
+            elif n in [1, 5]:
+                ax_t.set_ylabel('Decoding time (s)')
+
+        print(f'Salvando a figura')
+        name = self.make_name('BarByPatternByQuality', ext='png',
+                              other=f'{self.bins}bins')
+        fig.savefig(f'{self.workfolder}/{name}')
+
+    @staticmethod
+    def make_bar(ax1: axes.Axes, ax2: axes.Axes,
+                 x: Union[pd.Series, List], y1: Union[pd.Series, List],
+                 y2: Union[pd.Series, List], bar1: Union[pd.Series, List]):
+        import matplotlib.patches as mpatches
+        import matplotlib.lines as mlines
+        line = mlines.Line2D([], [], color='red',
+                             label='Bitrate')
+        patch = mpatches.Patch(color='#1f77b4', label='Time')
+
+        # Faz o bar do tempo
+        yerr = list(bar1)
+        height = list(y1)
+        ax1.bar(x, height, width=5, yerr=yerr, label=f'Time')
+        ax1.set_xlabel('Quality')
+        plt.xticks(x)
+
+        # Faz o bar da taxa
+        height = list(y2)
+        ax2.plot(x, height, color='r', linewidth=1)
+        ax2.tick_params(axis='y')
+        ax2.ticklabel_format(axis='y', style='scientific',
+                             scilimits=(6, 6))
+        plt.legend(handles=(patch, line),
+                   loc='upper right')
