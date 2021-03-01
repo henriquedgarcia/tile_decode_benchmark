@@ -285,20 +285,124 @@ class CheckProject:
         SEGMENT = 3
         DECTIME = 4
 
-    def __init__(self, config_file,
-                 automate=False):
+    def __init__(self, config_file, automate=True):
         self.config = util.Config(config_file)
         self.state = VideoState(config=self.config)
+        self.role: Union[CheckProject.Check, None] = None
+        self.error_df: Union[dict, pd.DataFrame] = defaultdict(list)
 
-        self.role: Union[CheckDectime.Check, None] = None
-        self.error_df: Union[dict, pd.DataFrame] = dict(video=[], msg=[])
+        self.menu()
 
-        self.configure()
-        if automate is True:
+        if automate:
             self.check()
             self.save_report()
 
-    def configure(self) -> None:
+    @staticmethod
+    def count_decoding(logfile):
+        with open(logfile, 'r', encoding='utf-8') as f:
+            count_decode = len(['' for line in f if 'utime' in line])
+        return count_decode
+
+    @staticmethod
+    def _verify_encode_log(video_file):
+        logfile = f'{video_file[:-4]}.log'
+        try:
+            with open(logfile, 'r', encoding='utf-8') as f:
+                msg = ['apparently_ok' for line in f if 'Global PSNR' in line]
+                if msg: return msg[0]
+        except FileNotFoundError:
+            msg = 'logfile_not_found'
+            return msg
+
+        msg = 'log_corrupt'
+        return msg
+
+    def _check_original(self):
+        if self.role is not self.Check.ORIGINAL: return
+        for self.state.video in self.state.videos_list:
+            video_file = self.state.original_file
+            msg = self.check_video_state(video_file)
+            self.register_df(video_file, msg)
+
+    def _check_lossless(self):
+        if self.role is not self.Check.LOSSLESS: return
+        for self.state.video in self.state.videos_list:
+            video_file = self.state.lossless_file
+            msg = self.check_video_state(video_file)
+            self.register_df(video_file, msg)
+
+    def _check_compressed(self):
+        if self.role is not self.Check.COMPRESSED: return
+        for self.state.video in self.state.videos_list:
+            for self.state.pattern in self.state.pattern_list:
+                for self.state.quality in self.state.quality_list:
+                    for self.state.tile in self.state.pattern.tiles_list:
+                        video_file = self.state.compressed_file
+                        msg = self.check_video_state(video_file)
+                        self.register_df(video_file, msg)
+
+    def _check_segment(self):
+        if self.role is not self.Check.SEGMENT: return
+        for self.state.video in self.state.videos_list:
+            for self.state.pattern in self.state.pattern_list:
+                for self.state.quality in self.state.quality_list:
+                    for self.state.tile in self.state.pattern.tiles_list:
+                        for self.state.chunk in self.state.video.chunks:
+                            video_file = self.state.segment_file
+                            msg = self.check_video_state(video_file)
+                            self.register_df(video_file, msg)
+
+    def _check_dectime(self):
+        if self.role is not self.Check.DECTIME: return
+        for self.state.video in self.state.videos_list:
+            for self.state.pattern in self.state.pattern_list:
+                for self.state.quality in self.state.quality_list:
+                    for self.state.tile in self.state.pattern.tiles_list:
+                        for self.state.chunk in self.state.video.chunks:
+                            video_file = self.state.dectime_log
+                            msg = self.check_video_state(video_file)
+                            self.register_df(video_file, msg)
+
+    def check(self):
+        self._check_original()
+        self._check_lossless()
+        self._check_compressed()
+        self._check_segment()
+        self._check_dectime()
+
+        print(f'RESUMO: {self.role.name}')
+        self.error_df = pd.DataFrame(self.error_df)
+        pretty_json = json.dumps(Counter(self.error_df['msg'], indent=2))
+        print(pretty_json)
+
+    def check_video_state(self, video_file) -> str:
+        print(f'Checking {video_file}')
+        try:
+            filesize = os.path.getsize(f'{video_file}')
+        except FileNotFoundError:
+            msg = f'not_found'
+            return msg
+
+        if filesize == 0:
+            msg = f'filesize==0'
+            return msg
+
+        # if file exist and size > 0
+        msg = f'apparently_ok'
+        if self.role is self.Check.COMPRESSED:
+            msg = self._verify_encode_log(video_file)
+            return msg
+        elif self.role is self.Check.DECTIME:
+            count_decode = self.count_decoding(video_file)
+            msg = f'decoded_{count_decode}x'
+            return msg
+        return msg
+
+    def register_df(self, video_file, msg):
+        self.error_df['video'].append(video_file)
+        self.error_df['msg'].append(msg)
+
+    def menu(self) -> None:
         c = None
         while c not in ['0', '1', '2', '3', '4']:
             c = input('Options:\n'
@@ -310,77 +414,8 @@ class CheckProject:
                       ': ', )
         self.role = self.Check(int(c))
 
-    def check(self):
-        for self.state.video in self.state.videos_list:
-            if self.role is self.Check.ORIGINAL:
-                self.check_video_state(self.state.original_file)
-                continue
-            if self.role is self.Check.LOSSLESS:
-                self.check_video_state(self.state.lossless_file)
-                continue
-
-            for self.state.pattern in self.state.pattern_list:
-                for self.state.quality in self.state.quality_list:
-                    for self.state.tile in self.state.pattern.tiles_list:
-                        if self.role is self.Check.COMPRESSED:
-                            self.check_video_state(self.state.compressed_file)
-                            continue
-
-                        for self.state.chunk in self.state.video.chunks:
-                            if self.role is self.Check.SEGMENT:
-                                self.check_video_state(self.state.segment_file)
-                                continue
-                            if self.role is self.Check.DECTIME:
-                                self.check_video_state(self.state.dectime_log)
-                                continue
-
-        self.error_df = pd.DataFrame(self.error_df)
-        print(f'RESUMO: {self.role.name}')
-        msg = self.error_df['msg']  # a Pandas Serie
-        print(json.dumps(collections.Counter(msg), indent=2))
-
-    def check_video_state(self, video_file) -> None:
-        print(f'Checking {video_file}')
-
-        try:
-            filesize = os.path.getsize(f'{video_file}')
-            if filesize == 0:
-                msg = f'size_0'
-            else:
-                if self.role is self.Check.DECTIME:
-                    with open(video_file, 'r', encoding='utf-8') as f:
-                        count_decode = 0
-                        for line in f:
-                            if 'utime' in line: count_decode += 1
-                        msg = (f'decoded_{count_decode}_times'
-                               if count_decode > 0 else 'decode_error')
-                elif self.role is self.Check.COMPRESSED:
-                    logfile = f'{video_file[:-4]}.log'
-                    try:
-                        filesize = os.path.getsize(f'{logfile}')
-                        if filesize > 0:
-                            with open(logfile, 'r', encoding='utf-8') as f:
-                                for line in f:
-                                    log = (True if 'Global PSNR' in line
-                                           else False)
-                                msg = ('apparently ok' if log
-                                       else 'encoding_log_error')
-                        else:
-                            msg = f'encoding_error'
-                    except FileNotFoundError:
-                        msg = f'encoding_log_not_found'
-                else:
-                    msg = f'apparently ok'
-
-        except FileNotFoundError:
-            msg = f'not_found'
-
-        self.error_df['video'].append(video_file)
-        self.error_df['msg'].append(msg)
-
-    def save_report(self, savepath=None):
-        if savepath is None:
-            savepath = (f"{self.state.project}/check_dectime"
-                        f"_{self.role.name}.log")
-            os.makedirs(f"{self.state.project}/check_dectime", exist_ok=True)
-        self.error_df.to_csv(savepath)
+    def save_report(self):
+        folder = f"{self.state.project}/check_dectime/"
+        filename = f'{folder}/{self.role.name}.log'
+        os.makedirs(folder, exist_ok=True)
+        self.error_df.to_csv(filename)
