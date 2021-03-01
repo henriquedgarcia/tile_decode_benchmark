@@ -318,3 +318,16 @@ def dishevel_dictionary(dictionary: dict, key1: Hashable = None,
     if key5: disheveled_dictionary = disheveled_dictionary[key5]
     return disheveled_dictionary
 
+
+def menu(options_dict: Dict[int, Any]):
+    options = []
+    text = f'Options:\n'
+    for idx in options_dict:
+        text += f'{idx} - {options_dict[idx]}\n'
+        options.append(idx)
+    text += f': '
+
+    c = None
+    while c not in options:
+        c = input(text)
+    return c
