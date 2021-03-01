@@ -16,6 +16,11 @@ from fitter.fitter import Fitter
 from typing import NamedTuple, Dict, Tuple
 
 
+class DectimeData(NamedTuple):
+    time: list = []
+    rate: list = []
+
+
 class DectimeHandler:
     """Classe responsável por gerenciar os dados brutos e processados,
     assim como calcular as estatísticas.
@@ -24,9 +29,6 @@ class DectimeHandler:
     - Depois será capaz de ler o Json, selecionar só os dados pertinentes
     e calcular as estatísticas necessárias."""
 
-    class Data(NamedTuple):
-        time: list = []
-        rate: list = []
 
     # Struct statistics results
     percentile = {0: 0.0, 25: 0.0, 50: 0.0, 75: 0.0, 100: 0.0}
