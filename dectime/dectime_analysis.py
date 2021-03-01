@@ -65,7 +65,7 @@ class DectimeHandler:
                  tiling_list: Union[List[Tiling], None] = None,
                  quality_list: Union[List[int], None] = None,
                  tiles_list: Union[List[Tile], None] = None,
-                 chunks_list: Union[range, None] = None) -> Data:
+                 chunks_list: Union[range, None] = None) -> DectimeData:
         """
         Pega os dados do json
         :param groups:
@@ -121,7 +121,7 @@ class DectimeHandler:
                             time.append(time_)
                             rate.append(rate_)
 
-        return DectimeHandler.Data(time, rate)
+        return DectimeData(time, rate)
 
 class ErrorMetric(Enum):
     RMSE = 0
