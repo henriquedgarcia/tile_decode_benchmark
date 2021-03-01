@@ -1,7 +1,7 @@
-import collections
 import json
 import os
 import subprocess
+from collections import Counter, defaultdict
 from enum import Enum
 from os import path
 from typing import Union
@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 import dectime.util as util
-from dectime.video_state import VideoState
+from dectime.video_state import Tiling, VideoState
 
 
 class Role(Enum):
@@ -37,6 +37,7 @@ class TileDecodeBenchmark:
         if ['psnr']         : the ffmpeg calculated psnr for tile (before segmentation)
         if ['qp_avg']       : The ffmpeg calculated average QP for a encoding.
     """
+    role: Role
 
     def __init__(self, config: str):
         self.config = util.Config(config)
@@ -54,152 +55,28 @@ class TileDecodeBenchmark:
                 return True
         return False
 
-    def prepare_videos(self, overwrite=False) -> None:
-        """
-        Prepare video to encode.
-        :param overwrite:
-        """
-        uncompressed_file = self.state.lossless_file
-        if self._check_existence(uncompressed_file, overwrite): return
-
-        scale = self.state.frame.scale
-        fps = self.state.fps
-        original = self.state.original_file
-        duration = self.state.video.duration
-        offset = self.state.video.offset
-        command = dict()
-
-        command['program'] = f'ffmpeg'
-        command['par_in'] = f'-y -ss {offset}'
-        command['input'] = f'-i {original}'
-        command['par_out'] = f'-t {duration} -r {fps} -map 0:v -crf 0'
-        command['filter'] = f'-vf scale={scale},setdar=2'
-        command['output'] = f'{uncompressed_file}'
-        command = " ".join(list(command.values()))
-        print(command)
-
-        log = f'{uncompressed_file[:-4]}.log'
-        with open(log, 'w', encoding='utf-8') as f:
-            subprocess.run(command, shell=True,
-                           stderr=subprocess.STDOUT,
-                           stdout=f)
-
-    def compress(self, overwrite=False):
-        compressed_file = self.state.compressed_file
-        if self._check_existence(compressed_file, overwrite): return
-
-        lossless_file = self.state.lossless_file
-        quality = self.state.quality
-        gop = self.state.gop
-        tile = self.state.tile
-        command = dict()
-
-        command['program'] = 'ffmpeg'
-        command['global_params'] = '-hide_banner -y -psnr'
-        command['input'] = f'-i {lossless_file}'
-        command['param_out'] = f'-crf {quality} -tune "psnr"'
-        command['encoder_opt'] = (f'-c:v libx265 '
-                                  f'-x265-params \''
-                                  f'keyint={gop}:'
-                                  f'min-keyint={gop}:'
-                                  f'open-gop=0:'
-                                  f'info=0:'
-                                  f'scenecut=0\'')
-        command['v_filter'] = (f'-vf "'
-                               f'crop=w={tile.w}:h={tile.h}:'
-                               f'x={tile.x}:y={tile.y}'
-                               f'"')
-        command['output'] = f'{compressed_file}'
-        command = " ".join(list(command.values()))
-        print(command)
-
-        log = f'{compressed_file[:-4]}.log'
-        with open(log, 'a', encoding='utf-8') as f:
-            subprocess.run(command, shell=True, stderr=subprocess.STDOUT,
-                           stdout=f)
-
-    def segment(self, overwrite=False):
-        log = f'{self.state.segment_folder}/tile{self.state.tile.id}.log'
-        if self._check_existence(log, overwrite): return
-        compressed_file = self.state.compressed_file
-        segment_folder = self.state.segment_folder
-        command = dict()
-
-        command['program'] = 'MP4Box'
-        command['params'] = '-split 1'
-        command['input'] = compressed_file
-        command['output'] = f'-out {segment_folder}/'
-        command = " ".join(list(command.values()))
-        print(command)
-
-        with open(log, 'w', encoding='utf-8') as f:
-            subprocess.run(command, shell=True, stderr=subprocess.STDOUT,
-                           stdout=f)
-
-    def decode(self):
-        segment_file = self.state.segment_file
-        dectime_file = self.state.dectime_log
-        command = dict()
-
-        command['program'] = 'ffmpeg'
-        command['params_in'] = '-hide_banner -benchmark -codec hevc -threads 1'
-        command['input'] = f'-i {segment_file}'
-        command['output'] = '-f null -'
-        command = " ".join(list(command.values()))
-        print(command)
-
-        with open(dectime_file, 'a', encoding='utf-8') as f:
-            subprocess.run(command, shell=True, stdout=f,
-                           stderr=subprocess.STDOUT)
-
-    def collect_result(self):
-        print(f'Collecting {self.state.video.name}'
-              f'-{self.state.pattern.pattern}'
-              f'-{self.state.factor}{self.state.quality}'
-              f'-tile{self.state.tile.id}'
-              f'-chunk{self.state.chunk}')
-
-        # Collect decode time {avg:float, std:float} and bit rate in bps
-        self.results[
-            self.state.video.name][
-            self.state.pattern.pattern][
-            self.state.quality][
-            self.state.tile.id][
-            self.state.chunk].update(self._collect_dectime())
-
-        # Collect quality
-        if self.state.chunk == 1:
-            self.results[
-                self.state.video.name][
-                self.state.pattern.pattern][
-                self.state.quality][
-                self.state.tile.id].update(self._collect_psnr())
-        return self.results
-
     def _collect_dectime(self) -> util.AutoDict:
         """
 
         :param self:
         :return:
         """
-        dectime = util.AutoDict()
-        dectime_file = self.state.dectime_log
-        segment_file = self.state.segment_file
-
-        get_time = lambda line: \
-            float(line.strip().split(' ')[1].split('=')[1][:-1])
-        with open(dectime_file, 'r', encoding='utf-8') as f:
-            times = [get_time(line) for line in f
+        strip_time = lambda line: float(
+                line.strip().split(' ')[1].split('=')[1][:-1])
+        with open(self.state.dectime_log, 'r', encoding='utf-8') as f:
+            times = [strip_time(line) for line in f
                      if 'utime' in line]
+        chunk_size = path.getsize(self.state.segment_file)
+
+        dectime = util.AutoDict()
         dectime['time'] = {'avg': np.average(times),
                            'std': np.std(times)}
-        chunk_size = path.getsize(segment_file)
         dectime['rate'] = chunk_size * 8 / (self.state.gop / self.state.fps)
 
         return dectime
 
     def _collect_psnr(self):
-        psnr = util.AutoDict('list')
+        psnr = util.AutoDict()
 
         get_psnr = lambda l: float(l.strip().split(',')[3].split(':')[1])
         get_qp = lambda l: float(l.strip().split(',')[2].split(':')[1])
@@ -213,63 +90,192 @@ class TileDecodeBenchmark:
                     break
         return psnr
 
-    def calcule_siti(self):
-        from dectime.video_state import Tiling
-
-        filename = self.state.compressed_file
-        folder, _ = os.path.split(filename)
-        _, tail = os.path.split(folder)
-        folder = f'{self.state.project}/siti/{tail}'
-        os.makedirs(folder, exist_ok=True)
-
+    def calcule_siti(self, overwrite):
         self.state.quality = 28
         self.state.pattern = Tiling('1x1', self.config.frame)
         self.state.tile = self.state.pattern.tiles_list[0]
 
-        if not os.path.isfile(self.state.compressed_file):
-            self.compress()
-
-        siti = util.SiTi(filename=self.state.compressed_file,
-                         scale=self.config.frame.scale,
-                         plot_siti=False,
-                         folder=folder)
-        siti.calc_siti(verbose=True)
-        siti.save_siti()
-        siti.save_stats()
-
-    def run(self, role):
         for self.state.video in self.state.videos_list:
-            if role is Role.PREPARE:
-                self.prepare_videos()
-                continue
-            if role is Role.SITI:
-                self.calcule_siti()
-                continue
+            # Codificar os vídeos caso não estejam codificados.
+            compressed_file = self.state.compressed_file
+            exist_encoded = os.path.isfile(compressed_file)
+            if not exist_encoded or overwrite:
+                filename = self.state.compressed_file
+                folder, _ = os.path.split(filename)
+                _, tail = os.path.split(folder)
+                folder = f'{self.state.project}/siti/{tail}'
+                os.makedirs(folder, exist_ok=True)
+                self.compress(overwrite=overwrite)
 
+            siti = util.SiTi(filename=self.state.compressed_file,
+                             scale=self.config.frame.scale, plot_siti=False)
+            siti.calc_siti(verbose=True)
+            siti.save_siti(overwrite=overwrite)
+            siti.save_stats(overwrite=overwrite)
+
+    def collect_result(self, overwrite):
+        exist = os.path.isfile(self.state.dectime_raw_json)
+        if exist and not overwrite:
+            exit(f'The file {self.state.dectime_raw_json} exist.')
+
+        for self.state.video in self.state.videos_list:
             for self.state.pattern in self.state.pattern_list:
                 for self.state.quality in self.state.quality_list:
                     for self.state.tile in self.state.pattern.tiles_list:
-                        if role is Role.COMPRESS:
-                            self.compress()
-                            continue
-                        if role is Role.SEGMENT:
-                            self.segment()
-                            continue
-
                         for self.state.chunk in self.state.video.chunks:
-                            if role is Role.DECODE:
-                                self.decode()
-                                continue
-                            if role is Role.RESULTS:
-                                self.collect_result()
-                                continue
-        if role is Role.RESULTS:
-            print(f'Saving {self.state.dectime_raw_json}')
-            util.save_json(self.results, self.state.dectime_raw_json,
-                           compact=True)
+                            print(f'Collecting {self.state.video.name}'
+                                  f'-{self.state.pattern.pattern}'
+                                  f'-{self.state.factor}{self.state.quality}'
+                                  f'-tile{self.state.tile.id}'
+                                  f'-chunk{self.state.chunk}')
 
+                            # Collect decode time {avg:float, std:float} and bit rate in bps
+                            dectime = self._collect_dectime()
+                            self.results[
+                                self.state.video.name][
+                                self.state.pattern.pattern][
+                                self.state.quality][
+                                self.state.tile.id][
+                                self.state.chunk].update(dectime)
+                            # Collect quality List[float]
+                            psnr = self._collect_psnr()
+                            self.results[
+                                self.state.video.name][
+                                self.state.pattern.pattern][
+                                self.state.quality][
+                                self.state.tile.id].update(psnr)
+        print(f'Saving {self.state.dectime_raw_json}')
+        util.save_json(self.results, self.state.dectime_raw_json, compact=True)
 
-class CheckDectime:
+    def prepare_videos(self, overwrite=False) -> None:
+        """
+        Prepare video to encode.
+        :param overwrite:
+        """
+        for self.state.video in self.state.videos_list:
+            uncompressed_file = self.state.lossless_file
+            if self._check_existence(uncompressed_file, overwrite): return
+
+            scale = self.state.frame.scale
+            fps = self.state.fps
+            original = self.state.original_file
+            duration = self.state.video.duration
+            offset = self.state.video.offset
+
+            command = f'ffmpeg '
+            command += f'-y -ss {offset} '
+            command += f'-i {original} '
+            command += f'-t {duration} -r {fps} -map 0:v -crf 0 '
+            command += f'-vf scale={scale},setdar=2 '
+            command += f'{uncompressed_file}'
+            print(command)
+
+            log = f'{uncompressed_file[:-4]}.log'
+            with open(log, 'w', encoding='utf-8') as f:
+                subprocess.run(command, shell=True, stdout=f,
+                               stderr=subprocess.STDOUT)
+
+    def compress(self, overwrite=False):
+        for self.state.video in self.state.videos_list:
+            for self.state.pattern in self.state.pattern_list:
+                for self.state.quality in self.state.quality_list:
+                    for self.state.tile in self.state.pattern.tiles_list:
+                        compressed_file = self.state.compressed_file
+                        exist = self._check_existence(compressed_file,
+                                                      overwrite)
+                        if exist: return
+
+                        lossless_file = self.state.lossless_file
+                        quality = self.state.quality
+                        gop = self.state.gop
+                        tile = self.state.tile
+
+                        cmd = 'ffmpeg '
+                        cmd += '-hide_banner -y -psnr '
+                        cmd += f'-i {lossless_file} '
+                        cmd += f'-crf {quality} -tune "psnr" '
+                        cmd += (f'-c:v libx265 '
+                                f'-x265-params \''
+                                f'keyint={gop}:'
+                                f'min-keyint={gop}:'
+                                f'open-gop=0:'
+                                f'info=0:'
+                                f'scenecut=0\' ')
+                        cmd += (f'-vf "'
+                                f'crop=w={tile.w}:h={tile.h}:'
+                                f'x={tile.x}:y={tile.y}'
+                                f'" ')
+                        cmd += f'{compressed_file}'
+                        print(cmd)
+
+                        log = f'{compressed_file[:-4]}.log'
+                        with open(log, 'a', encoding='utf-8') as f:
+                            subprocess.run(cmd, shell=True, stdout=f,
+                                           stderr=subprocess.STDOUT)
+
+    def segment(self, overwrite=False):
+        for self.state.video in self.state.videos_list:
+            for self.state.pattern in self.state.pattern_list:
+                for self.state.quality in self.state.quality_list:
+                    for self.state.tile in self.state.pattern.tiles_list:
+                        log = (f'{self.state.segment_folder}/'
+                               f'tile{self.state.tile.id}.log')
+                        try:
+                            size = os.path.getsize(log)
+                            if size > 10000 and not overwrite: continue
+                        except FileNotFoundError:
+                            continue
+
+                        compressed_file = self.state.compressed_file
+                        segment_folder = self.state.segment_folder
+
+                        cmd = 'MP4Box '
+                        cmd += '-split 1 '
+                        cmd += f'{compressed_file} '
+                        cmd += f'-out {segment_folder}/'
+                        print(cmd)
+
+                        with open(log, 'w', encoding='utf-8') as f:
+                            subprocess.run(cmd, shell=True, stdout=f,
+                                           stderr=subprocess.STDOUT)
+
+    def decode(self, overwrite):
+        decoding_num = self.config.decoding_num
+        count_decoding = CheckProject.count_decoding
+        for _ in range(decoding_num):
+            for self.state.video in self.state.videos_list:
+                for self.state.pattern in self.state.pattern_list:
+                    for self.state.quality in self.state.quality_list:
+                        for self.state.tile in self.state.pattern.tiles_list:
+                            for self.state.chunk in self.state.video.chunks:
+                                segment_file = self.state.segment_file
+                                dectime_file = self.state.dectime_log
+
+                                count = count_decoding(dectime_file)
+                                coding_ok = count >= self.config.decoding_num
+                                if coding_ok and not overwrite: continue
+
+                                cmd = (f'ffmpeg -hide_banner -benchmark '
+                                       f'-codec hevc -threads 1 ')
+                                cmd += f'-i {segment_file} '
+                                cmd += f'-f null -'
+                                print(cmd)
+                                process = subprocess.run(cmd, shell=True,
+                                                         capture_output=True,
+                                                         stderr=subprocess.STDOUT)
+                                with open(dectime_file, 'a', encoding='utf-8')\
+                                        as f:
+                                    f.write(str(process.stdout))
+
+    def run(self, role: Role, overwrite=False):
+        self.role = role
+        if role is Role.PREPARE: self.prepare_videos(overwrite=overwrite)
+        if role is Role.COMPRESS: self.compress(overwrite=overwrite)
+        if role is Role.SEGMENT: self.segment(overwrite=overwrite)
+        if role is Role.DECODE: self.decode(overwrite=overwrite)
+        if role is Role.RESULTS: self.collect_result(overwrite=overwrite)
+        if role is Role.SITI: self.calcule_siti(overwrite=overwrite)
+
     class Check(Enum):
         ORIGINAL = 0
         LOSSLESS = 1
