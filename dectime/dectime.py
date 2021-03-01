@@ -23,7 +23,7 @@ class Role(Enum):
     ALL = 6
 
 
-class Dectime:
+class TileDecodeBenchmark:
     """
     The result dict have a following structure:
     results[video_name][tile_pattern][quality][tile_id][chunk_id][type]
