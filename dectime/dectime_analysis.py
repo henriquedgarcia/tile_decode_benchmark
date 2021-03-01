@@ -1,19 +1,23 @@
+import json
+import os
 import pickle
+from abc import ABC, abstractmethod
+from collections import defaultdict
+from contextlib import contextmanager
 from enum import Enum
-from cycler import cycler
-import numpy as np
-import matplotlib.pyplot as plt
+from typing import Union, List, NamedTuple, Dict, Tuple, Any
+
 import matplotlib as mpl
 import matplotlib.axes as axes
 import matplotlib.figure as figure
-from typing import Union, List
-import os
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
-from dectime.video_state import Tiling, Tile, Video, Config, VideoState
-from dectime.util import AutoDict
-import json
+from cycler import cycler
 from fitter.fitter import Fitter
-from typing import NamedTuple, Dict, Tuple
+
+from dectime.util import AutoDict, update_dictionary, dishevel_dictionary
+from dectime.video_state import Tiling, Tile, Video, Config, VideoState
 
 
 class ErrorMetric(Enum):
