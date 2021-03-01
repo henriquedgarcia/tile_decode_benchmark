@@ -39,15 +39,14 @@ class DectimeHandler:
     - Depois será capaz de ler o Json, selecionar só os dados pertinentes
     e calcular as estatísticas necessárias."""
 
-
     # Struct statistics results
     percentile = {0: 0.0, 25: 0.0, 50: 0.0, 75: 0.0, 100: 0.0}
     stats = {'average_t': 0.0, 'std_t': 0.0, 'percentile_t': percentile.copy(),
              'average_r': 0.0, 'std_r': 0.0, 'percentile_r': percentile.copy(),
-             'corr': 0.0, 'fitter': None}
+             'corr'     : 0.0, 'fitter': None}
 
     fit: Fitter
-    data: Data
+    data: DectimeData
     dectime: dict
 
     def __init__(self, config: Config, error_metric='sse',
@@ -55,10 +54,6 @@ class DectimeHandler:
         self.config = config
         self.video_state = VideoState(self.config)
         self.dectime_filename = self.video_state.dectime_raw_json
-
-        self.work_folder = (f'results/{self.config.project}/'
-                            f'{self.config.stats_folder}')
-        os.makedirs(self.work_folder, exist_ok=True)
 
         # Fitter attributes
         self.error_metric = error_metric
