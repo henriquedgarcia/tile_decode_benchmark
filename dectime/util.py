@@ -225,7 +225,7 @@ class SiTi:
         if self.jump_siti and not overwrite:
             return
         df = pd.DataFrame({'si': self.si, 'ti': self.ti})
-        df.to_csv(f'{self.folder}/{filename}', index_label='frame')
+        df.to_csv(f'{self.folder}/siti.csv', index_label='frame')
 
     def save_stats(self, overwrite=False):
         if self.jump_siti and not overwrite:
