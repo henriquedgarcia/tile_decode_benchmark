@@ -20,6 +20,7 @@ class Role(Enum):
     DECODE = 3
     RESULTS = 4
     SITI = 5
+    ALL = 6
 
 
 class Dectime:
