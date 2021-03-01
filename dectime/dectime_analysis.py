@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from contextlib import contextmanager
 from enum import Enum
-from typing import Union, List, NamedTuple, Dict, Tuple, Any
+from typing import Any, Dict, List, NamedTuple, Tuple, Union
 
 import matplotlib as mpl
 import matplotlib.axes as axes
@@ -16,8 +16,8 @@ import pandas as pd
 from cycler import cycler
 from fitter.fitter import Fitter
 
-from dectime.util import AutoDict, update_dictionary, dishevel_dictionary
-from dectime.video_state import Tiling, Tile, Video, Config, VideoState
+from dectime.util import AutoDict, dishevel_dictionary, update_dictionary
+from dectime.video_state import Config, Tile, Tiling, Video, VideoState
 
 
 class ErrorMetric(Enum):
@@ -212,7 +212,8 @@ class BasePlot(ABC):
                       quality: Union[int, None] = None,
                       tile: Union[int, None] = None,
                       chunk: Union[int, None] = None, ):
-        error: pd.Series = dishevel_dictionary(self.df_error, video_name, pattern,
+        error: pd.Series = dishevel_dictionary(self.df_error, video_name,
+                                               pattern,
                                                quality, tile, chunk)
         dist_list = error.sort_values().index
 
@@ -475,7 +476,8 @@ class BasePlot(ABC):
         fitter: Fitter = dishevel_dictionary(self.fitter, video_name, pattern,
                                              quality, tile, chunk)
         dist_error: pd.Series = dishevel_dictionary(self.df_error, video_name,
-                                                    pattern, quality, tile, chunk)
+                                                    pattern, quality, tile,
+                                                    chunk)
         title = self.make_name('histogram', ext=None, video_name=video_name,
                                pattern=pattern, quality=quality, tile=tile,
                                chunk=chunk)
@@ -677,7 +679,8 @@ class BarByPatternByQuality(HistByPatternByQuality):
             ax_t = fig.add_subplot(2, 4, n)
             ax_r = ax_t.twinx()
 
-            data_pattern: Union[pd.DataFrame, list] = df[df['pattern'] == pattern]
+            data_pattern: Union[pd.DataFrame, list] = df[
+                df['pattern'] == pattern]
             qlt_list = data_pattern['quality']
             time_avg = data_pattern['Mean Time']
             time_std = data_pattern['Deviation Time']
@@ -730,7 +733,8 @@ class HistByPatternFullFrame(HistByPattern):
     def __init__(self, config):
         folder = 'HistByPatternFullFrame'
         figsize = (16.0, 4.8)
-        super(HistByPattern, self).__init__(config, folder=folder, figsize=figsize)
+        super(HistByPattern, self).__init__(config, folder=folder,
+                                            figsize=figsize)
 
     def get_data(self):
         get_data = self.data_handler.get_data
