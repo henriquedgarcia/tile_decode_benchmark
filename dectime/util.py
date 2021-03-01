@@ -13,12 +13,11 @@ from typing import List, Union
 
 
 class AutoDict(dict):
-    def __init__(self, return_type='AutoDict'):
+    def __init__(self):
         super().__init__()
-        self.return_type = return_type
 
     def __missing__(self, key):
-        value = self[key] = eval(f'{self.return_type}()')
+        value = self[key] = type(self)()
         return value
 
 
