@@ -305,3 +305,16 @@ def update_dictionary(value, mapping, key1: Hashable = None,
         dict_[key5] = value
 
     return mapping
+
+
+def dishevel_dictionary(dictionary: dict, key1: Hashable = None,
+                        key2: Hashable = None, key3: Hashable = None,
+                        key4: Hashable = None, key5: Hashable = None) -> Any:
+    disheveled_dictionary = dictionary
+    if key1: disheveled_dictionary = disheveled_dictionary[key1]
+    if key2: disheveled_dictionary = disheveled_dictionary[key2]
+    if key3: disheveled_dictionary = disheveled_dictionary[key3]
+    if key4: disheveled_dictionary = disheveled_dictionary[key4]
+    if key5: disheveled_dictionary = disheveled_dictionary[key5]
+    return disheveled_dictionary
+
