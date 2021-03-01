@@ -729,3 +729,36 @@ class BarByPatternByQuality(HistByPatternByQuality):
                              scilimits=(6, 6))
         plt.legend(handles=(patch, line),
                    loc='upper right')
+
+
+class HistByPatternFullFrame(HistByPattern):
+    def __init__(self, config):
+        folder = 'HistByPatternFullFrame'
+        figsize = (16.0, 4.8)
+        super(HistByPattern, self).__init__(config, folder=folder, figsize=figsize)
+
+    def get_data(self):
+        get_data = self.data_handler.get_data
+
+        for tilling in self.tiling_list:
+            pattern = tilling.pattern
+            self.data[pattern] = get_data(tiling_list=[tilling])
+
+    def make_plot(self, overwrite=False):
+        """Usado no SVR e Electronic Imaging"""
+        fig = figure.Figure()
+
+        for n, tilling in enumerate(self.tiling_list, 1):
+            pattern = tilling.pattern
+            self._load_fit(pattern=pattern)
+
+            if n > 2 * 4: break
+            ax: axes.Axes = fig.add_subplot(2, 4, n)
+
+            self._make_hist(ax, pattern=pattern)
+
+        print(f'Salvando a figura')
+        # fig.show()
+        name = self.make_name('hist_by_pattern', ext='png',
+                              other=f'{self.bins}bins')
+        fig.savefig(f'{self.workfolder}/{name}')
