@@ -222,7 +222,7 @@ class SiTi:
                            f'{self.folder}/siti.mp4',
                            shell=True, encoding='utf-8')
 
-    def save_siti(self, overwrite=False, filename='siti.csv'):
+    def save_siti(self, overwrite=False):
         if self.jump_siti and not overwrite:
             return
         df = pd.DataFrame({'si': self.si, 'ti': self.ti})
