@@ -276,6 +276,8 @@ class TileDecodeBenchmark:
         if role is Role.RESULTS: self.collect_result(overwrite=overwrite)
         if role is Role.SITI: self.calcule_siti(overwrite=overwrite)
 
+
+class CheckProject:
     class Check(Enum):
         ORIGINAL = 0
         LOSSLESS = 1
