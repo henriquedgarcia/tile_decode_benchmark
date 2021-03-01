@@ -16,6 +16,12 @@ from fitter.fitter import Fitter
 from typing import NamedTuple, Dict, Tuple
 
 
+class ErrorMetric(Enum):
+    RMSE = 0
+    NRMSE = 1
+    SSE = 2
+
+
 class DectimeData(NamedTuple):
     time: list = []
     rate: list = []
@@ -122,11 +128,6 @@ class DectimeHandler:
                             rate.append(rate_)
 
         return DectimeData(time, rate)
-
-class ErrorMetric(Enum):
-    RMSE = 0
-    NRMSE = 1
-    SSE = 2
 
 
 class BasePlot:
