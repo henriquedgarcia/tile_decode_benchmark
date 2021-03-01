@@ -14,7 +14,7 @@
   ],
   "error_metric": "rmse",
   "decoding_num": 3,
-  "scale": "2880x1920",
+  "scale": "4320x2160",
   "projection": "cubemap",
   "factor": "crf",
   "fps": 30,
@@ -25,10 +25,10 @@
     40
   ],
   "tiling_list": [
-    "7x6",
-    "6x4",
+    "1x1",
     "3x2",
-    "1x1"
+    "6x4",
+    "7x6"
   ],
   "videos_list": {
     "pac_man_nas": {
