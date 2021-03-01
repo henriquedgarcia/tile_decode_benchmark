@@ -1,15 +1,16 @@
+import collections
 import json
+import os
+import subprocess
+from typing import Any, Dict, Hashable, List, Union
+
 import matplotlib.pyplot as plt
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 import numpy as np
 import pandas as pd
 import skvideo.io
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from scipy import ndimage
-import os
-import collections
-import subprocess
-from typing import List, Union
 
 
 class AutoDict(dict):
