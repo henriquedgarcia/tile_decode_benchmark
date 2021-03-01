@@ -283,3 +283,25 @@ def save_json(data: dict, filename, compact=False):
 
 def splitx(string: str) -> tuple:
     return tuple(map(int, string.split('x')))
+
+
+def update_dictionary(value, mapping, key1: Hashable = None,
+                      key2: Hashable = None, key3: Hashable = None,
+                      key4: Hashable = None, key5: Hashable = None):
+    dict_ = mapping
+    if key1:
+        if key2: dict_ = dict_[key1]
+        else: dict_[key1] = value
+    if key2:
+        if key3: dict_ = dict_[key2]
+        else: dict_[key2] = value
+    if key3:
+        if key4: dict_ = dict_[key3]
+        else: dict_[key3] = value
+    if key4:
+        if key5: dict_ = dict_[key4]
+        else: dict_[key4] = value
+    if key5:
+        dict_[key5] = value
+
+    return mapping
