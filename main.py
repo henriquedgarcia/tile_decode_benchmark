@@ -1,32 +1,35 @@
 #!/usr/bin/env python3
-from dectime.dectime import Dectime, Role, CheckDectime
-from dectime.dectime_analysis import HistByPattern, HistByPatternByQuality
+import dectime.dectime as dt
+import dectime.dectime_analysis as dta
 
 
 def main():
+    """Config"""
     config = f'config/config_user_dectime_28videos_nas.json'
     # config = f'config/config_user_dectime_9videos_co_lo.json'
     # config = f'config/config_test.json'
-    tile_dectime = Dectime(config)
+
+    """Tile_dectime"""
+    tile_dectime = dt.TileDecodeBenchmark(config)
 
     """Processing Calling"""
-    # tile_dectime.run(Role.PREPARE)
-    # tile_dectime.run(Role.SITI)
-    # tile_dectime.run(Role.COMPRESS)
-    # tile_dectime.run(Role.SEGMENT)
-    #     tile_dectime.run(Role.DECODE)
-    # for _ in range(tile_dectime.config.decoding_num):
-    # tile_dectime.run(Role.RESULTS)
+    tile_dectime.run(dt.Role.PREPARE)
+    tile_dectime.run(dt.Role.SITI)
+    tile_dectime.run(dt.Role.COMPRESS)
+    tile_dectime.run(dt.Role.SEGMENT)
+    for _ in range(tile_dectime.config.decode_num):
+        tile_dectime.run(dt.Role.DECODE)
+    tile_dectime.run(dt.Role.RESULTS)
 
     """Check files"""
-    CheckDectime(config_file=config, automate=True)
+    dt.CheckProject(config_file=config)
 
     """Process graphs and sheets"""
-    # plots.plot_siti(one_plot=True)
-    # HistByPattern(folder='HistByPattern', config=config,
-    #               figsize=(16.0, 4.8)).create()
-    # HistByPatternByQuality(folder='HistByPatternByQuality', config=config,
-    #                        figsize=(16.0, 4.8)).create()
+    tile_dectime.calcule_siti(overwrite=False)
+    dta.HistByPattern(config=config)  # .create()
+    dta.HistByPatternByQuality(config=config)
+    dta.BarByPatternByQuality(config=config)
+    dta.HistByPatternFullFrame(config=config).create()
     print('Finish.')
 
 

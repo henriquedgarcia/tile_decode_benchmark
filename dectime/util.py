@@ -1,24 +1,24 @@
+import collections
 import json
+import os
+import subprocess
+from typing import Any, Dict, Hashable, List, Union
+
 import matplotlib.pyplot as plt
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 import numpy as np
 import pandas as pd
 import skvideo.io
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from scipy import ndimage
-import os
-import collections
-import subprocess
-from typing import List, Union
 
 
 class AutoDict(dict):
-    def __init__(self, return_type='AutoDict'):
+    def __init__(self):
         super().__init__()
-        self.return_type = return_type
 
     def __missing__(self, key):
-        value = self[key] = eval(f'{self.return_type}()')
+        value = self[key] = type(self)()
         return value
 
 
@@ -144,12 +144,11 @@ class SiTi:
     def calc_siti(self, verbose=False):
         vreader = skvideo.io.vreader(fname=self.filename, as_grey=True)
         jump_debug = True if os.path.isfile(
-            f'{self.folder}/siti.mp4') else False
+                f'{self.folder}/siti.mp4') else False
         self.jump_siti = True if os.path.isfile(
-            f'{self.folder}/siti.csv') else False
+                f'{self.folder}/siti.csv') else False
         for self.frame_counter, frame in enumerate(vreader, 1):
-            if self.jump_siti:
-                break
+            if self.jump_siti: break
             width = frame.shape[1]
             height = frame.shape[2]
             frame = frame.reshape((width, height)).astype('float32')
@@ -222,11 +221,11 @@ class SiTi:
                            f'{self.folder}/siti.mp4',
                            shell=True, encoding='utf-8')
 
-    def save_siti(self, overwrite=False, filename='siti.csv'):
+    def save_siti(self, overwrite=False):
         if self.jump_siti and not overwrite:
             return
         df = pd.DataFrame({'si': self.si, 'ti': self.ti})
-        df.to_csv(f'{self.folder}/{filename}', index_label='frame')
+        df.to_csv(f'{self.folder}/siti.csv', index_label='frame')
 
     def save_stats(self, overwrite=False):
         if self.jump_siti and not overwrite:
@@ -284,3 +283,51 @@ def save_json(data: dict, filename, compact=False):
 
 def splitx(string: str) -> tuple:
     return tuple(map(int, string.split('x')))
+
+
+def update_dictionary(value, mapping, key1: Hashable = None,
+                      key2: Hashable = None, key3: Hashable = None,
+                      key4: Hashable = None, key5: Hashable = None):
+    dict_ = mapping
+    if key1:
+        if key2: dict_ = dict_[key1]
+        else: dict_[key1] = value
+    if key2:
+        if key3: dict_ = dict_[key2]
+        else: dict_[key2] = value
+    if key3:
+        if key4: dict_ = dict_[key3]
+        else: dict_[key3] = value
+    if key4:
+        if key5: dict_ = dict_[key4]
+        else: dict_[key4] = value
+    if key5:
+        dict_[key5] = value
+
+    return mapping
+
+
+def dishevel_dictionary(dictionary: dict, key1: Hashable = None,
+                        key2: Hashable = None, key3: Hashable = None,
+                        key4: Hashable = None, key5: Hashable = None) -> Any:
+    disheveled_dictionary = dictionary
+    if key1: disheveled_dictionary = disheveled_dictionary[key1]
+    if key2: disheveled_dictionary = disheveled_dictionary[key2]
+    if key3: disheveled_dictionary = disheveled_dictionary[key3]
+    if key4: disheveled_dictionary = disheveled_dictionary[key4]
+    if key5: disheveled_dictionary = disheveled_dictionary[key5]
+    return disheveled_dictionary
+
+
+def menu(options_dict: Dict[int, Any]):
+    options = []
+    text = f'Options:\n'
+    for idx in options_dict:
+        text += f'{idx} - {options_dict[idx]}\n'
+        options.append(idx)
+    text += f': '
+
+    c = None
+    while c not in options:
+        c = input(text)
+    return c
