@@ -286,7 +286,7 @@ class CheckProject:
         SEGMENT = 3
         DECTIME = 4
 
-    def __init__(self, config_file, automate=True):
+    def __init__(self, config_file):
         self.config = util.Config(config_file)
         self.state = VideoState(config=self.config)
         self.role: Union[CheckProject.Check, None] = None
@@ -294,9 +294,8 @@ class CheckProject:
 
         self.menu()
 
-        if automate:
-            self.check()
-            self.save_report()
+        self.check()
+        self.save_report()
 
     @staticmethod
     def count_decoding(logfile):
