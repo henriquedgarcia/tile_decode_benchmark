@@ -5,7 +5,7 @@ import dectime.dectime_analysis as dta
 
 def main():
     """Config"""
-    config = f'config/confgit  ig_user_dectime_28videos_nas.json'
+    config = f'config/config_user_dectime_28videos_nas.json'
     # config = f'config/config_user_dectime_9videos_co_lo.json'
     # config = f'config/config_test.json'
 
