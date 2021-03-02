@@ -163,11 +163,12 @@ class TileDecodeBenchmark:
             duration = self.state.video.duration
             offset = self.state.video.offset
 
+            x,y = util.splitx(scale)
             command = f'ffmpeg '
             command += f'-y -ss {offset} '
             command += f'-i {original} '
             command += f'-t {duration} -r {fps} -map 0:v -crf 0 '
-            command += f'-vf scale={scale},setdar=2 '
+            command += f'-vf scale={scale},setdar={x/y} '
             command += f'{uncompressed_file}'
             print(command)
 
