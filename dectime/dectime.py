@@ -370,10 +370,7 @@ class CheckProject:
         self._check_segment()
         self._check_dectime()
 
-        print(f'RESUMO: {self.role.name}')
         self.error_df = pd.DataFrame(self.error_df)
-        pretty_json = json.dumps(Counter(self.error_df['msg'], indent=2))
-        print(pretty_json)
 
     def check_video_state(self, video_file) -> str:
         print(f'Checking {video_file}')
@@ -419,3 +416,10 @@ class CheckProject:
         filename = f'{folder}/{self.role.name}.log'
         os.makedirs(folder, exist_ok=True)
         self.error_df.to_csv(filename)
+
+        print(f'RESUMO: {self.role.name}')
+        pretty_json = json.dumps(Counter(self.error_df['msg']), indent=2)
+        print(pretty_json)
+        filename = f'{folder}/{self.role.name}-resume.log'
+        with open(filename, 'w') as f:
+            json.dump(Counter(self.error_df['msg']), f, indent=2)
