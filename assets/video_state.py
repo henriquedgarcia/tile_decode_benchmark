@@ -1,84 +1,15 @@
 import os
 from typing import Union
 
-from dectime.util import splitx, Config
-
-
-class Frame:
-    scale: str
-    w: int
-    h: int
-
-    def __init__(self, scale):
-        self.scale = scale
-        self.w, self.h = splitx(scale)
-
-
-class Tile:
-    id: int
-    w: int
-    h: int
-    x: int  # position in frame
-    y: int  # position in frame
-
-    def __init__(self, idx=1, w=0, h=0, x=0, y=0):
-        self.id = idx
-        self.w = w
-        self.h = h
-        self.scale = f'{w}x{h}'
-        self.x = x
-        self.y = y
-
-
-class Tiling:
-    pattern: str
-    m: int
-    n: int
-    total: int
-
-    def __init__(self, pattern, frame: Frame):
-        self.frame = frame
-        self.pattern = pattern
-        self.m, self.n = splitx(pattern)
-        self.total = self.m * self.n
-        self.w = int(round(frame.w / self.m))
-        self.h = int(round(frame.h / self.n))
-        self.tiles_list = self._tiles_list()
-
-    def _tiles_list(self):
-        idx = 0
-        tiles_list = []
-        for y in range(0, self.frame.h, self.h):
-            for x in range(0, self.frame.w, self.w):
-                tile = Tile(idx=idx, w=self.w, h=self.h, x=x, y=y)
-                tiles_list.append(tile)
-                idx += 1
-
-        return tiles_list
-
-
-class Video:
-    name: str
-    original: int
-    offset: int
-    duration: int
-    chunks: range
-    group: int
-
-    def __init__(self, name: str, video_stats: dict):
-        self.name = name
-        self.original = video_stats['original']
-        self.offset = video_stats['offset']
-        self.duration = video_stats['duration']
-        self.chunks = range(1, (self.duration + 1))
-        self.group = video_stats['group']
+from assets.config import Config
+from assets.dectime_types import Frame, Tile, Tiling, Video
 
 
 class Factors:
     _video: Union[Video, None] = None
-    _pattern = Tiling('1x1', Frame('1x1'))
+    _tiling = Tiling('1x1', Frame('1x1'))
     _quality = 28
-    _tile = _pattern.tiles_list[0]
+    _tile = _tiling.tiles_list[0]
     _chunk = 1
 
     @property
@@ -92,13 +23,13 @@ class Factors:
         self._video = value
 
     @property
-    def pattern(self) -> Tiling:
-        assert self._pattern is not None, "The pattern variable is not defined."
-        return self._pattern
+    def tiling(self) -> Tiling:
+        assert self._tiling is not None, "The tiling variable is not defined."
+        return self._tiling
 
-    @pattern.setter
-    def pattern(self, value):
-        self._pattern = value
+    @tiling.setter
+    def tiling(self, value):
+        self._tiling = value
 
     @property
     def quality(self) -> int:
@@ -130,7 +61,7 @@ class Factors:
     def clean(self):
         self.video = None
         self.quality = None
-        self.pattern = None
+        self.tiling = None
         self.tile = None
         self.chunk = None
 
@@ -155,7 +86,7 @@ class Paths(Factors, Params):
         return (f'{self.video.name}_'
                 f'{self.frame.scale}_'
                 f'{self.fps}_'
-                f'{self.pattern.pattern}_'
+                f'{self.tiling.pattern}_'
                 f'{self.factor}{self.quality}')
 
     @property
@@ -231,7 +162,7 @@ class VideoState(Paths):
         self.frame = config.frame
         self.fps = config.fps
         self.gop = config.gop
-        self.factor = config.factor
+        self.factor = config.rate_control
 
         self.videos_list: list = config.videos_list
         self.quality_list: list = config.quality_list

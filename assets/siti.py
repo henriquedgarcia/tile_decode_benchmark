@@ -2,78 +2,17 @@ import collections
 import json
 import os
 import subprocess
-from typing import Any, Dict, Hashable, List, Union
+from typing import List, Union
 
+import matplotlib.axes as axes
+import matplotlib.figure as figure
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import skvideo.io
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 from scipy import ndimage
 
-
-class AutoDict(dict):
-    def __init__(self):
-        super().__init__()
-
-    def __missing__(self, key):
-        value = self[key] = type(self)()
-        return value
-
-
-class Config:
-    def __init__(self, config: str):
-        from dectime.video_state import Frame
-
-        with open(f'{config}', 'r') as f:
-            self.config_data = json.load(f)
-
-        self.original_folder = 'original'
-        self.lossless_folder = 'lossless'
-        self.compressed_folder = 'compressed'
-        self.segment_folder = 'segment'
-        self.dectime_folder = 'dectime'
-        self.stats_folder = 'stats'
-        self.graphs_folder = "graphs"
-
-        self.decoding_num = self.config_data['decoding_num']
-
-        self.project = self.config_data['project']
-        self.factor = self.config_data['factor']
-        self.frame = Frame(self.config_data['scale'])
-        self.fps = self.config_data['fps']
-        self.gop = self.config_data['gop']
-        self.distributions = self.config_data['distributions']
-
-        self.quality_list = self.config_data['quality_list']
-        self.tiling_list = []
-        self.videos_list = []
-
-        self.error_metric = ''
-        self.decoding_num = 0
-        self.projection = ''
-
-        self._videos_list()
-        self._pattern_list()
-        print()
-
-    def _videos_list(self):
-        from dectime.video_state import Video
-
-        videos_list = self.config_data['videos_list']
-        for name in videos_list:
-            video_tuple = Video(name, videos_list[name])
-            self.videos_list.append(video_tuple)
-
-    def _pattern_list(self):
-        from dectime.video_state import Tiling
-
-        pattern_list = self.config_data['tiling_list']
-
-        for pattern in pattern_list:
-            tiling = Tiling(pattern, self.frame)
-            self.tiling_list.append(tiling)
+from assets.util import splitx
 
 
 class SiTi:
@@ -95,8 +34,8 @@ class SiTi:
         self.jump_siti = False
         self.folder = folder
         self.plot_siti = plot_siti
-        self.fig: Union[Figure, None] = None
-        self.ax: Union[List[List[Axes]], None] = None
+        self.fig: Union[figure.Figure, None] = None
+        self.ax: Union[List[List[axes.Axes]], None] = None
 
     @staticmethod
     def sobel(frame):
@@ -249,85 +188,3 @@ class SiTi:
 
         with open(f'{self.folder}/stats.json', 'w', encoding='utf-8') as f:
             json.dump(stats, f, separators=(',', ':'))
-
-
-def run_command(command) -> subprocess.Popen:
-    """
-    Run a shell command with subprocess module with realtime output.
-    :param command:
-    :return:
-    """
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE,
-                               stderr=subprocess.STDOUT)
-    while True:
-        output = process.stdout.readline()
-        if output == '' and process.poll() is not None:
-            break
-        if output:
-            print(output.strip())
-    process.stdout.seek(0)
-    return process
-
-
-def save_json(data: dict, filename, compact=False):
-    if compact:
-        separators = (',', ':')
-        indent = None
-    else:
-        separators = None
-        indent = 2
-
-    with open(filename, 'w', encoding='utf-8') as fp:
-        json.dump(data, fp, separators=separators, indent=indent)
-
-
-def splitx(string: str) -> tuple:
-    return tuple(map(int, string.split('x')))
-
-
-def update_dictionary(value, mapping, key1: Hashable = None,
-                      key2: Hashable = None, key3: Hashable = None,
-                      key4: Hashable = None, key5: Hashable = None):
-    dict_ = mapping
-    if key1:
-        if key2: dict_ = dict_[key1]
-        else: dict_[key1] = value
-    if key2:
-        if key3: dict_ = dict_[key2]
-        else: dict_[key2] = value
-    if key3:
-        if key4: dict_ = dict_[key3]
-        else: dict_[key3] = value
-    if key4:
-        if key5: dict_ = dict_[key4]
-        else: dict_[key4] = value
-    if key5:
-        dict_[key5] = value
-
-    return mapping
-
-
-def dishevel_dictionary(dictionary: dict, key1: Hashable = None,
-                        key2: Hashable = None, key3: Hashable = None,
-                        key4: Hashable = None, key5: Hashable = None) -> Any:
-    disheveled_dictionary = dictionary
-    if key1: disheveled_dictionary = disheveled_dictionary[key1]
-    if key2: disheveled_dictionary = disheveled_dictionary[key2]
-    if key3: disheveled_dictionary = disheveled_dictionary[key3]
-    if key4: disheveled_dictionary = disheveled_dictionary[key4]
-    if key5: disheveled_dictionary = disheveled_dictionary[key5]
-    return disheveled_dictionary
-
-
-def menu(options_dict: Dict[int, Any]):
-    options = []
-    text = f'Options:\n'
-    for idx in options_dict:
-        text += f'{idx} - {options_dict[idx]}\n'
-        options.append(idx)
-    text += f': '
-
-    c = None
-    while c not in options:
-        c = input(text)
-    return c
