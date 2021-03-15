@@ -1,35 +1,31 @@
 #!/usr/bin/env python3
-import dectime.dectime as dt
-import dectime.dectime_analysis as dta
+import assets.dectime as dt
+import assets.dectime_analysis as dta
 
 
 def main():
     """Config"""
-    config = f'config/config_user_dectime_28videos_nas.json'
-    # config = f'config/config_user_dectime_9videos_co_lo.json'
     # config = f'config/config_test.json'
+    # config = f'config/config_user_dectime_28videos_nas.json'
+    # config = f'config/config_user_dectime_9videos_co_lo.json'
 
     """Tile_dectime"""
-    tile_dectime = dt.TileDecodeBenchmark(config)
-
-    """Processing Calling"""
-    tile_dectime.run(dt.Role.PREPARE)
-    tile_dectime.run(dt.Role.SITI)
-    tile_dectime.run(dt.Role.COMPRESS)
-    tile_dectime.run(dt.Role.SEGMENT)
-    for _ in range(tile_dectime.config.decode_num):
-        tile_dectime.run(dt.Role.DECODE)
-    tile_dectime.run(dt.Role.RESULTS)
-
-    """Check files"""
-    dt.CheckProject(config_file=config)
-
-    """Process graphs and sheets"""
-    tile_dectime.calcule_siti(overwrite=False)
-    dta.HistByPattern(config=config)  # .create()
-    dta.HistByPatternByQuality(config=config)
-    dta.BarByPatternByQuality(config=config)
-    dta.HistByPatternFullFrame(config=config).create()
+    # dt.TileDecodeBenchmark(config).run('PREPARE', overwrite=True)
+    # dt.TileDecodeBenchmark(config).run('SITI', overwrite=True)
+    # dt.TileDecodeBenchmark(config).run('COMPRESS')
+    # dt.TileDecodeBenchmark(config).run('SEGMENT')
+    # dt.TileDecodeBenchmark(config).run('DECODE')
+    # dt.TileDecodeBenchmark(config).run('RESULTS')
+    #
+    # """Check files"""
+    # dt.CheckProject(config_file=config)
+    #
+    # """Process graphs and sheets"""
+    # dta.HistByPattern(config).run(False)
+    # dta.HistByPatternByQuality(config).run(False)
+    # dta.BarByPatternByQuality(config).run(False)
+    # dta.HistByPatternFullFrame(config).run(False)
+    # dta.BarByPatternFullFrame(config).run(False)
     print('Finish.')
 
 
