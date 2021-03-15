@@ -1,41 +1,12 @@
 {
-  "project": "test_pacman",
-  "distributions": [
-    "burr12",
-    "fatiguelife",
-    "gamma",
-    "invgauss",
-    "rayleigh",
-    "lognorm",
-    "genpareto",
-    "pareto",
-    "halfnorm",
-    "expon"
-  ],
+  "project": "test",
   "error_metric": "rmse",
   "decoding_num": 3,
-  "scale": "4320x2160",
+  "scale": "1280x768",
   "projection": "cubemap",
-  "factor": "crf",
+  "codec": "x265",
   "fps": 30,
   "gop": 30,
-  "quality_list": [
-    16,
-    28,
-    40
-  ],
-  "tiling_list": [
-    "1x1",
-    "3x2",
-    "6x4",
-    "7x6"
-  ],
-  "videos_list": {
-    "pac_man_nas": {
-      "original": "pac_man.mp4",
-      "offset": "0:00",
-      "duration": 60,
-      "group": 0
-    }
-  }
+  "factors": "factors_test.json",
+  "videos": "videos_28videos_test.json"
 }

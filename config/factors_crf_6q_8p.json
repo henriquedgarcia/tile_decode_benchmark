@@ -1,0 +1,33 @@
+{
+  "distributions": [
+    "burr12",
+    "fatiguelife",
+    "gamma",
+    "invgauss",
+    "rayleigh",
+    "lognorm",
+    "genpareto",
+    "pareto",
+    "halfnorm",
+    "expon"
+  ],
+  "rate_control": "crf",
+  "quality_list": [
+    16,
+    22,
+    28,
+    34,
+    40,
+    46
+  ],
+  "tiling_list": [
+    "7x6",
+    "6x6",
+    "6x5",
+    "6x4",
+    "6x3",
+    "4x3",
+    "3x2",
+    "1x1"
+  ]
+}
