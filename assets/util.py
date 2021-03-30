@@ -21,12 +21,11 @@ def run_command(command: str, log_to_save: str, mode: str = 'w') -> str:
     :param command: A command string to run.
     :param log_to_save: A path-like to save the process output.
     :param mode: The write mode: 'w' or 'a'.
-    :return: A subprocess instance.
+    :return: stdout.
     """
     with open(log_to_save, mode, encoding='utf-8') as f:
         process = subprocess.run(command, shell=True, stdout=f,
                                  stderr=subprocess.STDOUT, encoding='utf-8')
-
     return process.stdout
 
 
