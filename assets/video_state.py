@@ -145,32 +145,28 @@ class Paths(Factors, Params):
         return filename
 
 
-class VideoState(Paths):
+class VideoState(Paths, DectimeLists):
     def __init__(self, config: Config):
         """
-        Class to creat tile files path to process.
+        Class to create tile files path to process.
         :param config: Config object.
-        original_folder: Folder that contain the original files.
-        lossless_folder: Folder to put intermediate lossless
-        full-frame video.
-        compressed_folder: Folder to put compressed tiles_list.
-        segment_folder: Folder to put the segments of tiles_list.
-        dectime_folder: Folder to put decode log.
         """
+        self.config = config
         self.project = f'results/{config.project}'
-
-        self.frame = config.frame
+        self.scale = config.scale
+        self.frame = Frame(config.scale)
         self.fps = config.fps
         self.gop = config.gop
         self.factor = config.rate_control
+        self.projection = config.projection
+        self.videos_dict = config.videos_list
 
-        self.videos_list: list = config.videos_list
-        self.quality_list: list = config.quality_list
-        self.pattern_list: list = config.tiling_list
+        self.videos_list = config.videos_list
+        self.quality_list = config.quality_list
+        self.pattern_list = config.pattern_list
 
         self._original_folder = config.original_folder
         self._lossless_folder = config.lossless_folder
-
         self._compressed_folder = config.compressed_folder
         self._segment_folder = config.segment_folder
         self._dectime_folder = config.dectime_folder
