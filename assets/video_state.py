@@ -2,7 +2,102 @@ import os
 from typing import Union
 
 from assets.config import Config
-from assets.dectime_types import Frame, Tile, Tiling, Video
+from assets.util import splitx
+
+
+class Frame:
+    _scale: str
+    w: int
+    h: int
+
+    def __init__(self, scale: Union[str, tuple]):
+        """
+
+        :param scale: a string like "1200x600"
+        """
+        if isinstance(scale, str):
+            self.scale = scale
+        elif isinstance(scale, tuple):
+            self.scale = f'{scale[0]}x{scale[1]}'
+
+    @property
+    def scale(self):
+        return self._scale
+
+    @scale.setter
+    def scale(self, scale: str):
+        self._scale = scale
+        self.w, self.h = splitx(scale)
+
+
+class Tile:
+    def __init__(self, idx: int, scale: Frame, pos: tuple):
+        self.idx = idx
+        self.scale = scale
+        self.x: float = pos[0]
+        self.y: float = pos[1]
+        self.w: int = scale.w
+        self.h: int = scale.h
+
+
+class Tiling:
+    frame: Frame
+    pattern: str
+    tile_scale: Frame
+    total_tiles: int
+    tiles_list: List[Tile]
+    _pattern_list: List[str]
+
+    def __init__(self, pattern, frame: Frame):
+        self.pattern = pattern
+        self.m, self.n = splitx(pattern)
+        self.frame = frame
+        self.total_tiles = self.m * self.n
+
+    @property
+    def tiles_list(self):
+        self.tile_scale = Frame((self.frame.w // self.m,
+                                 self.frame.h // self.n))
+        pos_iterator = prod(range(0, self.frame.h, self.tile_scale.h),
+                            range(0, self.frame.w, self.tile_scale.w))
+        tiles_list = [Tile(idx, self.tile_scale, (x, y))
+                      for idx, (y, x) in enumerate(pos_iterator)]
+        return tiles_list
+
+
+class Video:
+    _name: str
+    group: int
+    original: int
+    offset: int
+    duration: int
+    chunks: range
+    tiling: Tile
+    _video_info: Dict[str, Any]
+
+    def __init__(self, name, video_info: Dict[str, Any]):
+        self.video_info = video_info
+        self.name = name
+
+    @property
+    def video_info(self):
+        return self._video_info
+
+    @video_info.setter
+    def video_info(self, video_info: Dict[str, Any]):
+        self.group = video_info['group']
+        self.original = video_info['original']
+        self.offset = video_info['offset']
+        self.duration = video_info['duration']
+        self.chunks = range(1, (self.duration + 1))
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, name: str):
+        self._name = name
 
 
 class Factors:
