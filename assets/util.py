@@ -19,6 +19,8 @@ def run_command(command: str, log_to_save: str, mode: str = 'w') -> str:
     :param mode: The write mode: 'w' or 'a'.
     :return: stdout.
     """
+    print(command)
+
     with open(log_to_save, mode, encoding='utf-8') as f:
         process = subprocess.run(command, shell=True, stdout=f,
                                  stderr=subprocess.STDOUT, encoding='utf-8')

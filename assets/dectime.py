@@ -140,8 +140,6 @@ class TileDecodeBenchmark:
             command += f'-t {video.duration} -r {fps} -map 0:v -crf 0 '
             command += f'-vf scale={frame.scale},setdar={dar} '
             command += f'{uncompressed_file}'
-            print(command)
-
             log = f'{path.splitext(uncompressed_file)[0]}.log'
             run_command(command, log)
 
@@ -199,8 +197,6 @@ class TileDecodeBenchmark:
                     f'x={tile.x}:y={tile.y}'
                     f'" ')
             cmd += f'{compressed_file}'
-            print(cmd)
-
             log = f'{compressed_file[:-4]}.log'
             run_command(cmd, log)
 
@@ -240,8 +236,6 @@ class TileDecodeBenchmark:
                        f'-codec hevc -threads 1 ')
                 cmd += f'-i {segment_file} '
                 cmd += f'-f null -'
-                print(cmd)
-
                 run_command(cmd, dectime_file, mode='a')
 
     def collect_result(self, overwrite):
