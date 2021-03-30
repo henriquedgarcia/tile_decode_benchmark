@@ -278,8 +278,9 @@ class TileDecodeBenchmark:
         util.save_json(self.results, self.state.dectime_raw_json, compact=True)
 
 
-class CheckProject:
+class CheckProject(TileDecodeBenchmark):
     def __init__(self, config_file):
+        super().__init__(config_file)
         self.config = Config(config_file)
         self.state = VideoState(config=self.config)
         self.role: Union[Check, None] = None
@@ -327,7 +328,7 @@ class CheckProject:
 
     def _check_original(self):
         if self.role is not Check.ORIGINAL: return
-        for self.state.video in self.state.videos_list:
+        for _ in self._iterate(deep=1):
             video_file = self.state.original_file
             msg = self.check_video_state(video_file)
             self.register_df(video_file, msg)
