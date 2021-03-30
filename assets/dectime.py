@@ -5,7 +5,7 @@ from enum import Enum
 from logging import debug, warning
 from os import path
 from os.path import exists
-from typing import Dict, NamedTuple, Union
+from typing import Dict, Union
 
 import numpy as np
 import pandas as pd
@@ -26,11 +26,6 @@ class Role(Enum):
     RESULTS = 'collect_result'
     SITI = 'calcule_siti'
     CHECK = 'check'
-
-
-class DectimeData(NamedTuple):
-    time: Union[list, float] = []
-    rate: Union[list, float] = []
 
 
 class TileDecodeBenchmark:

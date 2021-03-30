@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from contextlib import contextmanager
 from os.path import exists
-from typing import Any, Dict, Iterable, List, Tuple, Union
+from typing import Any, Dict, Iterable, List, Tuple, Union, NamedTuple
 
 import matplotlib as mpl
 import matplotlib.axes as axes
@@ -18,15 +18,21 @@ import numpy as np
 import pandas as pd
 from cycler import cycler
 from fitter.fitter import Fitter
+from enum import Enum
 
 from assets.config import Config
 from assets.dectime_types import (
-    Dataframes, DectimeData, DectimeFactors, ErrorMetric,
+    DectimeFactors, ErrorMetric,
     )
 from assets.util import (
     AutoDict, calc_stats, dishevel_dictionary, update_dictionary,
     )
 from assets.video_state import Tile, Tiling, Video, VideoState
+
+
+class DectimeData(NamedTuple):
+    time: Union[list, float] = []
+    rate: Union[list, float] = []
 
 
 class DectimeHandler:
