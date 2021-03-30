@@ -327,42 +327,31 @@ class CheckProject(TileDecodeBenchmark):
 
     def _check_lossless(self):
         if self.role is not Check.LOSSLESS: return
-        for self.state.video in self.state.videos_list:
+        for _ in self._iterate(deep=1):
             video_file = self.state.lossless_file
             msg = self.check_video_state(video_file)
             self.register_df(video_file, msg)
 
     def _check_compressed(self):
         if self.role is not Check.COMPRESSED: return
-        for self.state.video in self.state.videos_list:
-            for self.state.tiling in self.state.tiling_list:
-                for self.state.quality in self.state.quality_list:
-                    for self.state.tile in self.state.tiles_list:
-                        video_file = self.state.compressed_file
-                        msg = self.check_video_state(video_file)
-                        self.register_df(video_file, msg)
+        for _ in self._iterate(deep=4):
+            video_file = self.state.compressed_file
+            msg = self.check_video_state(video_file)
+            self.register_df(video_file, msg)
 
     def _check_segment(self):
         if self.role is not Check.SEGMENT: return
-        for self.state.video in self.state.videos_list:
-            for self.state.tiling in self.state.tiling_list:
-                for self.state.quality in self.state.quality_list:
-                    for self.state.tile in self.state.tiles_list:
-                        for self.state.chunk in self.state.chunk_list:
-                            video_file = self.state.segment_file
-                            msg = self.check_video_state(video_file)
-                            self.register_df(video_file, msg)
+        for _ in self._iterate(deep=5):
+            video_file = self.state.segment_file
+            msg = self.check_video_state(video_file)
+            self.register_df(video_file, msg)
 
     def _check_dectime(self):
         if self.role is not Check.DECTIME: return
-        for self.state.video in self.state.videos_list:
-            for self.state.tiling in self.state.tiling_list:
-                for self.state.quality in self.state.quality_list:
-                    for self.state.tile in self.state.tiles_list:
-                        for self.state.chunk in self.state.chunk_list:
-                            video_file = self.state.dectime_log
-                            msg = self.check_video_state(video_file)
-                            self.register_df(video_file, msg)
+        for _ in self._iterate(deep=5):
+            video_file = self.state.dectime_log
+            msg = self.check_video_state(video_file)
+            self.register_df(video_file, msg)
 
     def check(self):
         self._check_original()
