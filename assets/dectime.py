@@ -207,24 +207,22 @@ class TileDecodeBenchmark:
     def segment(self, overwrite=False):
         for _ in self._iterate(deep=4):
             # Check segment log size. If size is very small, overwrite.
-            log = f'{self.state.segment_folder}/tile{self.state.tile_id}.log'
+            segment_folder = self.state.segment_folder
+            log = f'{segment_folder}/tile{self.state.tile_id}.log'
             try:
                 size = os.path.getsize(log)
                 if size > 10000 and not overwrite:
+                    print(f'The segments of "{segment_folder}" exist. Skipping')
                     continue
             except FileNotFoundError:
                 pass
 
-            print(f'Processing {self.state.segment_folder}')
-            compressed_file = self.state.compressed_file
-            segment_folder = self.state.segment_folder
+            print(f'Processing {segment_folder}')
 
             cmd = 'MP4Box '
             cmd += '-split 1 '
-            cmd += f'{compressed_file} '
+            cmd += f'{self.state.compressed_file} '
             cmd += f'-out {segment_folder}/'
-            print(cmd)
-
             run_command(cmd, log)
 
     def decode(self, overwrite):
