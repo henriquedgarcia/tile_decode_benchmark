@@ -5,8 +5,9 @@ import pickle
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from contextlib import contextmanager
+from enum import Enum
 from os.path import exists
-from typing import Any, Dict, Iterable, List, Tuple, Union, NamedTuple
+from typing import Any, Dict, Iterable, List, NamedTuple, Tuple, Union
 
 import matplotlib as mpl
 import matplotlib.axes as axes
@@ -18,19 +19,77 @@ import numpy as np
 import pandas as pd
 from cycler import cycler
 from fitter.fitter import Fitter
-from enum import Enum
 
 from assets.config import Config
-from assets.dectime_types import DectimeFactors, ErrorMetric
 from assets.util import (
-    AutoDict, calc_stats, dishevel_dictionary, update_dictionary,
+    AutoDict, calc_stats, dishevel_dictionary,
+    update_dictionary,
     )
 from assets.video_state import Tile, Tiling, Video, VideoState
+
+
+class DectimeFactors:
+    # Usado no Dectime Analysis
+    _config = None
+    _name = None
+    rate_control = None
+
+    video_name = Union[str, None]
+    pattern = Union[str, None]
+    quality = Union[int, None]
+    tile = Union[int, None]
+    chunk = Union[int, None]
+
+    def __init__(self, rate_control):
+        self.rate_control = rate_control
+
+    def clear(self):
+        self.video_name = None
+        self.pattern = None
+        self.quality = None
+        self.tile = None
+        self.chunk = None
+
+    def name(self, base_name: Union[str, None] = None,
+             ext: Union[str, None] = None,
+             other: Any = None,
+             separator='_'):
+        name = f'{base_name}' if base_name else None
+        if self.video_name:
+            name = (f'{name}{separator}{self.video_name}'
+                    if name else f'{self.video_name}')
+        if self.pattern:
+            name = (f'{name}{separator}{self.pattern}'
+                    if name else f'{self.pattern}')
+        if self.quality:
+            name = (f'{name}{separator}{self.rate_control}{self.quality}'
+                    if name else f'{self.rate_control}{self.quality}')
+        if self.tile:
+            name = (f'{name}{separator}tile{self.tile}'
+                    if name else f'tile{self.tile}')
+        if self.chunk:
+            name = (f'{name}{separator}chunk{self.chunk}'
+                    if name else f'chunk{self.chunk}')
+        if other:
+            name = (f'{name}{separator}{other}'
+                    if name else f'{other}')
+        if ext:
+            name = (f'{name}.{ext}'
+                    if name else f'{ext}')
+
+        self._name = name
+        return name
 
 
 class DectimeData(NamedTuple):
     time: Union[list, float] = []
     rate: Union[list, float] = []
+
+
+class ErrorMetric(Enum):
+    RMSE = 0
+    NRMSE = 1
+    SSE = 2
 
 
 class Dataframes(Enum):
