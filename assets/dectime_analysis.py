@@ -33,6 +33,13 @@ class DectimeData(NamedTuple):
     rate: Union[list, float] = []
 
 
+class Dataframes(Enum):
+    STATS_DATAFRAME = 'df_stats'
+    FITTED_DATAFRAME = 'df_dist'
+    PAPER_DATAFRAME = 'df_paper'
+    DATA_DATAFRAME = 'df_data'
+
+
 class DectimeHandler:
     """Classe responsável por gerenciar os dados brutos e processados,
     assim como calcular as estatísticas.

@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Union
+from typing import Any, Union, NamedTuple
 
 # todo: mover enums para dectime.py? Acho que as enums não.
 
@@ -16,13 +16,6 @@ class ErrorMetric(Enum):
     RMSE = 0
     NRMSE = 1
     SSE = 2
-
-
-class Dataframes(Enum):
-    STATS_DATAFRAME = 'df_stats'
-    FITTED_DATAFRAME = 'df_dist'
-    PAPER_DATAFRAME = 'df_paper'
-    DATA_DATAFRAME = 'df_data'
 
 
 class DectimeFactors:
