@@ -2,7 +2,6 @@ import json
 import os
 from collections import Counter, defaultdict
 from enum import Enum
-from logging import debug, warning
 from os import path
 from os.path import exists
 from typing import Dict, Union
@@ -173,7 +172,7 @@ class TileDecodeBenchmark:
         for _ in self._iterate(deep=4):
             compressed_file = self.state.compressed_file
             if exists(compressed_file) and not overwrite:
-                warning(f'The file {compressed_file} exist. Skipping.')
+                print(f'The file {compressed_file} exist. Skipping.')
                 continue
 
             print(f'Processing {compressed_file}')
@@ -243,7 +242,7 @@ class TileDecodeBenchmark:
                        f'-codec hevc -threads 1 ')
                 cmd += f'-i {segment_file} '
                 cmd += f'-f null -'
-                debug(cmd)
+                print(cmd)
 
                 run_command(cmd, dectime_file, mode='a')
 
