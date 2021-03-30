@@ -12,10 +12,17 @@ import pandas as pd
 
 import assets.util as util
 from assets.config import Config
-from assets.dectime_types import Check
 from assets.siti import SiTi
 from assets.util import run_command
 from assets.video_state import Tiling, VideoState
+
+
+class Check(Enum):
+    ORIGINAL = 0
+    LOSSLESS = 1
+    COMPRESSED = 2
+    SEGMENT = 3
+    DECTIME = 4
 
 
 class Role(Enum):
