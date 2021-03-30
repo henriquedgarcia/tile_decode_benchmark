@@ -1,12 +1,8 @@
 import json
 import subprocess
-from typing import Any, Dict, Hashable, Iterable, Tuple, NamedTuple
-# from logging import info, debug
+from typing import Any, Dict, Hashable, Iterable, NamedTuple, Tuple
 
 import numpy as np
-
-
-# from assets.dectime_types import StatsData
 
 
 class AutoDict(dict):
