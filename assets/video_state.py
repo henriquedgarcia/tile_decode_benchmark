@@ -1,5 +1,6 @@
-import os
-from typing import Union
+from itertools import product as prod
+from os import makedirs
+from typing import Any, Dict, List, Union
 
 from assets.config import Config
 from assets.util import splitx
@@ -101,87 +102,66 @@ class Video:
 
 
 class Factors:
-    _video: Union[Video, None] = None
-    _tiling = Tiling('1x1', Frame('1x1'))
-    _quality = 28
-    _tile = _tiling.tiles_list[0]
-    _chunk = 1
+    video: Video
+    _name: str
+    tiling: Tiling
+    _pattern: str
+    quality: int
+    tile: Tile
+    _tile_id: int
+    chunk: int
 
     @property
-    def video(self) -> Video:
-        assert self._video is not None, ("The video name variable is not "
-                                         "defined.")
-        return self._video
-
-    @video.setter
-    def video(self, value):
-        self._video = value
+    def name(self) -> str:
+        self._name = self.video.name
+        return self._name
 
     @property
-    def tiling(self) -> Tiling:
-        assert self._tiling is not None, "The tiling variable is not defined."
-        return self._tiling
-
-    @tiling.setter
-    def tiling(self, value):
-        self._tiling = value
+    def pattern(self) -> str:
+        self._pattern = self.tiling.pattern
+        return self.tiling.pattern
 
     @property
-    def quality(self) -> int:
-        assert self._quality is not None, "The quality variable is not defined."
-        return self._quality
-
-    @quality.setter
-    def quality(self, value):
-        self._quality = value
-
-    @property
-    def tile(self) -> Tile:
-        assert self._tile is not None, "The tile variable is not defined."
-        return self._tile
-
-    @tile.setter
-    def tile(self, value):
-        self._tile = value
-
-    @property
-    def chunk(self) -> int:
-        assert self._chunk is not None, "The chunk variable is not defined."
-        return self._chunk
-
-    @chunk.setter
-    def chunk(self, value):
-        self._chunk = value
-
-    def clean(self):
-        self.video = None
-        self.quality = None
-        self.tiling = None
-        self.tile = None
-        self.chunk = None
+    def tile_id(self) -> int:
+        self._tile_id = self.tile.idx
+        return self.tile.idx
 
 
 class Params:
-    project: Union[str, None] = None
-    frame: Union[Frame, None] = None
-    fps: Union[int, None] = None
-    gop: Union[int, None] = None
-    factor: Union[str, None] = None
+    """
+    Interface
+    ---------
+    This interface represent the constants values for all simulation.
+    """
+    scale: str
+    project: str
+    projection: str
+    fps: int
+    gop: int
+    factor: str
+    videos_dict: dict
 
 
-class Paths(Factors, Params):
-    _original_folder: Union[str, None] = None
-    _lossless_folder: Union[str, None] = None
-    _compressed_folder: Union[str, None] = None
-    _segment_folder: Union[str, None] = None
-    _dectime_folder: Union[str, None] = None
+class Paths(Params, Factors):
+    """
+    original_folder: Folder that contain the original files.
+    lossless_folder: Folder to put intermediate lossless full-frame video.
+    compressed_folder: Folder to put compressed tiles_list.
+    segment_folder: Folder to put the segments of tiles_list.
+    dectime_folder: Folder to put decode log.
+    """
+    _original_folder: str
+    _lossless_folder: str
+    _compressed_folder: str
+    _segment_folder: str
+    _dectime_folder: str
 
     @property
     def basename(self):
         return (f'{self.video.name}_'
-                f'{self.frame.scale}_'
+                f'{self.scale}_'
                 f'{self.fps}_'
-                f'{self.tiling.pattern}_'
+                f'{self.pattern}_'
                 f'{self.factor}{self.quality}')
 
     @property
@@ -196,48 +176,111 @@ class Paths(Factors, Params):
     @property
     def lossless_folder(self) -> str:
         folder = f'{self.project}/{self._lossless_folder}'
-        os.makedirs(folder, exist_ok=True)
+        makedirs(folder, exist_ok=True)
         return folder
 
     @property
     def lossless_file(self) -> str:
         return (f'{self.lossless_folder}/'
-                f'{self.video.name}_{self.frame.scale}_{self.fps}.mp4')
+                f'{self.name}_{self.scale}_{self.fps}.mp4')
 
     @property
     def compressed_folder(self) -> str:
         folder = f'{self.project}/{self._compressed_folder}/{self.basename}'
-        os.makedirs(folder, exist_ok=True)
+        makedirs(folder, exist_ok=True)
         return folder
 
     @property
     def compressed_file(self):
-        return f'{self.compressed_folder}/tile{self.tile.id}.mp4'
+        return f'{self.compressed_folder}/tile{self.tile_id}.mp4'
 
     @property
     def segment_folder(self):
         folder = f'{self.project}/{self._segment_folder}/{self.basename}'
-        os.makedirs(folder, exist_ok=True)
+        makedirs(folder, exist_ok=True)
         return folder
 
     @property
     def segment_file(self):
-        return f'{self.segment_folder}/tile{self.tile.id}_{self.chunk:03}.mp4'
+        return f'{self.segment_folder}/tile{self.tile_id}_{self.chunk:03}.mp4'
 
     @property
     def dectime_folder(self):
         folder = f'{self.project}/{self._dectime_folder}/{self.basename}'
-        os.makedirs(folder, exist_ok=True)
+        makedirs(folder, exist_ok=True)
         return folder
 
     @property
     def dectime_log(self):
-        return f'{self.dectime_folder}/tile{self.tile.id}_{self.chunk:03}.log'
+        return f'{self.dectime_folder}/tile{self.tile_id}_{self.chunk:03}.log'
 
     @property
     def dectime_raw_json(self):
         filename = f'{self.project}/dectime_raw.json'
         return filename
+
+
+class DectimeLists(Params, Factors):
+    _videos_list: List[Video]
+    _names_list: List[str]
+    _pattern_list: List[str]
+    _tiling_list: List[Tiling]
+    _quality_list: List[int]
+    _tile_list: List[int]
+    _chunk_list: List[int]
+    videos_dict: dict
+
+    @property
+    def videos_list(self):
+        return self._videos_list
+
+    @videos_list.setter
+    def videos_list(self, videos_dict: Dict[str, dict]):
+        self._names_list = [name for name in videos_dict]
+        self._videos_list = [Video(name, videos_dict[name])
+                             for name in videos_dict]
+
+    @property
+    def names_list(self):
+        return self._names_list
+
+    @names_list.setter
+    def names_list(self, videos_dict: Dict[str, dict]):
+        self.videos_list = videos_dict
+
+    @property
+    def tiling_list(self):
+        return self._tiling_list
+
+    @tiling_list.setter
+    def tiling_list(self, pattern_list: List[str]):
+        self._pattern_list = pattern_list
+        self._tiling_list = [Tiling(pattern, Frame(self.scale))
+                             for pattern in pattern_list]
+
+    @property
+    def pattern_list(self):
+        return self._pattern_list
+
+    @pattern_list.setter
+    def pattern_list(self, pattern_list: List[str]):
+        self.tiling_list = pattern_list
+
+    @property
+    def quality_list(self):
+        return self._quality_list
+
+    @quality_list.setter
+    def quality_list(self, quality_list: List[int]):
+        self._quality_list = quality_list
+
+    @property
+    def tiles_list(self):
+        return self.tiling.tiles_list
+
+    @property
+    def chunk_list(self):
+        return self.video.chunks
 
 
 class VideoState(Paths, DectimeLists):

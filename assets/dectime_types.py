@@ -1,16 +1,7 @@
 from enum import Enum
-from typing import Any, NamedTuple, Union
+from typing import Any, Union
 
-from assets.util import splitx
-
-
-class Role(Enum):
-    PREPARE = 'prepare_videos'
-    COMPRESS = 'compress'
-    SEGMENT = 'segment'
-    DECODE = 'decode'
-    RESULTS = 'collect_result'
-    SITI = 'calcule_siti'
+# todo: mover enums para dectime.py? Acho que as enums não.
 
 
 class Check(Enum):
@@ -34,12 +25,8 @@ class Dataframes(Enum):
     DATA_DATAFRAME = 'df_data'
 
 
-class DectimeData(NamedTuple):
-    time: Union[list, float] = []
-    rate: Union[list, float] = []
-
-
 class DectimeFactors:
+    # Usado no Dectime Analysis
     _config = None
     _name = None
     rate_control = None

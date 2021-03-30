@@ -69,7 +69,7 @@ class DectimeHandler:
                  quality_list: Union[List[int], None] = None,
                  tiles_list: Union[List[Tile], None] = None,
                  chunks_list: Union[Iterable, None] = None)\
-            -> DectimeData[List[float], List[float]]:
+            -> DectimeData:
         """
         Pega os dados do json
         :param groups:
@@ -384,7 +384,7 @@ class BasePlot(ABC):
             self.df_dist[self.error_metric.name].append(df_error[dist])
             self.df_dist['Parameters'].append(parameters)
             self.df_dist['Loc'].append(loc)
-            self.df_dist['Scale'].append(scale)
+            self.df_dist['Frame'].append(scale)
 
     def _make_df_data(self, overwrite):
         if not overwrite and self._load_dataframes(Dataframes.DATA_DATAFRAME):
