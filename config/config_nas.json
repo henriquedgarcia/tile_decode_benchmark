@@ -4,9 +4,39 @@
   "decoding_num": 3,
   "scale": "2880x1920",
   "projection": "cubemap",
-  "codec": x265,
+  "codec": "x265",
   "fps": 30,
   "gop": 30,
-  "factors": "factors_crf_6q_8p.json",
-  "videos": "videos_28videos_nas.json"
+  "distributions": [
+    "burr12",
+    "fatiguelife",
+    "gamma",
+    "invgauss",
+    "rayleigh",
+    "lognorm",
+    "genpareto",
+    "pareto",
+    "halfnorm",
+    "expon"
+  ],
+  "rate_control": "crf",
+  "quality_list": [
+    16,
+    22,
+    28,
+    34,
+    40,
+    46
+  ],
+  "pattern_list": [
+    "7x6",
+    "6x6",
+    "6x5",
+    "6x4",
+    "6x3",
+    "4x3",
+    "3x2",
+    "1x1"
+  ],
+    "videos": "videos_28videos_nas.json"
 }
