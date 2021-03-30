@@ -15,8 +15,7 @@ class AutoDict(dict):
         return self[key]
 
 
-def run_command(command: str, log_to_save: str,
-                mode: str = 'w') -> str:
+def run_command(command: str, log_to_save: str, mode: str = 'w') -> str:
     """
     Run a shell command with subprocess module with realtime output.
     :param command: A command string to run.
