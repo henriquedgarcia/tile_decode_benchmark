@@ -21,9 +21,7 @@ from fitter.fitter import Fitter
 from enum import Enum
 
 from assets.config import Config
-from assets.dectime_types import (
-    DectimeFactors, ErrorMetric,
-    )
+from assets.dectime_types import DectimeFactors, ErrorMetric
 from assets.util import (
     AutoDict, calc_stats, dishevel_dictionary, update_dictionary,
     )
