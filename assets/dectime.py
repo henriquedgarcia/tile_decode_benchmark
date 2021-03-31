@@ -325,39 +325,39 @@ class CheckProject(TileDecodeBenchmark):
             msg = 'logfile_not_found'
         return msg
 
-    def _check_original(self):
+    def _check_original(self, rem_errors=False):
         if self.role is not Check.ORIGINAL: return
         for _ in self._iterate(deep=1):
             video_file = self.state.original_file
-            msg = self.check_video_state(video_file)
+            msg = self.check_video_state(video_file, rem_errors)
             self.register_df(video_file, msg)
 
-    def _check_lossless(self):
+    def _check_lossless(self, rem_errors=False):
         if self.role is not Check.LOSSLESS: return
         for _ in self._iterate(deep=1):
             video_file = self.state.lossless_file
-            msg = self.check_video_state(video_file)
+            msg = self.check_video_state(video_file, rem_errors)
             self.register_df(video_file, msg)
 
-    def _check_compressed(self):
+    def _check_compressed(self, rem_errors=False):
         if self.role is not Check.COMPRESSED: return
         for _ in self._iterate(deep=4):
             video_file = self.state.compressed_file
-            msg = self.check_video_state(video_file)
+            msg = self.check_video_state(video_file, rem_errors)
             self.register_df(video_file, msg)
 
-    def _check_segment(self):
+    def _check_segment(self, rem_errors=False):
         if self.role is not Check.SEGMENT: return
         for _ in self._iterate(deep=5):
             video_file = self.state.segment_file
-            msg = self.check_video_state(video_file)
+            msg = self.check_video_state(video_file, rem_errors)
             self.register_df(video_file, msg)
 
-    def _check_dectime(self):
+    def _check_dectime(self, rem_errors=False):
         if self.role is not Check.DECTIME: return
         for _ in self._iterate(deep=5):
             video_file = self.state.dectime_log
-            msg = self.check_video_state(video_file)
+            msg = self.check_video_state(video_file, rem_errors)
             self.register_df(video_file, msg)
 
     def check(self):
