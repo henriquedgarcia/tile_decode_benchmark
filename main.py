@@ -5,13 +5,12 @@ import assets.dectime as dt
 def main():
     """Config"""
     config = f'config/config_test.json'
-    # config = f'config/config_user_dectime_28videos_nas.json'
-    # config = f'config/config_user_dectime_9videos_co_lo.json'
+    # config = f'config/config_nas.json'
 
     """Tile_dectime"""
     # dt.TileDecodeBenchmark(config).run('PREPARE', overwrite=True)
-    dt.TileDecodeBenchmark(config).run('COMPRESS')
-    # dt.TileDecodeBenchmark(config).run('SEGMENT', overwrite=True)
+    # dt.TileDecodeBenchmark(config).run('COMPRESS')
+    # dt.TileDecodeBenchmark(config).run('SEGMENT')
     # dt.TileDecodeBenchmark(config).run('DECODE')
     # dt.TileDecodeBenchmark(config).run('RESULTS')
     # dt.TileDecodeBenchmark(config).run('SITI', overwrite=True)
