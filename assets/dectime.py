@@ -293,10 +293,18 @@ class CheckProject(TileDecodeBenchmark):
         return count_decode
 
     @staticmethod
-    def clean(video_file):
-        log = CheckProject.get_logfile(video_file)
-        os.remove(video_file)
-        os.remove(log)
+    def clean(video_file, rem_error):
+        if rem_error:
+            log = CheckProject.get_logfile(video_file)
+            try:
+                os.remove(video_file)
+            except FileNotFoundError:
+                pass
+
+            try:
+                os.remove(log)
+            except FileNotFoundError:
+                pass
 
     @staticmethod
     def get_logfile(video_file):
@@ -312,8 +320,7 @@ class CheckProject(TileDecodeBenchmark):
                     msg = msg[0]
                 else:
                     msg = 'log_corrupt'
-                    if rem_error:
-                        CheckProject.clean(video_file)
+                    CheckProject.clean(video_file, rem_error)
         except FileNotFoundError:
             msg = 'logfile_not_found'
         return msg
@@ -362,7 +369,7 @@ class CheckProject(TileDecodeBenchmark):
 
         self.error_df = pd.DataFrame(self.error_df)
 
-    def check_video_state(self, video_file) -> str:
+    def check_video_state(self, video_file, rem_errors) -> str:
         print(f'Checking {video_file}')
         try:
             filesize = os.path.getsize(f'{video_file}')
@@ -372,12 +379,13 @@ class CheckProject(TileDecodeBenchmark):
 
         if filesize == 0:
             msg = f'filesize==0'
+            self.clean(video_file, rem_errors)
             return msg
 
         # if file exist and size > 0
         msg = f'apparently_ok'
         if self.role is Check.COMPRESSED:
-            msg = self._verify_encode_log(video_file)
+            msg = self._verify_encode_log(video_file, rem_error=False)
             return msg
         elif self.role is Check.DECTIME:
             count_decode = self.count_decoding(video_file)
