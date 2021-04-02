@@ -245,27 +245,21 @@ class TileDecodeBenchmark:
             return
 
         for _ in self._iterate(deep=5):
-            print(f'Collecting {self.state.name}'
-                  f'-{self.state.pattern}'
-                  f'-{self.state.factor}{self.state.quality}'
-                  f'-tile{self.state.tile_id}'
-                  f'-chunk{self.state.chunk}')
+            name, pattern, quality, tile, chunk = self.state.get_state()
+            print(f'Collecting {name}'
+                  f'-{pattern}'
+                  f'-{self.state.factor}{quality}'
+                  f'-tile{tile}'
+                  f'-chunk{chunk}')
 
             # Collect decode time {avg:float, std:float} and bit rate in bps
-            dectime = self._collect_dectime()
-            self.results[
-                self.state.name][
-                self.state.pattern][
-                self.state.quality][
-                self.state.tile_id][
-                self.state.chunk].update(dectime)
-            # Collect quality List[float]
-            psnr = self._collect_psnr()
-            self.results[
-                self.state.name][
-                self.state.pattern][
-                self.state.quality][
-                self.state.tile_id].update(psnr)
+            self.results[name][pattern][quality][tile][chunk]\
+                .update(self._collect_dectime())
+
+            if chunk > 1: continue
+            # Collect quality {'psnr': float, 'qp_avg': float}
+            self.results[name][pattern][quality][tile]\
+                .update(self._collect_psnr())
         print(f'Saving {self.state.dectime_raw_json}')
         util.save_json(self.results, self.state.dectime_raw_json, compact=True)
 
