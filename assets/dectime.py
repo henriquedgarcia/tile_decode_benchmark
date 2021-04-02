@@ -271,10 +271,9 @@ class TileDecodeBenchmark:
 
 
 class CheckProject(TileDecodeBenchmark):
-    def __init__(self, config_file):
+    def __init__(self, config_file, rem_error=False):
         super().__init__(config_file)
-        self.config = Config(config_file)
-        self.state = VideoState(config=self.config)
+        self.rem_error = rem_error
         self.role: Union[Check, None] = None
         self.error_df: Union[dict, pd.DataFrame] = defaultdict(list)
 
@@ -292,9 +291,8 @@ class CheckProject(TileDecodeBenchmark):
             count_decode = 0
         return count_decode
 
-    @staticmethod
-    def clean(video_file, rem_error):
-        if rem_error:
+    def clean(self, video_file):
+        if self.rem_error:
             log = CheckProject.get_logfile(video_file)
             try:
                 os.remove(video_file)
@@ -310,8 +308,7 @@ class CheckProject(TileDecodeBenchmark):
     def get_logfile(video_file):
         return f'{video_file[:-4]}.log'
 
-    @staticmethod
-    def _verify_encode_log(video_file, rem_error=False):
+    def _verify_encode_log(self, video_file):
         log_file = CheckProject.get_logfile(video_file)
         try:
             with open(log_file, 'r', encoding='utf-8') as f:
@@ -320,44 +317,44 @@ class CheckProject(TileDecodeBenchmark):
                     msg = msg[0]
                 else:
                     msg = 'log_corrupt'
-                    CheckProject.clean(video_file, rem_error)
+                    self.clean(video_file)
         except FileNotFoundError:
             msg = 'logfile_not_found'
         return msg
 
-    def _check_original(self, rem_errors=False):
+    def _check_original(self):
         if self.role is not Check.ORIGINAL: return
         for _ in self._iterate(deep=1):
             video_file = self.state.original_file
-            msg = self.check_video_state(video_file, rem_errors)
+            msg = self.check_video_state(video_file)
             self.register_df(video_file, msg)
 
-    def _check_lossless(self, rem_errors=False):
+    def _check_lossless(self):
         if self.role is not Check.LOSSLESS: return
         for _ in self._iterate(deep=1):
             video_file = self.state.lossless_file
-            msg = self.check_video_state(video_file, rem_errors)
+            msg = self.check_video_state(video_file)
             self.register_df(video_file, msg)
 
-    def _check_compressed(self, rem_errors=False):
+    def _check_compressed(self):
         if self.role is not Check.COMPRESSED: return
         for _ in self._iterate(deep=4):
             video_file = self.state.compressed_file
-            msg = self.check_video_state(video_file, rem_errors)
+            msg = self.check_video_state(video_file)
             self.register_df(video_file, msg)
 
-    def _check_segment(self, rem_errors=False):
+    def _check_segment(self):
         if self.role is not Check.SEGMENT: return
         for _ in self._iterate(deep=5):
             video_file = self.state.segment_file
-            msg = self.check_video_state(video_file, rem_errors)
+            msg = self.check_video_state(video_file)
             self.register_df(video_file, msg)
 
-    def _check_dectime(self, rem_errors=False):
+    def _check_dectime(self):
         if self.role is not Check.DECTIME: return
         for _ in self._iterate(deep=5):
             video_file = self.state.dectime_log
-            msg = self.check_video_state(video_file, rem_errors)
+            msg = self.check_video_state(video_file)
             self.register_df(video_file, msg)
 
     def check(self):
@@ -369,7 +366,7 @@ class CheckProject(TileDecodeBenchmark):
 
         self.error_df = pd.DataFrame(self.error_df)
 
-    def check_video_state(self, video_file, rem_errors) -> str:
+    def check_video_state(self, video_file) -> str:
         print(f'Checking {video_file}')
         try:
             filesize = os.path.getsize(f'{video_file}')
@@ -379,13 +376,13 @@ class CheckProject(TileDecodeBenchmark):
 
         if filesize == 0:
             msg = f'filesize==0'
-            self.clean(video_file, rem_errors)
+            self.clean(video_file)
             return msg
 
         # if file exist and size > 0
         msg = f'apparently_ok'
         if self.role is Check.COMPRESSED:
-            msg = self._verify_encode_log(video_file, rem_error=False)
+            msg = self._verify_encode_log(video_file)
             return msg
         elif self.role is Check.DECTIME:
             count_decode = self.count_decoding(video_file)
