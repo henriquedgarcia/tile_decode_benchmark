@@ -308,3 +308,11 @@ class VideoState(Paths, DectimeLists):
         self._compressed_folder = config.compressed_folder
         self._segment_folder = config.segment_folder
         self._dectime_folder = config.dectime_folder
+
+    def get_state(self):
+        name = self.name
+        pattern = self.pattern
+        quality = self.quality
+        tile = self.tile_id
+        chunk = self.chunk
+        return name, pattern, quality, tile, chunk
