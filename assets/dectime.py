@@ -97,8 +97,7 @@ class TileDecodeBenchmark:
         return dectime
 
     def _collect_psnr(self):
-        psnr = util.AutoDict()
-
+        psnr: Dict[str, float] = {}
         get_psnr = lambda l: float(l.strip().split(',')[3].split(':')[1])
         get_qp = lambda l: float(l.strip().split(',')[2].split(':')[1])
 
