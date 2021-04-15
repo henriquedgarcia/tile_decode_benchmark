@@ -343,7 +343,7 @@ class CheckProject(TileDecodeBenchmark):
             sg.one_line_progress_meter('This is my progress meter!', i + 1,
                                        len(files_list), '-key-')
             print(f'Checking {video_file}')
-            msg = self._check_video_size(video_file, check_gop=True)
+            msg = self._check_video_size(video_file, check_gop=False)
             if 'ok' in msg:
                 msg = self._verify_encode_log(video_file)
             print(msg)
