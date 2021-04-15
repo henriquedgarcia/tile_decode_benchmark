@@ -295,7 +295,7 @@ class DectimeLists(Params, Factors):
         return self.video.chunks
 
 
-class VideoState(Paths, DectimeLists):
+class VideoState(Params, Factors, Paths, DectimeLists):
     def __init__(self, config: Config):
         """
         Class to create tile files path to process.
