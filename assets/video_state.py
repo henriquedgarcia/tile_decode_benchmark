@@ -138,6 +138,14 @@ class Factors:
     def tile_id(self) -> int:
         return self.tile.idx
 
+    def get_factors(self):
+        name = self.name
+        pattern = self.pattern
+        quality = self.quality
+        tile = self.tile_id
+        chunk = self.chunk
+        return name, pattern, quality, tile, chunk
+
 
 class Params:
     """
@@ -321,10 +329,3 @@ class VideoState(Paths, DectimeLists, Params, Factors):
         self._segment_folder = config.segment_folder
         self._dectime_folder = config.dectime_folder
 
-    def get_state(self):
-        name = self.name
-        pattern = self.pattern
-        quality = self.quality
-        tile = self.tile_id
-        chunk = self.chunk
-        return name, pattern, quality, tile, chunk
