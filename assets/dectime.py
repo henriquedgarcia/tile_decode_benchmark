@@ -303,6 +303,7 @@ class CheckProject(TileDecodeBenchmark):
         df = self.error_df
         for _ in self._iterate(deep=1):
             video_file = self.state.original_file
+            print(f'Checking {video_file}')
             msg = self._check_video_size(video_file)
             df.loc[len(df)] = [video_file, msg]
 
@@ -310,6 +311,7 @@ class CheckProject(TileDecodeBenchmark):
         df = self.error_df
         for _ in self._iterate(deep=1):
             video_file = self.state.lossless_file
+            print(f'Checking {video_file}')
             msg = self._check_video_size(video_file)
             df.loc[len(df)] = [video_file, msg]
 
@@ -317,15 +319,18 @@ class CheckProject(TileDecodeBenchmark):
         df = self.error_df
         for _ in self._iterate(deep=4):
             video_file = self.state.compressed_file
+            print(f'Checking {video_file}')
             msg = self._check_video_size(video_file, check_gop=True)
             if 'ok' in msg:
                 msg = self._verify_encode_log(video_file)
+            print(msg)
             df.loc[len(df)] = [video_file, msg]
 
     def check_segment(self):
         df = self.error_df
         for _ in self._iterate(deep=5):
             video_file = self.state.segment_file
+            print(f'Checking {video_file}')
             msg = self._check_video_size(video_file)
             df.loc[len(df)] = [video_file, msg]
 
@@ -333,6 +338,7 @@ class CheckProject(TileDecodeBenchmark):
         df = self.error_df
         for _ in self._iterate(deep=5):
             dectime_log = self.state.dectime_log
+            print(f'Checking {dectime_log}')
             msg = self._verify_encode_log(dectime_log)
             df.loc[len(df)] = [dectime_log, msg]
 
@@ -352,7 +358,6 @@ class CheckProject(TileDecodeBenchmark):
             json.dump(Counter(self.error_df['msg']), f, indent=2)
 
     def _check_video_size(self, video_file, check_gop=False) -> str:
-        print(f'Checking {video_file}')
         status = self.check_file_size(video_file)
 
         if status > 0:
