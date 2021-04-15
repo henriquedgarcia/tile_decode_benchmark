@@ -123,8 +123,11 @@ class Factors:
 
     @property
     def name(self) -> str:
-        self._name = self.video.name
-        return self._name
+        return self.video.name
+
+    @name.setter
+    def name(self, name: str):
+        self.video.name = name
 
     @property
     def pattern(self) -> str:
