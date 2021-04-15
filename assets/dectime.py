@@ -184,12 +184,13 @@ class TileDecodeBenchmark:
             cmd += f'-i {lossless_file} '
             cmd += f'-crf {quality} -tune "psnr" '
             cmd += (f'-c:v libx265 '
-                    f'-x265-params \''
+                    f'-x265-params "'
                     f'keyint={gop}:'
                     f'min-keyint={gop}:'
                     f'open-gop=0:'
-                    f'info=0:'
-                    f'scenecut=0\' ')
+                    f'scenecut=0:'
+                    f'info=0'
+                    f'" ')
             cmd += (f'-vf "'
                     f'crop=w={tile.w}:h={tile.h}:'
                     f'x={tile.x}:y={tile.y}'
