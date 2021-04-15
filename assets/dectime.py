@@ -264,11 +264,15 @@ class TileDecodeBenchmark:
 
 
 class CheckProject(TileDecodeBenchmark):
-    def __init__(self, config_file, rem_error=False):
+    rem_error: str = None
+
+    def __init__(self, config_file):
         super().__init__(config_file)
-        self.rem_error = rem_error
         self.role: Union[Check, None] = None
         self.error_df: Union[dict, pd.DataFrame] = defaultdict(list)
+
+    def run(self, rem_error, **kwargs):
+        self.rem_error = rem_error
 
         self.menu()
         self.check()
