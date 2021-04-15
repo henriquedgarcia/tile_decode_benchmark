@@ -251,7 +251,7 @@ class TileDecodeBenchmark:
             return
 
         for _ in self._iterate(deep=5):
-            name, pattern, quality, tile, chunk = self.state.get_state()
+            name, pattern, quality, tile, chunk = self.state.get_factors()
             print(f'Collecting {name}'
                   f'-{pattern}'
                   f'-{self.state.factor}{quality}'
