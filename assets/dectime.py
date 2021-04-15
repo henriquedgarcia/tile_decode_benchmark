@@ -2,8 +2,7 @@ import json
 import os
 from collections import Counter, defaultdict
 from enum import Enum
-from os import path
-from os.path import exists
+from os.path import isfile, getsize, splitext
 from typing import Dict, Union
 
 import numpy as np
@@ -88,7 +87,7 @@ class TileDecodeBenchmark:
 
         :return:
         """
-        chunk_size = path.getsize(self.state.segment_file)
+        chunk_size = getsize(self.state.segment_file)
         chunk_size = chunk_size * 8 / (self.state.gop / self.state.fps)
 
         strip_time = lambda line: float(line.strip().split(' ')[1]
@@ -127,7 +126,7 @@ class TileDecodeBenchmark:
         """
         for _ in self._iterate(deep=1):
             uncompressed_file = self.state.lossless_file
-            if exists(uncompressed_file) and not overwrite:
+            if isfile(uncompressed_file) and not overwrite:
                 print(f'The file {uncompressed_file} exist. Skipping.')
                 continue
 
@@ -145,7 +144,7 @@ class TileDecodeBenchmark:
             command += f'-t {video.duration} -r {fps} -map 0:v -crf 0 '
             command += f'-vf scale={frame.scale},setdar={dar} '
             command += f'{uncompressed_file}'
-            log = f'{path.splitext(uncompressed_file)[0]}.log'
+            log = f'{splitext(uncompressed_file)[0]}.log'
             run_command(command, log)
 
     def calcule_siti(self, overwrite) -> None:
@@ -174,7 +173,7 @@ class TileDecodeBenchmark:
     def compress(self, overwrite=False):
         for _ in self._iterate(deep=4):
             compressed_file = self.state.compressed_file
-            if exists(compressed_file) and not overwrite:
+            if isfile(compressed_file) and not overwrite:
                 print(f'The file {compressed_file} exist. Skipping.')
                 continue
 
