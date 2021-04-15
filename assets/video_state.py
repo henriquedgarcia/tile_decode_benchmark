@@ -42,18 +42,18 @@ class Tile:
 
 
 class Tiling:
+    _pattern_list: List[str]
+    _pattern: str
     frame: Frame
-    pattern: str
     tile_scale: Frame
     total_tiles: int
     tiles_list: List[Tile]
-    _pattern_list: List[str]
+    m: int
+    n: int
 
     def __init__(self, pattern, frame: Frame):
         self.pattern = pattern
-        self.m, self.n = splitx(pattern)
         self.frame = frame
-        self.total_tiles = self.m * self.n
 
     @property
     def tiles_list(self):
@@ -64,6 +64,16 @@ class Tiling:
         tiles_list = [Tile(idx, self.tile_scale, (x, y))
                       for idx, (y, x) in enumerate(pos_iterator)]
         return tiles_list
+
+    @property
+    def pattern(self):
+        return self._pattern
+
+    @pattern.setter
+    def pattern(self, pattern: str):
+        self._pattern = pattern
+        self.m, self.n = splitx(pattern)
+        self.total_tiles = self.m * self.n
 
 
 class Video:
