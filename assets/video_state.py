@@ -113,12 +113,9 @@ class Video:
 
 class Factors:
     video: Video
-    _name: str
     tiling: Tiling
-    _pattern: str
     quality: int
     tile: Tile
-    _tile_id: int
     chunk: int
 
     @property
