@@ -4,6 +4,7 @@ from collections import Counter, defaultdict
 from enum import Enum
 from os.path import isfile, getsize, splitext
 from typing import Dict, Union
+from subprocess import run
 
 import numpy as np
 import pandas as pd
@@ -15,11 +16,11 @@ from assets.video_state import Tiling, VideoState
 
 
 class Check(Enum):
-    ORIGINAL = 0
-    LOSSLESS = 1
-    COMPRESSED = 2
-    SEGMENT = 3
-    DECTIME = 4
+    ORIGINAL = 'check_original'
+    LOSSLESS = 'check_lossless'
+    COMPRESS = 'check_compressed'
+    SEGMENT = 'check_segment'
+    DECODE = 'check_dectime'
 
 
 class Role(Enum):
@@ -29,7 +30,7 @@ class Role(Enum):
     DECODE = 'decode'
     RESULTS = 'collect_result'
     SITI = 'calcule_siti'
-    CHECK = 'check'
+    CHECK = 'check_all'
 
 
 class TileDecodeBenchmark:
@@ -276,146 +277,67 @@ class TileDecodeBenchmark:
 
 
 class CheckProject(TileDecodeBenchmark):
-    rem_error: str = None
+    rem_error: bool = None
+    error_df: pd.DataFrame = pd.DataFrame(columns=['video', 'msg'])
+    role: Union[Check, None] = None
 
-    def __init__(self, config_file):
-        super().__init__(config_file)
-        self.role: Union[Check, None] = None
-        self.error_df: Union[dict, pd.DataFrame] = defaultdict(list)
-
-    def run(self, rem_error, **kwargs):
-        self.rem_error = rem_error
-
-        self.menu()
-        self.check()
+    def check_all(self):
+        self.check_original()
+        self.save_report()
+        self.check_lossless()
+        self.save_report()
+        self.check_compressed()
+        self.save_report()
+        self.check_segment()
+        self.save_report()
+        self.check_dectime()
         self.save_report()
 
-    @staticmethod
-    def count_decoding(log_file):
-        try:
-            with open(log_file, 'r', encoding='utf-8') as f:
-                count_decode = len(['' for line in f if 'utime' in line])
-        except FileNotFoundError:
-            count_decode = 0
-        except UnicodeDecodeError:
-            count_decode = -1
-        return count_decode
+    def run(self, role: str, overwrite=False, rem_error=False):
+        self.rem_error = rem_error
+        self.role = Check[role]
+        getattr(self, self.role.value)()
+        self.save_report()
 
-    def clean(self, video_file):
-        if self.rem_error:
-            log = CheckProject.get_logfile(video_file)
-            try:
-                os.remove(video_file)
-            except FileNotFoundError:
-                pass
-
-            try:
-                os.remove(log)
-            except FileNotFoundError:
-                pass
-
-    def _verify_encode_log(self, video_file):
-        log_file = CheckProject.get_logfile(video_file)
-        try:
-            with open(log_file, 'r', encoding='utf-8') as f:
-                msg = ['apparently_ok' for line in f if 'Global PSNR' in line]
-                if msg:
-                    msg = msg[0]
-                else:
-                    msg = 'log_corrupt'
-                    self.clean(video_file)
-        except FileNotFoundError:
-            msg = 'logfile_not_found'
-        return msg
-
-    def _check_original(self):
-        if self.role is not Check.ORIGINAL: return
+    def check_original(self):
+        df = self.error_df
         for _ in self._iterate(deep=1):
             video_file = self.state.original_file
-            msg = self.check_video_state(video_file)
-            self.register_df(video_file, msg)
+            msg = self._check_video_size(video_file)
+            df.loc[len(df)] = [video_file, msg]
 
-    def _check_lossless(self):
-        if self.role is not Check.LOSSLESS: return
+    def check_lossless(self):
+        df = self.error_df
         for _ in self._iterate(deep=1):
             video_file = self.state.lossless_file
-            msg = self.check_video_state(video_file)
-            self.register_df(video_file, msg)
+            msg = self._check_video_size(video_file)
+            df.loc[len(df)] = [video_file, msg]
 
-    def _check_compressed(self):
-        if self.role is not Check.COMPRESSED: return
+    def check_compressed(self):
+        df = self.error_df
         for _ in self._iterate(deep=4):
             video_file = self.state.compressed_file
-            msg = self.check_video_state(video_file)
-            self.register_df(video_file, msg)
+            msg = self._check_video_size(video_file, check_gop=True)
+            if 'ok' in msg:
+                msg = self._verify_encode_log(video_file)
+            df.loc[len(df)] = [video_file, msg]
 
-    def _check_segment(self):
-        if self.role is not Check.SEGMENT: return
+    def check_segment(self):
+        df = self.error_df
         for _ in self._iterate(deep=5):
             video_file = self.state.segment_file
-            msg = self.check_video_state(video_file)
-            self.register_df(video_file, msg)
+            msg = self._check_video_size(video_file)
+            df.loc[len(df)] = [video_file, msg]
 
-    def _check_dectime(self):
-        if self.role is not Check.DECTIME: return
+    def check_dectime(self):
+        df = self.error_df
         for _ in self._iterate(deep=5):
-            video_file = self.state.dectime_log
-            msg = self.check_video_state(video_file)
-            self.register_df(video_file, msg)
-
-    def check(self):
-        self._check_original()
-        self._check_lossless()
-        self._check_compressed()
-        self._check_segment()
-        self._check_dectime()
-
-        self.error_df = pd.DataFrame(self.error_df)
-
-    def check_video_state(self, video_file) -> str:
-        print(f'Checking {video_file}')
-        try:
-            filesize = os.path.getsize(f'{video_file}')
-        except FileNotFoundError:
-            msg = f'not_found'
-            return msg
-
-        if filesize == 0:
-            msg = f'filesize==0'
-            self.clean(video_file)
-            return msg
-
-        # if file exist and size > 0
-        msg = f'apparently_ok'
-        if self.role is Check.COMPRESSED:
-            msg = self._verify_encode_log(video_file)
-            return msg
-        elif self.role is Check.DECTIME:
-            count_decode = self.count_decoding(video_file)
-            if count_decode == -1 and self.rem_error:
-                self.clean(video_file)
-            msg = f'decoded_{count_decode}x'
-            return msg
-        return msg
-
-    def register_df(self, video_file, msg):
-        self.error_df['video'].append(video_file)
-        self.error_df['msg'].append(msg)
-
-    def menu(self) -> None:
-        c = None
-        while c not in ['0', '1', '2', '3', '4']:
-            c = input('Options:\n'
-                      '0 - Check original\n'
-                      '1 - Check lossless\n'
-                      '2 - Check encoded\n'
-                      '3 - Check segments\n'
-                      '4 - Check dectime logs\n'
-                      ': ', )
-        self.role = Check(int(c))
+            dectime_log = self.state.dectime_log
+            msg = self._verify_encode_log(dectime_log)
+            df.loc[len(df)] = [dectime_log, msg]
 
     def save_report(self):
-        folder = f"{self.state.project}/check_dectime/"
+        folder = f"{self.state.project}/check_dectime"
         os.makedirs(folder, exist_ok=True)
 
         filename = f'{folder}/{self.role.name}.log'
@@ -428,3 +350,120 @@ class CheckProject(TileDecodeBenchmark):
         filename = f'{folder}/{self.role.name}-resume.log'
         with open(filename, 'w') as f:
             json.dump(Counter(self.error_df['msg']), f, indent=2)
+
+    def _check_video_size(self, video_file, check_gop=False) -> str:
+        print(f'Checking {video_file}')
+        status = self.check_file_size(video_file)
+
+        if status > 0:
+            if check_gop:
+                gop_len = self.check_video_gop(video_file)[0]
+                if not gop_len == self.config.gop:
+                    return f'wrong_gop_size_{gop_len}'
+            return 'apparently_ok'
+        elif status == 0:
+            self._clean(video_file)
+            return 'filesize==0'
+        elif status < 0:
+            self._clean(video_file)
+            return 'video_not_found'
+
+    @staticmethod
+    def check_video_gop(video_file) -> (int, list):
+        command = f'ffprobe -show_frames "{video_file}"'
+
+        process = run(command, shell=True, capture_output=True, encoding='utf-8', )
+        output = process.stdout
+        gop = [line.strip().split('=')[1]
+               for line in output.splitlines()
+               if 'pict_type' in line]
+
+        # Count GOP
+        max_gop = 0
+        len_gop = 0
+        for pict_type in gop:
+            if pict_type in 'I':
+                len_gop = 1
+            else:
+                len_gop += 1
+            if len_gop > max_gop:
+                max_gop = len_gop
+
+        return max_gop, gop
+
+    def _verify_encode_log(self, video_file) -> str:
+        log_file = self.get_logfile(video_file)
+
+        if not os.path.isfile(log_file):
+            return 'logfile_not_found'
+
+        with open(log_file, 'r', encoding='utf-8') as f:
+            ok = bool(['' for line in f if 'Global PSNR' in line])
+
+        if not ok:
+            self._clean(video_file)
+            return 'log_corrupt'
+
+        return 'apparently_ok'
+
+    def _verify_dectime_log(self, dectime_log) -> str:
+        count_decode = self.count_decoding(dectime_log)
+        if count_decode == -1:
+            self._clean(dectime_log)
+            return f'log_corrupt'
+        return f'decoded_{count_decode}x'
+
+    def _clean(self, video_file):
+        if self.rem_error:
+            self.rem_file(video_file)
+            log = CheckProject.get_logfile(video_file)
+            self.rem_file(log)
+
+    @staticmethod
+    def count_decoding(log_file: str) -> int:
+        """
+        Count how many times the word "utime" appears in "log_file"
+        :param log_file: A path-to-file string.
+        :return:
+        """
+        try:
+            with open(log_file, 'r', encoding='utf-8') as f:
+                return len(['' for line in f if 'utime' in line])
+        except FileNotFoundError:
+            return 0
+        except UnicodeDecodeError:
+            return -1
+
+    @staticmethod
+    def rem_file(file) -> None:
+        if os.path.isfile(file):
+            os.remove(file)
+
+    @staticmethod
+    def check_file_size(video_file) -> int:
+        if not os.path.isfile(video_file):
+            return -1
+        filesize = os.path.getsize(video_file)
+        if filesize == 0:
+            return 0
+        return filesize
+
+    @staticmethod
+    def menu(options_txt: list) -> int:
+        options, menu = CheckProject.make_menu(options_txt)
+
+        c = None
+        while c not in options:
+            c = input(menu)
+
+        return int(c)
+
+    @staticmethod
+    def make_menu(options_txt: list) -> (list, str):
+        options = [str(o) for o in range(len(options_txt))]
+        menu = ['Options:']
+        menu.extend([f'{o} - {text}'
+                     for o, text in zip(options, options_txt)])
+        menu.append(':')
+        menu = '\n'.join(menu)
+        return options, menu
