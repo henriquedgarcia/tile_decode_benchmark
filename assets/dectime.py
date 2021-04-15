@@ -172,7 +172,6 @@ class TileDecodeBenchmark:
                 continue
 
             print(f'Processing {compressed_file}')
-            # todo: o pattern no basename está saindo errado. Todos são 1x1.
 
             lossless_file = self.state.lossless_file
             quality = self.state.quality
