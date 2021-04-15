@@ -131,8 +131,11 @@ class Factors:
 
     @property
     def pattern(self) -> str:
-        self._pattern = self.tiling.pattern
         return self.tiling.pattern
+
+    @pattern.setter
+    def pattern(self, pattern: str):
+        self.tiling.pattern = pattern
 
     @property
     def tile_id(self) -> int:
