@@ -195,7 +195,7 @@ class TileDecodeBenchmark:
                     f'x={tile.x}:y={tile.y}'
                     f'" ')
             cmd += f'{compressed_file}'
-            log = f'{compressed_file[:-4]}.log'
+            log = self.get_logfile(compressed_file)
             run_command(cmd, log)
 
     @staticmethod
