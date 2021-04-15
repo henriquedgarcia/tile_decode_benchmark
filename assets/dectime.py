@@ -8,6 +8,7 @@ from subprocess import run
 
 import numpy as np
 import pandas as pd
+import PySimpleGUI as sg
 
 from assets.config import Config
 from assets.siti import SiTi
@@ -301,46 +302,83 @@ class CheckProject(TileDecodeBenchmark):
 
     def check_original(self):
         df = self.error_df
+        files_list = []
         for _ in self._iterate(deep=1):
             video_file = self.state.original_file
+            files_list.append(video_file)
+
+        for i, video_file in enumerate(files_list):
+            sg.one_line_progress_meter('This is my progress meter!', i + 1,
+                                       len(files_list), '-key-')
             print(f'Checking {video_file}')
             msg = self._check_video_size(video_file)
             df.loc[len(df)] = [video_file, msg]
+            if i % 10 == 0: self.save_report()
 
     def check_lossless(self):
         df = self.error_df
+        files_list = []
         for _ in self._iterate(deep=1):
             video_file = self.state.lossless_file
+            files_list.append(video_file)
+
+        for i, video_file in enumerate(files_list):
+            sg.one_line_progress_meter('This is my progress meter!', i + 1,
+                                       len(files_list), '-key-')
+
             print(f'Checking {video_file}')
             msg = self._check_video_size(video_file)
             df.loc[len(df)] = [video_file, msg]
+            if i % 10 == 0: self.save_report()
 
     def check_compressed(self):
         df = self.error_df
+        files_list = []
         for _ in self._iterate(deep=4):
+            # if _ > 50: break  # todo: remove this
             video_file = self.state.compressed_file
+            files_list.append(video_file)
+
+        for i, video_file in enumerate(files_list):
+            sg.one_line_progress_meter('This is my progress meter!', i + 1,
+                                       len(files_list), '-key-')
             print(f'Checking {video_file}')
             msg = self._check_video_size(video_file, check_gop=True)
             if 'ok' in msg:
                 msg = self._verify_encode_log(video_file)
             print(msg)
             df.loc[len(df)] = [video_file, msg]
+            if i % 10 == 0: self.save_report()
 
     def check_segment(self):
         df = self.error_df
+        files_list = []
         for _ in self._iterate(deep=5):
             video_file = self.state.segment_file
+            files_list.append(video_file)
+
+        for i, video_file in enumerate(files_list):
+            sg.one_line_progress_meter('This is my progress meter!', i + 1,
+                                       len(files_list), '-key-')
             print(f'Checking {video_file}')
             msg = self._check_video_size(video_file)
             df.loc[len(df)] = [video_file, msg]
+            if i % 10 == 0: self.save_report()
 
     def check_dectime(self):
         df = self.error_df
+        files_list = []
         for _ in self._iterate(deep=5):
             dectime_log = self.state.dectime_log
+            files_list.append(dectime_log)
+
+        for i, dectime_log in enumerate(files_list):
+            sg.one_line_progress_meter('This is my progress meter!', i + 1,
+                                       len(files_list), '-key-')
             print(f'Checking {dectime_log}')
             msg = self._verify_encode_log(dectime_log)
             df.loc[len(df)] = [dectime_log, msg]
+            if i % 10 == 0: self.save_report()
 
     def save_report(self):
         folder = f"{self.state.project}/check_dectime"
