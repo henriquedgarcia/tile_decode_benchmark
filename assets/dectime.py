@@ -56,25 +56,31 @@ class TileDecodeBenchmark:
         self.state = VideoState(self.config)
 
     def _iterate(self, deep):
+        count = 0
         for self.state.video in self.state.videos_list:
             if deep == 1:
-                yield
+                count += 1
+                yield count
                 continue
             for self.state.tiling in self.state.tiling_list:
                 if deep == 2:
-                    yield
+                    count += 1
+                    yield count
                     continue
                 for self.state.quality in self.state.quality_list:
                     if deep == 3:
-                        yield
+                        count += 1
+                        yield count
                         continue
                     for self.state.tile in self.state.tiles_list:
                         if deep == 4:
-                            yield
+                            count += 1
+                            yield count
                             continue
                         for self.state.chunk in self.state.chunk_list:
                             if deep == 5:
-                                yield
+                                count += 1
+                                yield count
                                 continue
 
     def _collect_dectime(self) -> Dict[str, float]:
