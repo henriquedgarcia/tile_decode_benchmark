@@ -139,7 +139,6 @@ class Factors:
 
     @property
     def tile_id(self) -> int:
-        self._tile_id = self.tile.idx
         return self.tile.idx
 
 
