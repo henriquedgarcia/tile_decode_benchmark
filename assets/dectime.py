@@ -199,6 +199,10 @@ class TileDecodeBenchmark:
             log = f'{compressed_file[:-4]}.log'
             run_command(cmd, log)
 
+    @staticmethod
+    def get_logfile(video_file):
+        return f'{video_file[:-4]}.log'
+
     def segment(self, overwrite=False):
         for _ in self._iterate(deep=4):
             # Check segment log size. If size is very small, overwrite.
@@ -300,10 +304,6 @@ class CheckProject(TileDecodeBenchmark):
                 os.remove(log)
             except FileNotFoundError:
                 pass
-
-    @staticmethod
-    def get_logfile(video_file):
-        return f'{video_file[:-4]}.log'
 
     def _verify_encode_log(self, video_file):
         log_file = CheckProject.get_logfile(video_file)
