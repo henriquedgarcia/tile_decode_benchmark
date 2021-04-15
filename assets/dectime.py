@@ -335,7 +335,6 @@ class CheckProject(TileDecodeBenchmark):
         df = self.error_df
         files_list = []
         for _ in self._iterate(deep=4):
-            # if _ > 50: break  # todo: remove this
             video_file = self.state.compressed_file
             files_list.append(video_file)
 
@@ -346,7 +345,6 @@ class CheckProject(TileDecodeBenchmark):
             msg = self._check_video_size(video_file, check_gop=False)
             if 'ok' in msg:
                 msg = self._verify_encode_log(video_file)
-            print(msg)
             df.loc[len(df)] = [video_file, msg]
             if i % 10 == 0: self.save_report()
 
