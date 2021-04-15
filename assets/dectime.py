@@ -9,10 +9,9 @@ from typing import Dict, Union
 import numpy as np
 import pandas as pd
 
-import assets.util as util
 from assets.config import Config
 from assets.siti import SiTi
-from assets.util import run_command
+from assets.util import run_command, AutoDict, save_json
 from assets.video_state import Tiling, VideoState
 
 
@@ -49,7 +48,7 @@ class TileDecodeBenchmark:
     if ['qp_avg']   : The ffmpeg calculated average QP for a encoding.
     """
     role: Role
-    results = util.AutoDict()
+    results = AutoDict()
 
     def __init__(self, config: str):
         self.config = Config(config)
@@ -260,7 +259,7 @@ class TileDecodeBenchmark:
             self.results[name][pattern][quality][tile]\
                 .update(self._collect_psnr())
         print(f'Saving {self.state.dectime_raw_json}')
-        util.save_json(self.results, self.state.dectime_raw_json, compact=True)
+        save_json(self.results, self.state.dectime_raw_json, compact=True)
 
 
 class CheckProject(TileDecodeBenchmark):
