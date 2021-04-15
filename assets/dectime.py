@@ -49,6 +49,7 @@ class TileDecodeBenchmark:
     """
     role: Role
     results = AutoDict()
+    log = defaultdict(list)
 
     def __init__(self, config: str):
         self.config = Config(config)
@@ -231,6 +232,9 @@ class TileDecodeBenchmark:
                 dectime_file = self.state.dectime_log
 
                 count = CheckProject.count_decoding(dectime_file)
+                if count == -1:
+                    self.log['TileDecodeBenchmark.decode'].append(f'Reading Error on {dectime_file}.')
+                    continue
                 coding_ok = count >= decoding_num
                 if coding_ok and not overwrite: continue
 
@@ -284,11 +288,12 @@ class CheckProject(TileDecodeBenchmark):
     @staticmethod
     def count_decoding(log_file):
         try:
-            f = open(log_file, 'r', encoding='utf-8')
-            count_decode = len(['' for line in f if 'utime' in line])
-            f.close()
+            with open(log_file, 'r', encoding='utf-8') as f:
+                count_decode = len(['' for line in f if 'utime' in line])
         except FileNotFoundError:
             count_decode = 0
+        except UnicodeDecodeError:
+            count_decode = -1
         return count_decode
 
     def clean(self, video_file):
@@ -382,6 +387,8 @@ class CheckProject(TileDecodeBenchmark):
             return msg
         elif self.role is Check.DECTIME:
             count_decode = self.count_decoding(video_file)
+            if count_decode == -1 and self.rem_error:
+                self.clean(video_file)
             msg = f'decoded_{count_decode}x'
             return msg
         return msg
