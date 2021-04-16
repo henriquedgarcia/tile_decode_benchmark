@@ -313,7 +313,7 @@ class CheckProject(TileDecodeBenchmark):
             print(f'Checking {video_file}')
             msg = self._check_video_size(video_file)
             df.loc[len(df)] = [video_file, msg]
-            if i % 10 == 0: self.save_report()
+            if i % 299 == 0: self.save_report()
 
     def check_lossless(self):
         df = self.error_df
@@ -329,7 +329,7 @@ class CheckProject(TileDecodeBenchmark):
             print(f'Checking {video_file}')
             msg = self._check_video_size(video_file)
             df.loc[len(df)] = [video_file, msg]
-            if i % 10 == 0: self.save_report()
+            if i % 299 == 0: self.save_report()
 
     def check_compressed(self):
         df = self.error_df
@@ -341,12 +341,12 @@ class CheckProject(TileDecodeBenchmark):
         for i, video_file in enumerate(files_list):
             sg.one_line_progress_meter('This is my progress meter!', i + 1,
                                        len(files_list), '-key-')
-            print(f'Checking {video_file}')
             msg = self._check_video_size(video_file, check_gop=False)
             if 'ok' in msg:
                 msg = self._verify_encode_log(video_file)
             df.loc[len(df)] = [video_file, msg]
-            if i % 10 == 0: self.save_report()
+            if i % 299 == 0:
+                self.save_report()
 
     def check_segment(self):
         df = self.error_df
@@ -358,10 +358,10 @@ class CheckProject(TileDecodeBenchmark):
         for i, video_file in enumerate(files_list):
             sg.one_line_progress_meter('This is my progress meter!', i + 1,
                                        len(files_list), '-key-')
-            print(f'Checking {video_file}')
+            # print(f'Checking {video_file}')
             msg = self._check_video_size(video_file)
             df.loc[len(df)] = [video_file, msg]
-            if i % 10 == 0: self.save_report()
+            if i % 299 == 0: self.save_report()
 
     def check_dectime(self):
         df = self.error_df
@@ -373,10 +373,10 @@ class CheckProject(TileDecodeBenchmark):
         for i, dectime_log in enumerate(files_list):
             sg.one_line_progress_meter('This is my progress meter!', i + 1,
                                        len(files_list), '-key-')
-            print(f'Checking {dectime_log}')
+            # print(f'Checking {dectime_log}')
             msg = self._verify_encode_log(dectime_log)
             df.loc[len(df)] = [dectime_log, msg]
-            if i % 10 == 0: self.save_report()
+            if i % 299 == 0: self.save_report()
 
     def save_report(self):
         folder = f"{self.state.project}/check_dectime"
