@@ -409,29 +409,6 @@ class CheckProject(TileDecodeBenchmark):
             self._clean(video_file)
             return 'video_not_found'
 
-    @staticmethod
-    def check_video_gop(video_file) -> (int, list):
-        command = f'ffprobe -show_frames "{video_file}"'
-
-        process = run(command, shell=True, capture_output=True, encoding='utf-8', )
-        output = process.stdout
-        gop = [line.strip().split('=')[1]
-               for line in output.splitlines()
-               if 'pict_type' in line]
-
-        # Count GOP
-        max_gop = 0
-        len_gop = 0
-        for pict_type in gop:
-            if pict_type in 'I':
-                len_gop = 1
-            else:
-                len_gop += 1
-            if len_gop > max_gop:
-                max_gop = len_gop
-
-        return max_gop, gop
-
     def _verify_encode_log(self, video_file) -> str:
         log_file = self.get_logfile(video_file)
 
@@ -459,6 +436,29 @@ class CheckProject(TileDecodeBenchmark):
             self.rem_file(video_file)
             log = CheckProject.get_logfile(video_file)
             self.rem_file(log)
+
+    @staticmethod
+    def check_video_gop(video_file) -> (int, list):
+        command = f'ffprobe -show_frames "{video_file}"'
+
+        process = run(command, shell=True, capture_output=True, encoding='utf-8', )
+        output = process.stdout
+        gop = [line.strip().split('=')[1]
+               for line in output.splitlines()
+               if 'pict_type' in line]
+
+        # Count GOP
+        max_gop = 0
+        len_gop = 0
+        for pict_type in gop:
+            if pict_type in 'I':
+                len_gop = 1
+            else:
+                len_gop += 1
+            if len_gop > max_gop:
+                max_gop = len_gop
+
+        return max_gop, gop
 
     @staticmethod
     def count_decoding(log_file: str) -> int:
