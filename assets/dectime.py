@@ -1,18 +1,19 @@
 import json
 import os
+from logging import warning, info, debug, critical
 from collections import Counter, defaultdict
 from enum import Enum
-from os.path import isfile, getsize, splitext
-from typing import Dict, Union
+from os.path import getsize, isfile, splitext
 from subprocess import run
+from typing import Dict, Union
 
+import PySimpleGUI as sg
 import numpy as np
 import pandas as pd
-import PySimpleGUI as sg
 
 from assets.config import Config
 from assets.siti import SiTi
-from assets.util import run_command, AutoDict, save_json
+from assets.util import AutoDict, run_command, save_json
 from assets.video_state import Tiling, VideoState
 
 
