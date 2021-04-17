@@ -1,15 +1,16 @@
 import json
 import os
-from logging import warning, info, debug, critical
 from collections import Counter, defaultdict
 from enum import Enum
+from logging import warning, info, debug, critical
 from os.path import getsize, isfile, splitext
+from pathlib import Path
 from subprocess import run
 from typing import Dict, Union
 
-import PySimpleGUI as sg
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from assets.config import Config
 from assets.siti import SiTi
@@ -90,6 +91,7 @@ class TileDecodeBenchmark:
             run_command(command, log)
 
     def compress(self, overwrite=False):
+        queue = []
         for _ in self._iterate(deep=4):
             compressed_file = self.state.compressed_file
             if isfile(compressed_file) and not overwrite:
@@ -121,9 +123,14 @@ class TileDecodeBenchmark:
                     f'" ')
             cmd += f'{compressed_file}'
             log = self.get_logfile(compressed_file)
-            run_command(cmd, log)
+
+            queue.append((cmd, log))
+
+        for cmd in tqdm(queue):
+            run_command(*cmd)
 
     def segment(self, overwrite=False):
+        queue = []
         for _ in self._iterate(deep=4):
             # Check segment log size. If size is very small, overwrite.
             segment_folder = self.state.segment_folder
@@ -136,16 +143,20 @@ class TileDecodeBenchmark:
             except FileNotFoundError:
                 pass
 
-            info(f'Processing {segment_folder}')
+            info(f'Queueing {segment_folder}')
 
             cmd = 'MP4Box '
             cmd += '-split 1 '
             cmd += f'{self.state.compressed_file} '
-            cmd += f'-out {segment_folder}/'
-            run_command(cmd, log)
+            cmd += f'-out {segment_folder}{Path("/")}'
+            queue.append((cmd, log))
+
+        for cmd in tqdm(queue):
+            run_command(*cmd)
 
     def decode(self, overwrite):
         decoding_num = self.config.decoding_num
+        queue = []
         for _ in range(decoding_num):
             for _ in self._iterate(deep=5):
                 segment_file = self.state.segment_file
@@ -153,7 +164,8 @@ class TileDecodeBenchmark:
 
                 count = CheckProject.count_decoding(dectime_file)
                 if count == -1:
-                    self.log['TileDecodeBenchmark.decode'].append(f'Reading Error on {dectime_file}.')
+                    warning(f'TileDecodeBenchmark.decode: Error on reading '
+                            f'dectime log file: {dectime_file}.')
                     continue
                 coding_ok = count >= decoding_num
                 if coding_ok and not overwrite: continue
@@ -162,7 +174,11 @@ class TileDecodeBenchmark:
                        f'-codec hevc -threads 1 ')
                 cmd += f'-i {segment_file} '
                 cmd += f'-f null -'
-                run_command(cmd, dectime_file, mode='a')
+
+                queue.append((cmd, dectime_file))
+
+            for cmd in tqdm(queue):
+                run_command(*cmd, mode='a')
 
     def collect_result(self, overwrite):
         exist = os.path.isfile(self.state.dectime_raw_json)
@@ -308,9 +324,11 @@ class CheckProject(TileDecodeBenchmark):
             video_file = self.state.original_file
             files_list.append(video_file)
 
-        for i, video_file in enumerate(files_list):
-            sg.one_line_progress_meter('This is my progress meter!', i + 1,
-                                       len(files_list), '-key-')
+        # for cmd in tqdm(files_list):
+
+        for i, video_file in enumerate(tqdm(files_list)):
+            # sg.one_line_progress_meter('This is my progress meter!', i + 1,
+            #                            len(files_list), '-key-')
             msg = self._check_video_size(video_file)
             df.loc[len(df)] = [video_file, msg]
             if i % 299 == 0: self.save_report()
@@ -322,10 +340,7 @@ class CheckProject(TileDecodeBenchmark):
             video_file = self.state.lossless_file
             files_list.append(video_file)
 
-        for i, video_file in enumerate(files_list):
-            sg.one_line_progress_meter('This is my progress meter!', i + 1,
-                                       len(files_list), '-key-')
-
+        for i, video_file in enumerate(tqdm(files_list)):
             msg = self._check_video_size(video_file)
             df.loc[len(df)] = [video_file, msg]
             if i % 299 == 0: self.save_report()
@@ -334,12 +349,11 @@ class CheckProject(TileDecodeBenchmark):
         df = self.error_df
         files_list = []
         for _ in self._iterate(deep=4):
+            if _ > 50: break
             video_file = self.state.compressed_file
             files_list.append(video_file)
 
-        for i, video_file in enumerate(files_list):
-            sg.one_line_progress_meter('This is my progress meter!', i + 1,
-                                       len(files_list), '-key-')
+        for i, video_file in enumerate(tqdm(files_list)):
             msg = self._check_video_size(video_file, check_gop=False)
             if 'ok' in msg:
                 msg = self._verify_encode_log(video_file)
@@ -354,9 +368,7 @@ class CheckProject(TileDecodeBenchmark):
             video_file = self.state.segment_file
             files_list.append(video_file)
 
-        for i, video_file in enumerate(files_list):
-            sg.one_line_progress_meter('This is my progress meter!', i + 1,
-                                       len(files_list), '-key-')
+        for i, video_file in enumerate(tqdm(files_list)):
             msg = self._check_video_size(video_file)
             df.loc[len(df)] = [video_file, msg]
             if i % 299 == 0: self.save_report()
@@ -368,9 +380,7 @@ class CheckProject(TileDecodeBenchmark):
             dectime_log = self.state.dectime_log
             files_list.append(dectime_log)
 
-        for i, dectime_log in enumerate(files_list):
-            sg.one_line_progress_meter('This is my progress meter!', i + 1,
-                                       len(files_list), '-key-')
+        for i, dectime_log in enumerate(tqdm(files_list)):
             msg = self._verify_encode_log(dectime_log)
             df.loc[len(df)] = [dectime_log, msg]
             if i % 299 == 0: self.save_report()
@@ -458,7 +468,7 @@ class CheckProject(TileDecodeBenchmark):
         return max_gop, gop
 
     @staticmethod
-    def count_decoding(log_file: str) -> int:
+    def count_decoding(log_file: Path) -> int:
         """
         Count how many times the word "utime" appears in "log_file"
         :param log_file: A path-to-file string.
