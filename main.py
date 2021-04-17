@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 import assets.dectime as dt
+import logging
+
+# logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 
 def main():
@@ -24,7 +29,7 @@ def main():
     # dta.BarByPatternByQuality(config).run(False)
     # dta.HistByPatternFullFrame(config).run(False)
     # dta.BarByPatternFullFrame(config).run(False)
-    print('Finish.')
+    print('## Finish. ##')
 
 
 if __name__ == '__main__':
