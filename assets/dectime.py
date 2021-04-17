@@ -130,10 +130,10 @@ class TileDecodeBenchmark:
         for _ in self._iterate(deep=1):
             uncompressed_file = self.state.lossless_file
             if isfile(uncompressed_file) and not overwrite:
-                print(f'The file {uncompressed_file} exist. Skipping.')
+                warning(f'The file {uncompressed_file} exist. Skipping.')
                 continue
 
-            print(f'Processing {uncompressed_file}')
+            info(f'Processing {uncompressed_file}')
 
             frame = self.state.frame
             fps = self.state.fps
@@ -177,10 +177,10 @@ class TileDecodeBenchmark:
         for _ in self._iterate(deep=4):
             compressed_file = self.state.compressed_file
             if isfile(compressed_file) and not overwrite:
-                print(f'The file {compressed_file} exist. Skipping.')
+                warning(f'The file {compressed_file} exist. Skipping.')
                 continue
 
-            print(f'Processing {compressed_file}')
+            info(f'Processing {compressed_file}')
 
             lossless_file = self.state.lossless_file
             quality = self.state.quality
@@ -219,12 +219,12 @@ class TileDecodeBenchmark:
             try:
                 size = os.path.getsize(log)
                 if size > 10000 and not overwrite:
-                    print(f'The segments of "{segment_folder}" exist. Skipping')
+                    warning(f'The segments of "{segment_folder}" exist. Skipping')
                     continue
             except FileNotFoundError:
                 pass
 
-            print(f'Processing {segment_folder}')
+            info(f'Processing {segment_folder}')
 
             cmd = 'MP4Box '
             cmd += '-split 1 '
