@@ -1,5 +1,6 @@
 from itertools import product as prod
 from os import makedirs
+from pathlib import Path
 from typing import Any, Dict, List, Union
 
 from assets.config import Config
@@ -79,7 +80,7 @@ class Tiling:
 class Video:
     _name: str
     group: int
-    original: int
+    original: str
     offset: int
     duration: int
     chunks: range
@@ -154,7 +155,7 @@ class Params:
     This interface represent the constants values for all simulation.
     """
     scale: str
-    project: str
+    project: Path
     projection: str
     fps: int
     gop: int
@@ -170,74 +171,71 @@ class Paths(Params, Factors):
     segment_folder: Folder to put the segments of tiles_list.
     dectime_folder: Folder to put decode log.
     """
-    _original_folder: str
-    _lossless_folder: str
-    _compressed_folder: str
-    _segment_folder: str
-    _dectime_folder: str
+    _original_folder: Path
+    _lossless_folder: Path
+    _compressed_folder: Path
+    _segment_folder: Path
+    _dectime_folder: Path
 
     @property
     def basename(self):
-        return (f'{self.video.name}_'
-                f'{self.scale}_'
-                f'{self.fps}_'
-                f'{self.pattern}_'
-                f'{self.factor}{self.quality}')
+        return Path(f'{self.video.name}_'
+                    f'{self.scale}_'
+                    f'{self.fps}_'
+                    f'{self.pattern}_'
+                    f'{self.factor}{self.quality}')
 
     @property
-    def original_folder(self) -> str:
+    def original_folder(self) -> Path:
         return self._original_folder
 
     @property
-    def original_file(self) -> str:
-        return (f'{self.original_folder}/'
-                f'{self.video.original}')
-
-    @property
-    def lossless_folder(self) -> str:
-        folder = f'{self.project}/{self._lossless_folder}'
-        makedirs(folder, exist_ok=True)
+    def lossless_folder(self) -> Path:
+        folder = self.project / self._lossless_folder
+        folder.mkdir(exist_ok=True)
         return folder
 
     @property
-    def lossless_file(self) -> str:
-        return (f'{self.lossless_folder}/'
-                f'{self.name}_{self.scale}_{self.fps}.mp4')
-
-    @property
-    def compressed_folder(self) -> str:
-        folder = f'{self.project}/{self._compressed_folder}/{self.basename}'
-        makedirs(folder, exist_ok=True)
+    def compressed_folder(self) -> Path:
+        folder = self.project / self._compressed_folder / self.basename
+        folder.mkdir(exist_ok=True)
         return folder
 
     @property
-    def compressed_file(self):
-        return f'{self.compressed_folder}/tile{self.tile_id}.mp4'
-
-    @property
-    def segment_folder(self):
-        folder = f'{self.project}/{self._segment_folder}/{self.basename}'
-        makedirs(folder, exist_ok=True)
+    def segment_folder(self) -> Path:
+        folder = self.project / self._segment_folder / self.basename
+        folder.mkdir(exist_ok=True)
         return folder
 
     @property
-    def segment_file(self):
-        return f'{self.segment_folder}/tile{self.tile_id}_{self.chunk:03}.mp4'
-
-    @property
-    def dectime_folder(self):
-        folder = f'{self.project}/{self._dectime_folder}/{self.basename}'
-        makedirs(folder, exist_ok=True)
+    def dectime_folder(self) -> Path:
+        folder = self.project / self._dectime_folder / self.basename
+        folder.mkdir(exist_ok=True)
         return folder
 
     @property
-    def dectime_log(self):
-        return f'{self.dectime_folder}/tile{self.tile_id}_{self.chunk:03}.log'
+    def original_file(self) -> Path:
+        return self.original_folder / self.video.original
 
     @property
-    def dectime_raw_json(self):
-        filename = f'{self.project}/dectime_raw.json'
-        return filename
+    def lossless_file(self) -> Path:
+        return self.lossless_folder / f'{self.name}_{self.scale}_{self.fps}.mp4'
+
+    @property
+    def compressed_file(self) -> Path:
+        return self.compressed_folder / f'tile{self.tile_id}.mp4'
+
+    @property
+    def segment_file(self) -> Path:
+        return self.segment_folder / f'tile{self.tile_id}_{self.chunk:03}.mp4'
+
+    @property
+    def dectime_log(self) -> Path:
+        return self.dectime_folder / f'tile{self.tile_id}_{self.chunk:03}.log'
+
+    @property
+    def dectime_raw_json(self) -> Path:
+        return self.project / 'dectime_raw.json'
 
 
 class DectimeLists(Params, Factors):
@@ -310,7 +308,7 @@ class VideoState(Paths, DectimeLists, Params, Factors):
         :param config: Config object.
         """
         self.config = config
-        self.project = f'results/{config.project}'
+        self.project = Path(f'results/{config.project}')
         self.scale = config.scale
         self.frame = Frame(config.scale)
         self.fps = config.fps
@@ -323,9 +321,9 @@ class VideoState(Paths, DectimeLists, Params, Factors):
         self.quality_list = config.quality_list
         self.pattern_list = config.pattern_list
 
-        self._original_folder = config.original_folder
-        self._lossless_folder = config.lossless_folder
-        self._compressed_folder = config.compressed_folder
-        self._segment_folder = config.segment_folder
-        self._dectime_folder = config.dectime_folder
+        self._original_folder = Path(config.original_folder)
+        self._lossless_folder = Path(config.lossless_folder)
+        self._compressed_folder = Path(config.compressed_folder)
+        self._segment_folder = Path(config.segment_folder)
+        self._dectime_folder = Path(config.dectime_folder)
 
