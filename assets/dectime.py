@@ -390,18 +390,18 @@ class CheckProject(TileDecodeBenchmark):
             json.dump(Counter(self.error_df['msg']), f, indent=2)
 
     def _check_video_size(self, video_file, check_gop=False) -> str:
-        status = self.check_file_size(video_file)
+        size = self.check_file_size(video_file)
 
-        if status > 0:
+        if size > 0:
             if check_gop:
                 gop_len = self.check_video_gop(video_file)[0]
                 if not gop_len == self.config.gop:
                     return f'wrong_gop_size_{gop_len}'
             return 'apparently_ok'
-        elif status == 0:
+        elif size == 0:
             self._clean(video_file)
             return 'filesize==0'
-        elif status < 0:
+        elif size < 0:
             self._clean(video_file)
             return 'video_not_found'
 
