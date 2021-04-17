@@ -57,67 +57,6 @@ class TileDecodeBenchmark:
         self.config = Config(config)
         self.state = VideoState(self.config)
 
-    def _iterate(self, deep):
-        count = 0
-        for self.state.video in self.state.videos_list:
-            if deep == 1:
-                count += 1
-                yield count
-                continue
-            for self.state.tiling in self.state.tiling_list:
-                if deep == 2:
-                    count += 1
-                    yield count
-                    continue
-                for self.state.quality in self.state.quality_list:
-                    if deep == 3:
-                        count += 1
-                        yield count
-                        continue
-                    for self.state.tile in self.state.tiles_list:
-                        if deep == 4:
-                            count += 1
-                            yield count
-                            continue
-                        for self.state.chunk in self.state.chunk_list:
-                            if deep == 5:
-                                count += 1
-                                yield count
-                                continue
-
-    def _collect_dectime(self) -> Dict[str, float]:
-        """
-
-        :return:
-        """
-        chunk_size = getsize(self.state.segment_file)
-        chunk_size = chunk_size * 8 / (self.state.gop / self.state.fps)
-
-        strip_time = lambda line: float(line.strip().split(' ')[1]
-                                        .split('=')[1][:-1])
-        with open(self.state.dectime_log, 'r', encoding='utf-8') as f:
-            times = [strip_time(line) for line in f if 'utime' in line]
-
-        dectime = {'time'    : np.average(times),
-                   'time_std': np.std(times),
-                   'rate'    : chunk_size}
-
-        return dectime
-
-    def _collect_psnr(self):
-        psnr: Dict[str, float] = {}
-        get_psnr = lambda l: float(l.strip().split(',')[3].split(':')[1])
-        get_qp = lambda l: float(l.strip().split(',')[2].split(':')[1])
-
-        with open(f'{self.state.compressed_file[:-4]}.log', 'r',
-                  encoding='utf-8') as f:
-            for line in f:
-                if 'Global PSNR' in line:
-                    psnr['psnr'] = get_psnr(line)
-                    psnr['qp_avg'] = get_qp(line)
-                    break
-        return psnr
-
     def run(self, role: str, overwrite=False):
         operation = getattr(self, Role[role].value)
         operation(overwrite=overwrite)
@@ -149,29 +88,6 @@ class TileDecodeBenchmark:
             command += f'{uncompressed_file}'
             log = f'{splitext(uncompressed_file)[0]}.log'
             run_command(command, log)
-
-    def calcule_siti(self, overwrite) -> None:
-        self.state.quality = 28
-        self.state.tiling = Tiling('1x1', self.state.frame)
-        self.state.tile = self.state.tiling.tiles_list[0]
-
-        for self.state.video in self.state.videos_list:
-            # Codificar os vídeos caso não estejam codificados.
-            compressed_file = self.state.compressed_file
-            exist_encoded = os.path.isfile(compressed_file)
-            if not exist_encoded or overwrite:
-                filename = self.state.compressed_file
-                folder, _ = os.path.split(filename)
-                _, tail = os.path.split(folder)
-                folder = f'{self.state.project}/siti/{tail}'
-                os.makedirs(folder, exist_ok=True)
-                self.compress(overwrite=overwrite)
-
-            siti = SiTi(filename=self.state.compressed_file,
-                        scale=self.state.scale, plot_siti=False)
-            siti.calc_siti(verbose=True)
-            siti.save_siti(overwrite=overwrite)
-            siti.save_stats(overwrite=overwrite)
 
     def compress(self, overwrite=False):
         for _ in self._iterate(deep=4):
@@ -206,10 +122,6 @@ class TileDecodeBenchmark:
             cmd += f'{compressed_file}'
             log = self.get_logfile(compressed_file)
             run_command(cmd, log)
-
-    @staticmethod
-    def get_logfile(video_file):
-        return f'{video_file[:-4]}.log'
 
     def segment(self, overwrite=False):
         for _ in self._iterate(deep=4):
@@ -276,6 +188,94 @@ class TileDecodeBenchmark:
                 .update(self._collect_psnr())
         print(f'Saving {self.state.dectime_raw_json}')
         save_json(self.results, self.state.dectime_raw_json, compact=True)
+
+    def calcule_siti(self, overwrite) -> None:
+        self.state.quality = 28
+        self.state.tiling = Tiling('1x1', self.state.frame)
+        self.state.tile = self.state.tiling.tiles_list[0]
+
+        for self.state.video in self.state.videos_list:
+            # Codificar os vídeos caso não estejam codificados.
+            compressed_file = self.state.compressed_file
+            exist_encoded = os.path.isfile(compressed_file)
+            if not exist_encoded or overwrite:
+                filename = self.state.compressed_file
+                folder, _ = os.path.split(filename)
+                _, tail = os.path.split(folder)
+                folder = f'{self.state.project}/siti/{tail}'
+                os.makedirs(folder, exist_ok=True)
+                self.compress(overwrite=overwrite)
+
+            siti = SiTi(filename=self.state.compressed_file,
+                        scale=self.state.scale, plot_siti=False)
+            siti.calc_siti(verbose=True)
+            siti.save_siti(overwrite=overwrite)
+            siti.save_stats(overwrite=overwrite)
+
+    def _iterate(self, deep):
+        count = 0
+        for self.state.video in self.state.videos_list:
+            if deep == 1:
+                count += 1
+                yield count
+                continue
+            for self.state.tiling in self.state.tiling_list:
+                if deep == 2:
+                    count += 1
+                    yield count
+                    continue
+                for self.state.quality in self.state.quality_list:
+                    if deep == 3:
+                        count += 1
+                        yield count
+                        continue
+                    for self.state.tile in self.state.tiles_list:
+                        if deep == 4:
+                            count += 1
+                            yield count
+                            continue
+                        for self.state.chunk in self.state.chunk_list:
+                            if deep == 5:
+                                count += 1
+                                yield count
+                                continue
+
+    def _collect_dectime(self) -> Dict[str, float]:
+        """
+
+        :return:
+        """
+        chunk_size = getsize(self.state.segment_file)
+        chunk_size = chunk_size * 8 / (self.state.gop / self.state.fps)
+
+        strip_time = lambda line: float(line.strip().split(' ')[1]
+                                        .split('=')[1][:-1])
+        with open(self.state.dectime_log, 'r', encoding='utf-8') as f:
+            times = [strip_time(line) for line in f if 'utime' in line]
+
+        dectime = {'time'    : np.average(times),
+                   'time_std': np.std(times),
+                   'rate'    : chunk_size}
+
+        return dectime
+
+    def _collect_psnr(self):
+        psnr: Dict[str, float] = {}
+        get_psnr = lambda l: float(l.strip().split(',')[3].split(':')[1])
+        get_qp = lambda l: float(l.strip().split(',')[2].split(':')[1])
+
+        with open(f'{self.state.compressed_file[:-4]}.log', 'r',
+                  encoding='utf-8') as f:
+            for line in f:
+                if 'Global PSNR' in line:
+                    psnr['psnr'] = get_psnr(line)
+                    psnr['qp_avg'] = get_qp(line)
+                    break
+        return psnr
+
+    @staticmethod
+    def get_logfile(video_file):
+        return f'{video_file[:-4]}.log'
 
 
 class CheckProject(TileDecodeBenchmark):
