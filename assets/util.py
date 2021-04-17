@@ -11,7 +11,7 @@ class AutoDict(dict):
         return self[key]
 
 
-def run_command(command: str, log_to_save: str, mode: str = 'w') -> str:
+def run_command(command: str, log_to_save: Union[str, Path], mode: str = 'w'):
     """
     Run a shell command with subprocess module with realtime output.
     :param command: A command string to run.
@@ -19,13 +19,12 @@ def run_command(command: str, log_to_save: str, mode: str = 'w') -> str:
     :param mode: The write mode: 'w' or 'a'.
     :return: stdout.
     """
-    print(command)
+    info(command)
 
     with open(log_to_save, mode, encoding='utf-8') as f:
         f.write(f'{command}\n')
-        process = subprocess.run(command, shell=True, stdout=f,
-                                 stderr=subprocess.STDOUT, encoding='utf-8')
-    return process.stdout
+        subprocess.run(command, shell=True, stdout=f,
+                       stderr=subprocess.STDOUT, encoding='utf-8')
 
 
 def save_json(data: dict, filename, compact=False):
