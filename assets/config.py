@@ -1,8 +1,9 @@
 import json
 from typing import Any, Dict, List
+from util import ConfigBase
 
 
-class Config:
+class Params:
     original_folder = 'original'
     lossless_folder = 'lossless'
     compressed_folder = 'compressed'
@@ -11,24 +12,25 @@ class Config:
     stats_folder = 'stats'
     graphs_folder = "graphs"
     siti_folder = "siti"
-    _config_data = {}
+    project: str
+    error_metric: str
+    decoding_num: int
+    scale: str
+    projection: str
+    codec: str
+    fps: int
+    gop: int
+    distributions: List[str]
+    rate_control: str
+    quality_list: List[int]
+    pattern_list: List[str]
+    videos_list: Dict[str, Any]
 
+
+class Config(ConfigBase, Params):
     def __init__(self, config: str):
-        with open(f'{config}', 'r') as f:
-            self._config_data.update(json.load(f))
-        with open(f'config/{self._config_data["videos"]}', 'r') as f:
-            self._config_data.update(json.load(f))
+        self.load_config(config)
 
-        self.project: str = self._config_data['project']
-        self.error_metric: str = self._config_data['error_metric']
-        self.decoding_num: int = self._config_data['decoding_num']
-        self.scale: str = self._config_data['scale']
-        self.projection: str = self._config_data['projection']
-        self.codec: str = self._config_data['codec']
-        self.fps: int = self._config_data['fps']
-        self.gop: int = self._config_data['gop']
-        self.distributions: List[str] = self._config_data['distributions']
-        self.rate_control: str = self._config_data['rate_control']
-        self.quality_list: List[int] = self._config_data['quality_list']
-        self.pattern_list: List[str] = self._config_data['pattern_list']
-        self.videos_list: Dict[str, Any] = self._config_data['videos_list']
+        with open(f'config/{self._config_data["videos"]}', 'r') as f:
+            video_list = json.load(f)
+            self.videos_list: Dict[str, Any] = video_list['videos_list']

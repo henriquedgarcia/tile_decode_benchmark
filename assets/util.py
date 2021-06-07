@@ -4,12 +4,25 @@ from logging import warning, info, debug, critical
 from typing import Any, Dict, Hashable, Iterable, NamedTuple, Tuple, Union
 from pathlib import Path
 import numpy as np
+from pathlib import Path
 
 
 class AutoDict(dict):
     def __missing__(self, key):
         self[key] = type(self)()
         return self[key]
+
+
+class ConfigBase:
+    _config_data: dict = {}
+
+    def load_config(self, config_file: Union[Path, str]):
+        with open(config_file, 'r') as f:
+            self._config_data.update(json.load(f))
+
+        for key in self._config_data:
+            value = self._config_data[key]
+            setattr(self, key, value)
 
 
 def run_command(command: str, log_to_save: Union[str, Path], mode: str = 'w'):
