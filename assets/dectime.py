@@ -447,8 +447,7 @@ class CheckProject(TileDecodeBenchmark):
     @staticmethod
     def check_video_gop(video_file) -> (int, list):
         command = f'ffprobe -show_frames "{video_file}"'
-
-        process = run(command, shell=True, capture_output=True, encoding='utf-8', )
+        process = run(command, shell=True, capture_output=True, encoding='utf-8')
         output = process.stdout
         gop = [line.strip().split('=')[1]
                for line in output.splitlines()
