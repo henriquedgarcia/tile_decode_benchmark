@@ -405,9 +405,9 @@ class CheckProject(TileDecodeBenchmark):
 
         if size > 0:
             if check_gop:
-                gop_len = self.check_video_gop(video_file)[0]
-                if not gop_len == self.config.gop:
-                    return f'wrong_gop_size_{gop_len}'
+                max_gop, gop = self.check_video_gop(video_file)[0]
+                if not max_gop == self.config.gop:
+                    return f'wrong_gop_size_{max_gop}'
             return 'apparently_ok'
         elif size == 0:
             self._clean(video_file)
