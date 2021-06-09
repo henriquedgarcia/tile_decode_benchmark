@@ -394,7 +394,13 @@ class CheckProject(TileDecodeBenchmark):
         with open(filename, 'w') as f:
             json.dump(Counter(self.error_df['msg']), f, indent=2)
 
-    def _check_video_size(self, video_file, check_gop=False) -> str:
+    def _check_video_size(self, video_file: Union[Path, str], check_gop=False) -> str:
+        """
+        Check video existence, size and GOP.
+        :param video_file: Path to video
+        :param check_gop: must check GOP?
+        :return:
+        """
         size = check_file_size(video_file)
 
         if size > 0:
