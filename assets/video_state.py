@@ -113,11 +113,12 @@ class Video:
 
 
 class Factors:
-    video: Video
-    tiling: Tiling
-    quality: int
-    tile: Tile
-    chunk: int
+    video: Video = None
+    tiling: Tiling = None
+    quality: int = None
+    tile: Tile = None
+    chunk: int = None
+    rate_control: str = None
 
     @property
     def name(self) -> str:
