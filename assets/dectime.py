@@ -161,7 +161,7 @@ class TileDecodeBenchmark:
                 segment_file = self.state.segment_file
                 dectime_file = self.state.dectime_log
 
-                count = CheckProject.count_decoding(dectime_file)
+                count = count_decoding(dectime_file)
                 if count == -1:
                     warning(f'TileDecodeBenchmark.decode: Error on reading '
                             f'dectime log file: {dectime_file}.')
@@ -395,7 +395,7 @@ class CheckProject(TileDecodeBenchmark):
             json.dump(Counter(self.error_df['msg']), f, indent=2)
 
     def _check_video_size(self, video_file, check_gop=False) -> str:
-        size = self.check_file_size(video_file)
+        size = check_file_size(video_file)
 
         if size > 0:
             if check_gop:
@@ -426,7 +426,7 @@ class CheckProject(TileDecodeBenchmark):
         return 'apparently_ok'
 
     def _verify_dectime_log(self, dectime_log) -> str:
-        count_decode = self.count_decoding(dectime_log)
+        count_decode = count_decoding(dectime_log)
         if count_decode == -1:
             self._clean(dectime_log)
             return f'log_corrupt'
@@ -434,9 +434,9 @@ class CheckProject(TileDecodeBenchmark):
 
     def _clean(self, video_file):
         if self.rem_error:
-            self.rem_file(video_file)
+            rem_file(video_file)
             log = CheckProject.get_logfile(video_file)
-            self.rem_file(log)
+            rem_file(log)
 
     @staticmethod
     def check_video_gop(video_file) -> (int, list):
@@ -458,54 +458,53 @@ class CheckProject(TileDecodeBenchmark):
                 len_gop += 1
             if len_gop > max_gop:
                 max_gop = len_gop
-
         return max_gop, gop
 
-    @staticmethod
-    def count_decoding(log_file: Path) -> int:
-        """
-        Count how many times the word "utime" appears in "log_file"
-        :param log_file: A path-to-file string.
-        :return:
-        """
-        try:
-            with open(log_file, 'r', encoding='utf-8') as f:
-                return len(['' for line in f if 'utime' in line])
-        except FileNotFoundError:
-            return 0
-        except UnicodeDecodeError:
-            return -1
 
-    @staticmethod
-    def rem_file(file) -> None:
-        if os.path.isfile(file):
-            os.remove(file)
+def make_menu(options_txt: list) -> (list, str):
+    options = [str(o) for o in range(len(options_txt))]
+    menu_lines = ['Options:']
+    menu_lines.extend([f'{o} - {text}'
+                       for o, text in zip(options, options_txt)])
+    menu_lines.append(':')
+    menu_txt = '\n'.join(menu_lines)
+    return options, menu_txt
 
-    @staticmethod
-    def check_file_size(video_file) -> int:
-        if not os.path.isfile(video_file):
-            return -1
-        filesize = os.path.getsize(video_file)
-        if filesize == 0:
-            return 0
-        return filesize
 
-    @staticmethod
-    def menu(options_txt: list) -> int:
-        options, menu = CheckProject.make_menu(options_txt)
+def menu(options_txt: list) -> int:
+    options, menu = make_menu(options_txt)
 
-        c = None
-        while c not in options:
-            c = input(menu)
+    c = None
+    while c not in options:
+        c = input(menu)
 
-        return int(c)
+    return int(c)
 
-    @staticmethod
-    def make_menu(options_txt: list) -> (list, str):
-        options = [str(o) for o in range(len(options_txt))]
-        menu = ['Options:']
-        menu.extend([f'{o} - {text}'
-                     for o, text in zip(options, options_txt)])
-        menu.append(':')
-        menu = '\n'.join(menu)
-        return options, menu
+
+def check_file_size(video_file) -> int:
+    if not os.path.isfile(video_file):
+        return -1
+    filesize = os.path.getsize(video_file)
+    if filesize == 0:
+        return 0
+    return filesize
+
+
+def rem_file(file) -> None:
+    if os.path.isfile(file):
+        os.remove(file)
+
+
+def count_decoding(log_file: Path) -> int:
+    """
+    Count how many times the word "utime" appears in "log_file"
+    :param log_file: A path-to-file string.
+    :return:
+    """
+    try:
+        with open(log_file, 'r', encoding='utf-8') as f:
+            return len(['' for line in f if 'utime' in line])
+    except FileNotFoundError:
+        return 0
+    except UnicodeDecodeError:
+        return -1
