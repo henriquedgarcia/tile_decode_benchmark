@@ -69,7 +69,7 @@ class TileDecodeBenchmark:
         """
         for _ in self._iterate(deep=1):
             uncompressed_file = self.state.lossless_file
-            if isfile(uncompressed_file) and not overwrite:
+            if uncompressed_file.is_file() and not overwrite:
                 warning(f'The file {uncompressed_file} exist. Skipping.')
                 continue
 
@@ -94,7 +94,7 @@ class TileDecodeBenchmark:
         queue = []
         for _ in self._iterate(deep=4):
             compressed_file = self.state.compressed_file
-            if isfile(compressed_file) and not overwrite:
+            if compressed_file.is_file() and not overwrite:
                 warning(f'The file {compressed_file} exist. Skipping.')
                 continue
 
@@ -133,23 +133,21 @@ class TileDecodeBenchmark:
         queue = []
         for _ in self._iterate(deep=4):
             # Check segment log size. If size is very small, overwrite.
-            segment_folder = self.state.segment_folder
-            log = f'{segment_folder}/tile{self.state.tile_id}.log'
-            try:
-                size = os.path.getsize(log)
+            segment_log = self.state.segment_log
+            if segment_log.is_file() and not overwrite:
+                size = os.path.getsize(segment_log)
                 if size > 10000 and not overwrite:
                     warning(f'The segments of "{segment_folder}" exist. Skipping')
                     continue
-            except FileNotFoundError:
-                pass
 
             info(f'Queueing {segment_folder}')
 
             cmd = 'MP4Box '
             cmd += '-split 1 '
             cmd += f'{self.state.compressed_file} '
-            cmd += f'-out {segment_folder}{Path("/")}'
-            queue.append((cmd, log))
+            cmd += f'-out {segment_log.parent}{Path("/")}'
+            # todo: Tenho que checar se esse path tá certo.
+            queue.append((cmd, segment_log))
 
         for cmd in tqdm(queue):
             run_command(*cmd)
