@@ -137,10 +137,10 @@ class TileDecodeBenchmark:
             if segment_log.is_file() and not overwrite:
                 size = os.path.getsize(segment_log)
                 if size > 10000 and not overwrite:
-                    warning(f'The segments of "{segment_folder}" exist. Skipping')
+                    warning(f'The segments of "{self.state.state}" exist. Skipping')
                     continue
 
-            info(f'Queueing {segment_folder}')
+            info(f'Queueing {self.state.basename}, tile {self.state.tile_id}')
 
             cmd = 'MP4Box '
             cmd += '-split 1 '
@@ -150,6 +150,7 @@ class TileDecodeBenchmark:
             queue.append((cmd, segment_log))
 
         for cmd in tqdm(queue):
+            debug(cmd)
             run_command(*cmd)
 
     def decode(self, overwrite):
