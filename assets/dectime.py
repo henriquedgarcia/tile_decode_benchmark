@@ -58,9 +58,9 @@ class TileDecodeBenchmark:
         self.config = Config(config)
         self.state = VideoState(self.config)
 
-    def run(self, role: str, overwrite=False):
+    def run(self, role: str, **kwargs):
         operation = getattr(self, Role[role].value)
-        operation(overwrite=overwrite)
+        operation(**kwargs)
 
     def prepare_videos(self, overwrite=False) -> None:
         """
