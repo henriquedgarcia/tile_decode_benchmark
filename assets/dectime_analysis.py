@@ -21,10 +21,7 @@ from cycler import cycler
 from fitter.fitter import Fitter
 
 from assets.config import Config
-from assets.util import (
-    AutoDict, calc_stats, dishevel_dictionary,
-    update_dictionary,
-    )
+from assets.util import AutoDict, calc_stats
 from assets.video_state import Tile, Tiling, Video, VideoState
 
 
@@ -595,16 +592,12 @@ class BasePlot(ABC):
 
     def get_dict(self, dictionary: dict):
         ctx = self.context
-        dictionary = dishevel_dictionary(dictionary, key1=ctx.video_name,
-                                         key2=ctx.pattern, key3=ctx.quality,
-                                         key4=ctx.tile, key5=ctx.chunk)
+        dictionary = dictionary[ctx.video_name][ctx.pattern][ctx.quality][ctx.tile][ctx.chunk]
         return dictionary
 
     def update_dict(self, value: Any, dictionary: AutoDict):
         ctx = self.context
-        update_dictionary(value, dictionary, key1=ctx.video_name,
-                          key2=ctx.pattern,
-                          key3=ctx.quality, key4=ctx.tile, key5=ctx.chunk)
+        dictionary[ctx.video_name][ctx.pattern][ctx.quality][ctx.tile][ctx.chunk] = value
 
     @contextmanager
     def workfolder_ctx(self, path):
@@ -625,7 +618,7 @@ class HistByPattern(BasePlot):
     def get_data(self):
         for self.context.pattern in self.pattern_list:
             data = self._get_data()
-            update_dictionary(data, self.data)
+            self.update_dict(data, self.data)
 
     def make_fit(self, overwrite=False):
         for self.context.pattern in self.pattern_list:
@@ -662,7 +655,7 @@ class HistByPatternByQuality(BasePlot):
         for self.context.pattern in self.pattern_list:
             for self.context.quality in self.quality_list:
                 data = self._get_data()
-                update_dictionary(data, self.data)
+                self.update_dict(data, self.data)
 
     def make_fit(self, overwrite=False):
         for self.context.pattern in self.pattern_list:
