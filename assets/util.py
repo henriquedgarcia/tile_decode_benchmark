@@ -116,7 +116,7 @@ class StatsData(NamedTuple):
     max: float = None
 
 
-def calc_stats(data1: Iterable, data2: Iterable)\
+def calc_stats(data1: Iterable, data2: Iterable) \
         -> Tuple[StatsData, StatsData]:
     # Percentiles & Correlation
     per = [0, 25, 50, 75, 100]
