@@ -323,14 +323,10 @@ class CheckProject(TileDecodeBenchmark):
             video_file = self.state.original_file
             files_list.append(video_file)
 
-        # for cmd in tqdm(files_list):
-
-        for i, video_file in enumerate(tqdm(files_list)):
-            # sg.one_line_progress_meter('This is my progress meter!', i + 1,
-            #                            len(files_list), '-key-')
+        for i, video_file in enumerate(tqdm(files_list), 1):
             msg = self._check_video_size(video_file)
             df.loc[len(df)] = [video_file, msg]
-            if i % 299 == 0: self.save_report()
+            if i % 300 == 0: self.save_report()
 
     def check_lossless(self):
         df = self.error_df
@@ -339,10 +335,10 @@ class CheckProject(TileDecodeBenchmark):
             video_file = self.state.lossless_file
             files_list.append(video_file)
 
-        for i, video_file in enumerate(tqdm(files_list)):
+        for i, video_file in enumerate(tqdm(files_list), 1):
             msg = self._check_video_size(video_file)
             df.loc[len(df)] = [video_file, msg]
-            if i % 299 == 0: self.save_report()
+            if i % 300 == 0: self.save_report()
 
     def check_compressed(self):
         df = self.error_df
@@ -352,13 +348,12 @@ class CheckProject(TileDecodeBenchmark):
             video_file = self.state.compressed_file
             files_list.append(video_file)
 
-        for i, video_file in enumerate(tqdm(files_list)):
+        for i, video_file in enumerate(tqdm(files_list), 1):
             msg = self._check_video_size(video_file, check_gop=False)
             if 'ok' in msg:
                 msg = self._verify_encode_log(video_file)
             df.loc[len(df)] = [video_file, msg]
-            if i % 299 == 0:
-                self.save_report()
+            if i % 300 == 0: self.save_report()
 
     def check_segment(self):
         df = self.error_df
@@ -367,10 +362,10 @@ class CheckProject(TileDecodeBenchmark):
             video_file = self.state.segment_file
             files_list.append(video_file)
 
-        for i, video_file in enumerate(tqdm(files_list)):
+        for i, video_file in enumerate(tqdm(files_list), 1):
             msg = self._check_video_size(video_file)
             df.loc[len(df)] = [video_file, msg]
-            if i % 299 == 0: self.save_report()
+            if i % 300 == 0: self.save_report()
 
     def check_dectime(self):
         df = self.error_df
@@ -379,10 +374,10 @@ class CheckProject(TileDecodeBenchmark):
             dectime_log = self.state.dectime_log
             files_list.append(dectime_log)
 
-        for i, dectime_log in enumerate(tqdm(files_list)):
+        for i, dectime_log in enumerate(tqdm(files_list), 1):
             msg = self._verify_encode_log(dectime_log)
             df.loc[len(df)] = [dectime_log, msg]
-            if i % 299 == 0: self.save_report()
+            if i % 300 == 0: self.save_report()
 
     def save_report(self):
         folder = f"{self.state.project}/check_dectime"
