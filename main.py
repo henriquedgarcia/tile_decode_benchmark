@@ -9,20 +9,25 @@ logging.basicConfig(level=logging.WARNING)
 
 def main():
     """Config"""
-    config = f'config/config_test.json'
-    # config = f'config/config_nas.json'
+    config = f'config/config_nas.json'
+    # config = f'config/config_test.json'
+    # config = f'config/config_ffmpeg_crf_12videos_60s.json'
 
     """Tile_dectime"""
-    # dt.TileDecodeBenchmark(config).run('PREPARE', overwrite=True)
-    # dt.TileDecodeBenchmark(config).run('COMPRESS')
-    # dt.TileDecodeBenchmark(config).run('SEGMENT')
-    # dt.TileDecodeBenchmark(config).run('DECODE')
-    # dt.TileDecodeBenchmark(config).run('RESULTS')
-    # dt.TileDecodeBenchmark(config).run('SITI', overwrite=True)
-    #
+    dt.TileDecodeBenchmark(config).run('PREPARE', overwrite=False)
+    dt.TileDecodeBenchmark(config).run('COMPRESS', overwrite=False)
+    dt.TileDecodeBenchmark(config).run('SEGMENT', overwrite=False)
+    # dt.TileDecodeBenchmark(config).run('DECODE', overwrite=False)
+    # dt.TileDecodeBenchmark(config).run('RESULTS', overwrite=False)
+    # dt.TileDecodeBenchmark(config).run('SITI', overwrite=False)
+
     # """Check files"""
-    # dt.CheckProject(config_file=config)
-    #
+    dt.CheckProject(config=config).run('ORIGINAL', rem_error=False)
+    dt.CheckProject(config=config).run('LOSSLESS', rem_error=False)
+    dt.CheckProject(config=config).run('COMPRESS', rem_error=False)
+    # dt.CheckProject(config=config).run('SEGMENT', rem_error=False)
+    # dt.CheckProject(config=config).run('DECODE', rem_error=False)
+
     # """Process graphs and sheets"""
     # dta.HistByPattern(config).run(False)
     # dta.HistByPatternByQuality(config).run(False)
