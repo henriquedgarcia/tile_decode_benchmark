@@ -160,7 +160,7 @@ class Params:
     projection: str
     fps: int
     gop: int
-    factor: str
+    rate_control: str
     videos_dict: dict
 
 
@@ -184,7 +184,7 @@ class Paths(Params, Factors):
                     f'{self.scale}_'
                     f'{self.fps}_'
                     f'{self.pattern}_'
-                    f'{self.factor}{self.quality}')
+                    f'{self.rate_control}{self.quality}')
 
     @property
     def original_folder(self) -> Path:
@@ -318,7 +318,7 @@ class VideoState(Paths, DectimeLists, Params, Factors):
         self.frame = Frame(config.scale)
         self.fps = config.fps
         self.gop = config.gop
-        self.factor = config.rate_control
+        self.rate_control = config.rate_control
         self.projection = config.projection
         self.videos_dict = config.videos_list
 
