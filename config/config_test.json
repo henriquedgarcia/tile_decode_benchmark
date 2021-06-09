@@ -5,6 +5,7 @@
   "scale": "1280x768",
   "projection": "cubemap",
   "codec": "x265",
+  "codec_params": "keyint=30:min-keyint=30:open-gop=0:scenecut=0:info=0",
   "fps": 30,
   "gop": 30,
   "distributions": [
