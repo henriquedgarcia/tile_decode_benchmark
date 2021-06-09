@@ -1,6 +1,6 @@
 import json
 from typing import Any, Dict, List
-from util import ConfigBase
+from assets.util import ConfigBase
 
 
 class Params:
