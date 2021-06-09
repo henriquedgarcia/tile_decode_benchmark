@@ -187,11 +187,7 @@ class TileDecodeBenchmark:
 
         for _ in self._iterate(deep=5):
             name, pattern, quality, tile, chunk = self.state.get_factors()
-            print(f'Collecting {name}'
-                  f'-{pattern}'
-                  f'-{self.state.factor}{quality}'
-                  f'-tile{tile}'
-                  f'-chunk{chunk}')
+            print(f'Collecting {self.state.state}')
 
             # Collect decode time {avg:float, std:float} and bit rate in bps
             self.results[name][pattern][quality][tile][chunk] \
