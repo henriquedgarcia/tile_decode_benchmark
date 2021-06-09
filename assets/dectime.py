@@ -268,9 +268,9 @@ class TileDecodeBenchmark:
         with open(self.state.dectime_log, 'r', encoding='utf-8') as f:
             times = [strip_time(line) for line in f if 'utime' in line]
 
-        dectime = {'time'    : np.average(times),
+        dectime = {'time': np.average(times),
                    'time_std': np.std(times),
-                   'rate'    : chunk_size}
+                   'rate': chunk_size}
 
         return dectime
 
