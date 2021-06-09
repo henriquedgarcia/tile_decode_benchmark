@@ -140,6 +140,26 @@ class Factors:
     def tile_id(self) -> int:
         return self.tile.idx
 
+    @property
+    def state(self):
+        state = None
+        if self.name:
+            state = (f'{state}_{self.name}'
+                     if state else f'{self.name}')
+        if self.pattern:
+            state = (f'{state}_{self.pattern}'
+                     if state else f'{self.pattern}')
+        if self.quality:
+            state = (f'{state}_{self.rate_control}{self.quality}'
+                     if state else f'{self.rate_control}{self.quality}')
+        if self.tile:
+            state = (f'{state}_tile{self.tile_id}'
+                     if state else f'tile{self.tile_id}')
+        if self.chunk:
+            state = (f'{state}_chunk{self.chunk}'
+                     if state else f'chunk{self.chunk}')
+        return state
+
     def get_factors(self):
         name = self.name
         pattern = self.pattern
