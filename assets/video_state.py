@@ -231,6 +231,10 @@ class Paths(Params, Factors):
         return self.segment_folder / f'tile{self.tile_id}_{self.chunk:03}.mp4'
 
     @property
+    def segment_log(self) -> Path:
+        return self.segment_folder / f'tile{self.tile_id}.log'
+
+    @property
     def dectime_log(self) -> Path:
         return self.dectime_folder / f'tile{self.tile_id}_{self.chunk:03}.log'
 
