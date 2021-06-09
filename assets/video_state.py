@@ -213,25 +213,25 @@ class Paths(Params, Factors):
     @property
     def lossless_folder(self) -> Path:
         folder = self.project / self._lossless_folder
-        folder.mkdir(exist_ok=True)
+        folder.mkdir(parents=True, exist_ok=True)
         return folder
 
     @property
     def compressed_folder(self) -> Path:
         folder = self.project / self._compressed_folder / self.basename
-        folder.mkdir(exist_ok=True)
+        folder.mkdir(parents=True, exist_ok=True)
         return folder
 
     @property
     def segment_folder(self) -> Path:
         folder = self.project / self._segment_folder / self.basename
-        folder.mkdir(exist_ok=True)
+        folder.mkdir(parents=True, exist_ok=True)
         return folder
 
     @property
     def dectime_folder(self) -> Path:
         folder = self.project / self._dectime_folder / self.basename
-        folder.mkdir(exist_ok=True)
+        folder.mkdir(parents=True, exist_ok=True)
         return folder
 
     @property
