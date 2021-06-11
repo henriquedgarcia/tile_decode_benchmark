@@ -122,7 +122,7 @@ class TileDecodeBenchmark:
                     f'x={tile.x}:y={tile.y}'
                     f'" ')
             cmd += f'{compressed_file}'
-            log = self.get_logfile(compressed_file)
+            log = compressed_file.with_suffix('.log')
 
             queue.append((cmd, log))
 
@@ -284,10 +284,6 @@ class TileDecodeBenchmark:
                     break
         return psnr
 
-    @staticmethod
-    def get_logfile(video_file):
-        return f'{video_file[:-4]}.log'
-
 
 class CheckProject(TileDecodeBenchmark):
     rem_error: bool = None
@@ -413,7 +409,7 @@ class CheckProject(TileDecodeBenchmark):
             return 'video_not_found'
 
     def _verify_encode_log(self, video_file) -> str:
-        log_file = self.get_logfile(video_file)
+        log_file = video_file.with_suffix('.log')
 
         if not os.path.isfile(log_file):
             return 'logfile_not_found'
@@ -437,7 +433,7 @@ class CheckProject(TileDecodeBenchmark):
     def _clean(self, video_file):
         if self.rem_error:
             rem_file(video_file)
-            log = CheckProject.get_logfile(video_file)
+            log = video_file.with_suffix('.log')
             rem_file(log)
 
     @staticmethod
