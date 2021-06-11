@@ -2,8 +2,8 @@ import json
 import os
 from collections import Counter, defaultdict
 from enum import Enum
-from logging import warning, info, debug, critical
-from os.path import getsize, isfile, splitext
+from logging import warning, info, debug
+from os.path import getsize, splitext
 from pathlib import Path
 from subprocess import run
 from typing import Dict, Union
