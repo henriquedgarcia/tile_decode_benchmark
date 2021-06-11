@@ -126,6 +126,7 @@ class TileDecodeBenchmark:
 
             queue.append((cmd, log))
 
+        print('Creating and compressing tiles.')
         for cmd in tqdm(queue):
             run_command(*cmd)
 
@@ -336,7 +337,7 @@ class CheckProject(TileDecodeBenchmark):
         df = self.error_df
         files_list = []
         for _ in self._iterate(deep=4):
-            if _ > 50: break
+            # if _ > 50: break
             video_file = self.state.compressed_file
             files_list.append(video_file)
 
