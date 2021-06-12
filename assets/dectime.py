@@ -492,11 +492,11 @@ def make_menu(options_txt: list) -> (list, str):
 
 
 def menu(options_txt: list) -> int:
-    options, menu = make_menu(options_txt)
+    options, menu_ = make_menu(options_txt)
 
     c = None
     while c not in options:
-        c = input(menu)
+        c = input(menu_)
 
     return int(c)
 
