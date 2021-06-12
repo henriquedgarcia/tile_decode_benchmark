@@ -97,7 +97,7 @@ class TileDecodeBenchmark:
             log = f'{splitext(uncompressed_file)[0]}.log'
             run_command(command, log)
 
-    def compress(self, overwrite=False):
+    def compress(self, overwrite=False) -> None:
         queue = []
         for _ in self._iterate(deep=4):
             compressed_file = self.state.compressed_file
@@ -137,7 +137,7 @@ class TileDecodeBenchmark:
         for cmd in tqdm(queue):
             run_command(*cmd)
 
-    def segment(self, overwrite=False):
+    def segment(self, overwrite=False) -> None:
         queue = []
         for _ in self._iterate(deep=4):
             # Check segment log size. If size is very small, overwrite.
@@ -161,7 +161,7 @@ class TileDecodeBenchmark:
             debug(cmd)
             run_command(*cmd)
 
-    def decode(self, overwrite):
+    def decode(self, overwrite=False) -> None:
         decoding_num = self.config.decoding_num
         queue = []
         for _ in range(decoding_num):
@@ -187,7 +187,7 @@ class TileDecodeBenchmark:
             for cmd in tqdm(queue):
                 run_command(*cmd, mode='a')
 
-    def collect_result(self, overwrite):
+    def collect_result(self, overwrite=False) -> None:
         exist = os.path.isfile(self.state.dectime_raw_json)
         if exist and not overwrite:
             print(f'The file {self.state.dectime_raw_json} exist.')
@@ -208,7 +208,7 @@ class TileDecodeBenchmark:
         print(f'Saving {self.state.dectime_raw_json}')
         save_json(self.results, self.state.dectime_raw_json, compact=True)
 
-    def calcule_siti(self, overwrite) -> None:
+    def calcule_siti(self, overwrite=False) -> None:
         self.state.quality = 28
         self.state.tiling = Tiling('1x1', self.state.frame)
         self.state.tile = self.state.tiling.tiles_list[0]
