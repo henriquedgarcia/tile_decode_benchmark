@@ -58,9 +58,16 @@ class TileDecodeBenchmark:
         self.config = Config(config)
         self.state = VideoState(self.config)
 
+        self.operation = {Role['PREPARE']: self.prepare_videos,
+                          Role['COMPRESS']: self.compress,
+                          Role['SEGMENT']: self.segment,
+                          Role['DECODE']: self.decode,
+                          Role['RESULTS']: self.collect_result,
+                          Role['SITI']: self.calcule_siti,
+                          }
+
     def run(self, role: str, **kwargs):
-        operation = getattr(self, Role[role].value)
-        operation(**kwargs)
+        self.operation[Role[role]](**kwargs)
 
     def prepare_videos(self, overwrite=False) -> None:
         """
