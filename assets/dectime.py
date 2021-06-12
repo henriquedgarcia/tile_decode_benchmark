@@ -112,23 +112,24 @@ class TileDecodeBenchmark:
             gop = self.state.gop
             tile = self.state.tile
 
-            cmd = 'ffmpeg '
-            cmd += '-hide_banner -y -psnr '
-            cmd += f'-i {lossless_file} '
-            cmd += f'-crf {quality} -tune "psnr" '
-            cmd += (f'-c:v libx265 '
+            cmd = ['ffmpeg']
+            cmd += ['-hide_banner -y -psnr']
+            cmd += [f'-i {lossless_file}']
+            cmd += [f'-crf {quality} -tune "psnr"']
+            cmd += [f'-c:v libx265 '
                     f'-x265-params "'
                     f'keyint={gop}:'
                     f'min-keyint={gop}:'
                     f'open-gop=0:'
                     f'scenecut=0:'
                     f'info=0'
-                    f'" ')
-            cmd += (f'-vf "'
+                    f'"']
+            cmd += [f'-vf "'
                     f'crop=w={tile.w}:h={tile.h}:'
                     f'x={tile.x}:y={tile.y}'
-                    f'" ')
-            cmd += f'{compressed_file}'
+                    f'"']
+            cmd += [f'{compressed_file}']
+            cmd = ' '.join(cmd)
             log = compressed_file.with_suffix('.log')
 
             queue.append((cmd, log))
