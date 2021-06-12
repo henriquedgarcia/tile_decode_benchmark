@@ -103,6 +103,15 @@ class TileDecodeBenchmark:
         :param overwrite:
         :return:
         """
+        print('=' * 70)
+        print(f'Encoding {len(self.config.videos_list)} videos:\n'
+              f'  codec: {self.config.codec}\n'
+              f'  fps: {self.config.fps}\n'
+              f'  gop: {self.config.gop}\n'
+              f'  qualities: {self.config.quality_list}\n'
+              f'  patterns: {self.config.pattern_list}'
+              )
+        print('=' * 70)
         queue = []
         for _ in self._iterate(deep=4):
             compressed_file = self.state.compressed_file
