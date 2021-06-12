@@ -71,8 +71,8 @@ class TileDecodeBenchmark:
 
     def prepare_videos(self, overwrite=False) -> None:
         """
-        Prepare video to encode.
-        :param overwrite:
+        Prepare video to encode. Uncompress and unify resolution, frame rate, pixel format.
+        :param overwrite: If True, this method overwrite previous files.
         """
         for _ in self._iterate(deep=1):
             uncompressed_file = self.state.lossless_file
