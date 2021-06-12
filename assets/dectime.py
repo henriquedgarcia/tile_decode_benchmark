@@ -98,6 +98,11 @@ class TileDecodeBenchmark:
             run_command(command, log)
 
     def compress(self, overwrite=False) -> None:
+        """
+        Encode videos using
+        :param overwrite:
+        :return:
+        """
         queue = []
         for _ in self._iterate(deep=4):
             compressed_file = self.state.compressed_file
