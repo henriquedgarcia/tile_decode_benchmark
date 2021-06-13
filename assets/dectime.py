@@ -229,7 +229,7 @@ class TileDecodeBenchmark:
         self.state.tile = self.state.tiling.tiles_list[0]
 
         for self.state.video in self.state.videos_list:
-            # Codificar os vídeos caso não estejam codificados.
+            # Encode videos if they are not encoded.
             compressed_file = self.state.compressed_file
             exist_encoded = os.path.isfile(compressed_file)
             if not exist_encoded or overwrite:
