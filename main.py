@@ -17,7 +17,7 @@ def main():
     """Tile_dectime"""
     dt.TileDecodeBenchmark(config).run('PREPARE', overwrite=False)
     dt.TileDecodeBenchmark(config).run('COMPRESS', overwrite=False)
-    dt.TileDecodeBenchmark(config).run('SEGMENT', overwrite=False)
+    # dt.TileDecodeBenchmark(config).run('SEGMENT', overwrite=False)
     # dt.TileDecodeBenchmark(config).run('DECODE', overwrite=False)
     # dt.TileDecodeBenchmark(config).run('RESULTS', overwrite=False)
     # dt.TileDecodeBenchmark(config).run('SITI', overwrite=False)
