@@ -146,3 +146,18 @@ def calc_stats(data1: Iterable, data2: Iterable) \
                             )
 
     return stats_data1, stats_data2
+
+
+def grouper(iterable, n, fillvalue=None):
+    """
+    Collect data into fixed-length chunks or blocks.
+    Usage: grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx
+
+    :param iterable: A iterable. ;-)
+    :param n: The length of blocks.
+    :param fillvalue: If "len(iterable)" is not multiple of "n", fill with this.
+    :return: A tuple with "n" elements of "iterable".
+    """
+    from itertools import zip_longest
+    args = [iter(iterable)] * n
+    return zip_longest(*args, fillvalue=fillvalue)
