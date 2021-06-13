@@ -1,37 +1,37 @@
 {
   "videos_list": {
     "angel_falls_nas": {
-      "original": "angel_falls.mp4",
+      "original": "angel_falls_cmp.mp4",
       "offset": "5:30",
       "duration": 10,
       "group": 0
     },
     "chariot_race_nas": {
-      "original": "chariot_race.mp4",
+      "original": "chariot_race_cmp.mp4",
       "offset": "0:00",
       "duration": 10,
       "group": 0
     },
     "closet_tour_nas": {
-      "original": "closet_tour.mp4",
+      "original": "closet_tour_cmp.mp4",
       "offset": "0:07",
       "duration": 10,
       "group": 0
     },
     "drop_tower_nas": {
-      "original": "drop_tower.mp4",
+      "original": "drop_tower_cmp.mp4",
       "offset": "1:11",
       "duration": 10,
       "group": 0
     },
     "sunset_nas": {
-      "original": "sunset.mp4",
+      "original": "sunset_cmp.mp4",
       "offset": "0:40",
       "duration": 10,
       "group": 0
     },
     "wingsuit_dubai_nas": {
-      "original": "wingsuit_dubai.mp4",
+      "original": "wingsuit_dubai_cmp.mp4",
       "offset": "0:00",
       "duration": 10,
       "group": 0
