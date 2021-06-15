@@ -367,8 +367,12 @@ class TileDecodeBenchmark:
 
 class CheckProject(TileDecodeBenchmark):
     rem_error: bool = None
-    error_df: pd.DataFrame = pd.DataFrame(columns=['video', 'msg'])
+    error_df: pd.DataFrame = None
     role: Union[Check, None] = None
+
+    def __init__(self, config):
+        self.error_df = pd.DataFrame(columns=['video', 'msg'])
+        super().__init__(config)
 
     def check_all(self):
         self.check_original()
