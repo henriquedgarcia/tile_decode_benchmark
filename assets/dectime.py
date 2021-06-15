@@ -446,12 +446,17 @@ class CheckProject(TileDecodeBenchmark):
 
         return 'apparently_ok'
 
-    def _verify_dectime_log(self, dectime_log) -> str:
-        count_decode = count_decoding(dectime_log)
-        if count_decode == -1:
-            self._clean(dectime_log)
-            return f'log_corrupt'
-        return f'decoded_{count_decode}x'
+    def _verify_dectime_log(self, dectime_log: Path) -> str:
+        if dectime_log.exists():
+            count_decode = count_decoding(dectime_log)
+            if count_decode == -1:
+                self._clean(dectime_log)
+                msg = f'log_corrupt'
+            else:
+                msg = f'decoded_{count_decode}x'
+        else:
+            msg = 'logfile_not_found'
+        return msg
 
     def _clean(self, video_file):
         if self.rem_error:
