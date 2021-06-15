@@ -1,5 +1,6 @@
 import json
 import subprocess
+from abc import ABC, abstractmethod
 from logging import warning, info, debug, critical
 from typing import Any, Dict, Hashable, Iterable, NamedTuple, Tuple, Union
 from pathlib import Path
@@ -13,8 +14,14 @@ class AutoDict(dict):
         return self[key]
 
 
-class ConfigBase:
+class Params(ABC):
     _config_data: dict = {}
+
+
+class ConfigBase(Params):
+    @abstractmethod
+    def __init__(self, config_file: Union[Path, str]):
+        pass
 
     def load_config(self, config_file: Union[Path, str]):
         with open(config_file, 'r') as f:

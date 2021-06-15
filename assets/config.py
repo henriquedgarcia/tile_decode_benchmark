@@ -25,12 +25,14 @@ class Params:
     quality_list: List[int]
     pattern_list: List[str]
     videos_list: Dict[str, Any]
+    videos_file: str
 
 
 class Config(ConfigBase, Params):
-    def __init__(self, config: str):
+    def __init__(self, config):
         self.load_config(config)
 
-        with open(f'config/{self._config_data["videos"]}', 'r') as f:
+        with open(f'config/{self.videos_file}', 'r') as f:
             video_list = json.load(f)
             self.videos_list: Dict[str, Any] = video_list['videos_list']
+
