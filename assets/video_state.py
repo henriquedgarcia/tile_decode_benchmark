@@ -1,10 +1,8 @@
 from itertools import product as prod
-from os import makedirs
 from pathlib import Path
 from typing import Any, Dict, List, Union
-
-from assets.config import Config
-from assets.util import splitx
+from abc import ABC, abstractmethod
+from assets.util import splitx, AbstractConfig
 
 
 class Frame:
@@ -339,29 +337,7 @@ class DectimeLists(Params, Factors):
         return self.video.chunks
 
 
-class VideoState(Paths, DectimeLists, Params, Factors):
-    def __init__(self, config: Config):
-        """
-        Class to create tile files path to process.
-        :param config: Config object.
-        """
-        self.config = config
-        self.project = Path(f'results/{config.project}')
-        self.scale = config.scale
-        self.frame = Frame(config.scale)
-        self.fps = config.fps
-        self.gop = config.gop
-        self.rate_control = config.rate_control
-        self.projection = config.projection
-        self.videos_dict = config.videos_list
-
-        self.videos_list = config.videos_list
-        self.quality_list = config.quality_list
-        self.pattern_list = config.pattern_list
-
-        self._original_folder = Path(config.original_folder)
-        self._lossless_folder = Path(config.lossless_folder)
-        self._compressed_folder = Path(config.compressed_folder)
-        self._segment_folder = Path(config.segment_folder)
-        self._dectime_folder = Path(config.dectime_folder)
-
+class AbstractVideoState(ABC, Paths, DectimeLists):
+    @abstractmethod
+    def __init__(self, config: AbstractConfig):
+        pass

@@ -13,8 +13,8 @@ import pandas as pd
 from tqdm import tqdm
 
 from assets.siti import SiTi
-from assets.video_state import Tiling, VideoState
 from assets.util import AutoDict, run_command, save_json, AbstractConfig
+from assets.video_state import Tiling, AbstractVideoState, Frame
 
 
 class Check(Enum):
@@ -67,6 +67,31 @@ class Config(AbstractConfig):
             self.videos_list: Dict[str, Any] = video_list['videos_list']
 
 
+class VideoState(AbstractVideoState):
+    def __init__(self, config: Config):
+        """
+        Class to create tile files path to process.
+        :param config: Config object.
+        """
+        self.config = config
+        self.project = Path(f'results/{config.project}')
+        self.scale = config.scale
+        self.frame = Frame(config.scale)
+        self.fps = config.fps
+        self.gop = config.gop
+        self.rate_control = config.rate_control
+        self.projection = config.projection
+        self.videos_dict = config.videos_list
+
+        self.videos_list = config.videos_list
+        self.quality_list = config.quality_list
+        self.pattern_list = config.pattern_list
+
+        self._original_folder = Path(config.original_folder)
+        self._lossless_folder = Path(config.lossless_folder)
+        self._compressed_folder = Path(config.compressed_folder)
+        self._segment_folder = Path(config.segment_folder)
+        self._dectime_folder = Path(config.dectime_folder)
 
 
 class TileDecodeBenchmark:
