@@ -390,7 +390,7 @@ class CheckProject(TileDecodeBenchmark):
             files_list.append(dectime_log)
 
         for i, dectime_log in enumerate(tqdm(files_list), 1):
-            msg = self._verify_encode_log(dectime_log)
+            msg = self._verify_dectime_log(dectime_log)
             df.loc[len(df)] = [dectime_log, msg]
             if i % 300 == 0: self.save_report()
 
