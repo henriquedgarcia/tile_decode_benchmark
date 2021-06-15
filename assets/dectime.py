@@ -282,8 +282,8 @@ class TileDecodeBenchmark:
         chunk_size = getsize(self.state.segment_file)
         chunk_size = chunk_size * 8 / (self.state.gop / self.state.fps)
 
-        strip_time = lambda line: float(line.strip().split(' ')[1]
-                                        .split('=')[1][:-1])
+        strip_time = lambda line: float(line.strip().split(' ')[1].split('=')[1][:-1])
+
         with open(self.state.dectime_log, 'r', encoding='utf-8') as f:
             times = [strip_time(line) for line in f if 'utime' in line]
 
