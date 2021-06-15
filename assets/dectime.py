@@ -459,7 +459,7 @@ class CheckProject(TileDecodeBenchmark):
         self.error_df.to_csv(filename)
 
         pretty_json = json.dumps(Counter(self.error_df['msg']), indent=2)
-        print(f'RESUMO: {self.role.name}\n'
+        print(f'\nRESUME: {self.role.name}\n'
               f'{pretty_json}')
 
         filename = f'{folder}/{self.role.name}-resume.log'
