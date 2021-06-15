@@ -3,6 +3,7 @@ import subprocess
 from logging import info, debug, critical
 from pathlib import Path
 from typing import Any, Dict, Hashable, Iterable, NamedTuple, Tuple, Union
+from abc import ABC
 
 import numpy as np
 
@@ -13,7 +14,7 @@ class AutoDict(dict):
         return self[key]
 
 
-class ConfigBase:
+class AbstractConfig(ABC):
     _config_data: dict = {}
 
     def __init__(self, config_file: Union[Path, str]):

@@ -13,11 +13,29 @@ import pandas as pd
 from tqdm import tqdm
 
 from assets.siti import SiTi
-from assets.util import AutoDict, run_command, save_json, ConfigBase
 from assets.video_state import Tiling, VideoState
+from assets.util import AutoDict, run_command, save_json, AbstractConfig
 
 
-class Config(ConfigBase):
+class Check(Enum):
+    ORIGINAL = 'check_original'
+    LOSSLESS = 'check_lossless'
+    COMPRESS = 'check_compressed'
+    SEGMENT = 'check_segment'
+    DECODE = 'check_dectime'
+
+
+class Role(Enum):
+    PREPARE = 'prepare_videos'
+    COMPRESS = 'compress'
+    SEGMENT = 'segment'
+    DECODE = 'decode'
+    RESULTS = 'collect_result'
+    SITI = 'calcule_siti'
+    CHECK = 'check_all'
+
+
+class Config(AbstractConfig):
     original_folder = 'original'
     lossless_folder = 'lossless'
     compressed_folder = 'compressed'
@@ -49,22 +67,6 @@ class Config(ConfigBase):
             self.videos_list: Dict[str, Any] = video_list['videos_list']
 
 
-class Check(Enum):
-    ORIGINAL = 'check_original'
-    LOSSLESS = 'check_lossless'
-    COMPRESS = 'check_compressed'
-    SEGMENT = 'check_segment'
-    DECODE = 'check_dectime'
-
-
-class Role(Enum):
-    PREPARE = 'prepare_videos'
-    COMPRESS = 'compress'
-    SEGMENT = 'segment'
-    DECODE = 'decode'
-    RESULTS = 'collect_result'
-    SITI = 'calcule_siti'
-    CHECK = 'check_all'
 
 
 class TileDecodeBenchmark:
