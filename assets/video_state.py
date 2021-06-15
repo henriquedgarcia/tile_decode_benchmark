@@ -168,6 +168,19 @@ class Factors:
         chunk = self.chunk
         return name, pattern, quality, tile, chunk
 
+    def get_name(self, base_name: Union[str, None] = None,
+                 ext: Union[str, None] = None,
+                 other: Any = None,
+                 separator='_'):
+        name = self.state.replace('_', separator)
+        if base_name:
+            name = f'{base_name}{separator}{name}'
+        if other:
+            name = f'{name}{separator}{other}'
+        if ext:
+            name = f'{name}.{ext}'
+        return name
+
 
 class Params:
     """
@@ -351,17 +364,4 @@ class VideoState(Paths, DectimeLists, Params, Factors):
         self._compressed_folder = Path(config.compressed_folder)
         self._segment_folder = Path(config.segment_folder)
         self._dectime_folder = Path(config.dectime_folder)
-
-    def get_name(self, base_name: Union[str, None] = None,
-                 ext: Union[str, None] = None,
-                 other: Any = None,
-                 separator='_'):
-        name = self.state.replace('_', separator)
-        if base_name:
-            name = f'{base_name}{separator}{name}'
-        if other:
-            name = f'{name}{separator}{other}'
-        if ext:
-            name = f'{name}.{ext}'
-        return name
 
