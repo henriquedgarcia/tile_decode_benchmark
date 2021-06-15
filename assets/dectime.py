@@ -200,7 +200,6 @@ class TileDecodeBenchmark:
             cmd += '-split 1 '
             cmd += f'{self.state.compressed_file} '
             cmd += f'-out {segment_log.parent}{Path("/")}'
-            # todo: Tenho que checar se esse path tá certo.
             queue.append((cmd, segment_log))
 
         for cmd in tqdm(queue):
