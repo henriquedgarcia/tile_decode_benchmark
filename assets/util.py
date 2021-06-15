@@ -19,9 +19,8 @@ class Params(ABC):
 
 
 class ConfigBase(Params):
-    @abstractmethod
     def __init__(self, config_file: Union[Path, str]):
-        pass
+        self.load_config(config_file)
 
     def load_config(self, config_file: Union[Path, str]):
         with open(config_file, 'r') as f:

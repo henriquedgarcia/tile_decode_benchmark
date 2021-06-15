@@ -30,9 +30,8 @@ class Params:
 
 class Config(ConfigBase, Params):
     def __init__(self, config):
-        self.load_config(config)
+        super().__init__(config)
 
         with open(f'config/{self.videos_file}', 'r') as f:
             video_list = json.load(f)
             self.videos_list: Dict[str, Any] = video_list['videos_list']
-
