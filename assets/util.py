@@ -1,11 +1,10 @@
 import json
 import subprocess
-from abc import ABC, abstractmethod
-from logging import warning, info, debug, critical
+from logging import info, debug, critical
+from pathlib import Path
 from typing import Any, Dict, Hashable, Iterable, NamedTuple, Tuple, Union
-from pathlib import Path
+
 import numpy as np
-from pathlib import Path
 
 
 class AutoDict(dict):
@@ -14,19 +13,23 @@ class AutoDict(dict):
         return self[key]
 
 
-class Params(ABC):
+class ConfigBase:
     _config_data: dict = {}
 
-
-class ConfigBase(Params):
     def __init__(self, config_file: Union[Path, str]):
-        self.load_config(config_file)
+        try:
+            self.load_config(config_file)
+        except FileNotFoundError:
+            critical(f'Config file: {config_file} not found.')
 
     def load_config(self, config_file: Union[Path, str]):
+        info(f'Loading {config_file}.')
+
         with open(config_file, 'r') as f:
             self._config_data.update(json.load(f))
 
         for key in self._config_data:
+            debug(f'Setting {key}')
             value = self._config_data[key]
             setattr(self, key, value)
 

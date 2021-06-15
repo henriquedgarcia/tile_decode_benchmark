@@ -6,16 +6,47 @@ from logging import warning, info, debug
 from os.path import getsize, splitext
 from pathlib import Path
 from subprocess import run
-from typing import Dict, Union
+from typing import Union, Any, Dict, List
 
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from assets.config import Config
 from assets.siti import SiTi
-from assets.util import AutoDict, run_command, save_json
+from assets.util import AutoDict, run_command, save_json, ConfigBase
 from assets.video_state import Tiling, VideoState
+
+
+class Config(ConfigBase):
+    original_folder = 'original'
+    lossless_folder = 'lossless'
+    compressed_folder = 'compressed'
+    segment_folder = 'segment'
+    dectime_folder = 'dectime'
+    stats_folder = 'stats'
+    graphs_folder = "graphs"
+    siti_folder = "siti"
+    project: str
+    error_metric: str
+    decoding_num: int
+    scale: str
+    projection: str
+    codec: str
+    fps: int
+    gop: int
+    distributions: List[str]
+    rate_control: str
+    quality_list: List[int]
+    pattern_list: List[str]
+    videos_list: Dict[str, Any]
+    videos_file: str
+
+    def __init__(self, config):
+        super().__init__(config)
+
+        with open(f'config/{self.videos_file}', 'r') as f:
+            video_list = json.load(f)
+            self.videos_list: Dict[str, Any] = video_list['videos_list']
 
 
 class Check(Enum):
