@@ -1,3 +1,4 @@
+import inspect
 import json
 import os
 from collections import Counter, defaultdict
@@ -161,15 +162,8 @@ class TileDecodeBenchmark:
         :param overwrite:
         :return:
         """
-        print('=' * 70)
-        print(f'Encoding {len(self.config.videos_list)} videos:\n'
-              f'  codec: {self.config.codec}\n'
-              f'  fps: {self.config.fps}\n'
-              f'  gop: {self.config.gop}\n'
-              f'  qualities: {self.config.quality_list}\n'
-              f'  patterns: {self.config.pattern_list}'
-              )
-        print('=' * 70)
+        self._print_resume_config()
+
         queue = []
         for _ in self._iterate(deep=4):
             compressed_file = self.state.compressed_file
@@ -211,6 +205,8 @@ class TileDecodeBenchmark:
             run_command(*cmd)
 
     def segment(self, overwrite=False) -> None:
+        self._print_resume_config()
+
         queue = []
         for _ in self._iterate(deep=4):
             # Check segment log size. If size is very small, overwrite.
@@ -234,6 +230,8 @@ class TileDecodeBenchmark:
             run_command(*cmd)
 
     def decode(self, overwrite=False) -> None:
+        self._print_resume_config()
+
         decoding_num = self.config.decoding_num
         queue = []
         for _ in range(decoding_num):
@@ -246,6 +244,8 @@ class TileDecodeBenchmark:
                     warning(f'TileDecodeBenchmark.decode: Error on reading '
                             f'dectime log file: {dectime_file}.')
                     continue
+                elif count == decoding_num:
+                    warning(f'{segment_file} is decoded enough. Skipping.')
                 coding_ok = count >= decoding_num
                 if coding_ok and not overwrite: continue
 
@@ -264,6 +264,8 @@ class TileDecodeBenchmark:
         if exist and not overwrite:
             print(f'The file {self.state.dectime_raw_json} exist.')
             return
+        self._print_resume_config()
+
 
         for _ in self._iterate(deep=5):
             name, pattern, quality, tile, chunk = self.state.get_factors()
@@ -302,6 +304,20 @@ class TileDecodeBenchmark:
             siti.calc_siti(verbose=True)
             siti.save_siti(overwrite=overwrite)
             siti.save_stats(overwrite=overwrite)
+
+    def _print_resume_config(self):
+        print('=' * 70)
+        print(f'Processing {len(self.config.videos_list)} videos:\n'
+              f'  function: {inspect.stack()[1][3]}\n'
+              f'  project: {self.config.project}\n'
+              f'  projection: {self.config.projection}\n'
+              f'  codec: {self.config.codec}\n'
+              f'  fps: {self.config.fps}\n'
+              f'  gop: {self.config.gop}\n'
+              f'  qualities: {self.config.quality_list}\n'
+              f'  patterns: {self.config.pattern_list}'
+              )
+        print('=' * 70)
 
     def _iterate(self, deep):
         count = 0
