@@ -12,12 +12,15 @@ import pandas as pd
 import skvideo.io
 
 from assets.util import splitx, sobel
+from assets.video_state import AbstractVideoState
 
 class SiTi:
-    def __init__(self, filename, scale, plot_siti=False, folder='siti'):
-        self.filename = filename
-        self.scale = scale
-        self.width, self.height = splitx(scale)
+    def __init__(self, state: AbstractVideoState, plot_siti=False):
+        self.state = state
+        self.filename = state.compressed_file
+        self.scale = state.scale
+        self.width, self.height = splitx(state.scale)
+        self.folder = state.siti_folder
 
         self.si = []
         self.ti = []
