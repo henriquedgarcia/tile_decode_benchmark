@@ -284,8 +284,8 @@ class TileDecodeBenchmark:
             results = self.results[name][pattern][quality][tile][chunk]
             results.update(self._collect_dectime())
 
-        save_json(self.results, self.state.dectime_raw_json, compact=True)
         info(f'Saving {self.state.dectime_raw_json}')
+        save_json(self.results, self.state.dectime_raw_json, compact=True)
 
     def calcule_siti(self, overwrite=False) -> None:
         self.state.quality = 28
