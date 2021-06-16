@@ -159,7 +159,6 @@ class TileDecodeBenchmark:
 
             queue.append((command, log))
 
-        print('Creating and compressing tiles.')
         for cmd in tqdm(queue):
             run_command(*cmd)
 
@@ -207,7 +206,6 @@ class TileDecodeBenchmark:
 
             queue.append((cmd, log))
 
-        print('Creating and compressing tiles.')
         for cmd in tqdm(queue):
             run_command(*cmd)
 
