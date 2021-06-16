@@ -133,6 +133,7 @@ class TileDecodeBenchmark:
         Prepare video to encode. Uncompress and unify resolution, frame rate, pixel format.
         :param overwrite: If True, this method overwrite previous files.
         """
+        queue = []
         for _ in self._iterate(deep=1):
             uncompressed_file = self.state.lossless_file
             if uncompressed_file.is_file() and not overwrite:
@@ -154,7 +155,12 @@ class TileDecodeBenchmark:
             command += f'-vf scale={frame.scale},setdar={dar} '
             command += f'{uncompressed_file}'
             log = f'{splitext(uncompressed_file)[0]}.log'
-            run_command(command, log)
+
+            queue.append((command, log))
+
+        print('Creating and compressing tiles.')
+        for cmd in tqdm(queue):
+            run_command(*cmd)
 
     def compress(self, overwrite=False) -> None:
         """
