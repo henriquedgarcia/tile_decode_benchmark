@@ -268,7 +268,8 @@ class TileDecodeBenchmark:
 
         for _ in self._iterate(deep=5):
             name, pattern, quality, tile, chunk = self.state.get_factors()
-            print(f'Collecting {self.state.state}')
+            debug(f'Collecting {self.state.state}')
+
             if chunk == 1:
                 # Collect quality {'psnr': float, 'qp_avg': float}
                 results = self.results[name][pattern][quality][tile]
@@ -278,8 +279,8 @@ class TileDecodeBenchmark:
             self.results[name][pattern][quality][tile][chunk] \
                 .update(self._collect_dectime())
 
-        print(f'Saving {self.state.dectime_raw_json}')
         save_json(self.results, self.state.dectime_raw_json, compact=True)
+        info(f'Saving {self.state.dectime_raw_json}')
 
     def calcule_siti(self, overwrite=False) -> None:
         self.state.quality = 28
