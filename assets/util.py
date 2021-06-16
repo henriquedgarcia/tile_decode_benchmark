@@ -1,11 +1,13 @@
 import json
 import subprocess
+from abc import ABC
 from logging import info, debug, critical
 from pathlib import Path
 from typing import Any, Dict, Hashable, Iterable, NamedTuple, Tuple, Union
 from abc import ABC
 
 import numpy as np
+from scipy import ndimage
 
 
 class AutoDict(dict):
@@ -171,3 +173,15 @@ def grouper(iterable, n, fillvalue=None):
     from itertools import zip_longest
     args = [iter(iterable)] * n
     return zip_longest(*args, fillvalue=fillvalue)
+
+
+def sobel(frame):
+    """
+    Apply 1st order 2D Sobel filter
+    :param frame:
+    :return:
+    """
+    sobx = ndimage.sobel(frame, axis=0)
+    soby = ndimage.sobel(frame, axis=1)
+    sob = np.hypot(sobx, soby)
+    return sob

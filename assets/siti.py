@@ -10,10 +10,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import skvideo.io
-from scipy import ndimage
 
-from assets.util import splitx
-
+from assets.util import splitx, sobel
 
 class SiTi:
     def __init__(self, filename, scale, plot_siti=False, folder='siti'):
@@ -37,28 +35,16 @@ class SiTi:
         self.fig: Union[figure.Figure, None] = None
         self.ax: Union[List[List[axes.Axes]], None] = None
 
-    @staticmethod
-    def sobel(frame):
-        """
-        Apply 1st order 2D Sobel filter
-        :param frame:
-        :return:
-        """
-        sobx = ndimage.sobel(frame, axis=0)
-        soby = ndimage.sobel(frame, axis=1)
-        sob = np.hypot(sobx, soby)
-        return sob
-
     def _calc_si(self, frame: np.ndarray) -> (float, np.ndarray):
         """
         Calcule Spatial Information for a video frame.
         :param frame: A luma video frame in numpy ndarray format.
         :return: spatial information and sobel frame.
         """
-        sobel = self.sobel(frame)
-        si = sobel.std()
+        sob = sobel(frame)
+        si = sob.std()
         self.si.append(si)
-        return si, sobel
+        return si, sob
 
     def _calc_ti(self, frame: np.ndarray) -> (float, np.ndarray):
         """
