@@ -260,12 +260,11 @@ class TileDecodeBenchmark:
                 run_command(*cmd, mode='a')
 
     def collect_result(self, overwrite=False) -> None:
-        exist = os.path.isfile(self.state.dectime_raw_json)
-        if exist and not overwrite:
-            print(f'The file {self.state.dectime_raw_json} exist.')
-            return
         self._print_resume_config()
 
+        if self.state.dectime_raw_json.exists() and not overwrite:
+            warning(f'The file {self.state.dectime_raw_json} exist.')
+            # return
 
         for _ in self._iterate(deep=5):
             name, pattern, quality, tile, chunk = self.state.get_factors()
