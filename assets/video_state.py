@@ -208,6 +208,7 @@ class Paths(Params, Factors):
     _compressed_folder: Path
     _segment_folder: Path
     _dectime_folder: Path
+    _siti_folder: Path
 
     @property
     def basename(self):
@@ -246,6 +247,12 @@ class Paths(Params, Factors):
         return folder
 
     @property
+    def siti_folder(self) -> Path:
+        folder = self.project / self._siti_folder
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+    @property
     def original_file(self) -> Path:
         return self.original_folder / self.video.original
 
@@ -272,6 +279,14 @@ class Paths(Params, Factors):
     @property
     def dectime_raw_json(self) -> Path:
         return self.project / 'dectime_raw.json'
+
+    @property
+    def siti_results(self) -> Path:
+        return self.siti_folder / 'siti.csv'
+
+    @property
+    def siti_debug(self) -> Path:
+        return self.siti_folder / 'siti.mp4'
 
 
 class DectimeLists(Params, Factors):

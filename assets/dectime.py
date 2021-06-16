@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from assets.siti import SiTi
 from assets.util import AutoDict, run_command, save_json, AbstractConfig
-from assets.video_state import Tiling, AbstractVideoState, Frame
+from assets.video_state import AbstractVideoState, Frame
 
 
 class Check(Enum):
@@ -93,6 +93,7 @@ class VideoState(AbstractVideoState):
         self._compressed_folder = Path(config.compressed_folder)
         self._segment_folder = Path(config.segment_folder)
         self._dectime_folder = Path(config.dectime_folder)
+        self._siti_folder = Path(config.siti_folder)
 
 
 class TileDecodeBenchmark:
