@@ -125,6 +125,7 @@ class TileDecodeBenchmark:
                           Role['SITI']: self.calcule_siti,
                           }
 
+    # noinspection PyArgumentList
     def run(self, role: str, **kwargs):
         self.operation[Role[role]](**kwargs)
 
