@@ -370,9 +370,9 @@ class TileDecodeBenchmark:
         psnr: Dict[str, float] = {}
         get_psnr = lambda l: float(l.strip().split(',')[3].split(':')[1])
         get_qp = lambda l: float(l.strip().split(',')[2].split(':')[1])
+        compressed_file = self.state.compressed_file
 
-        with open(f'{self.state.compressed_file[:-4]}.log', 'r',
-                  encoding='utf-8') as f:
+        with open(compressed_file.with_suffix('.log'), 'r', encoding='utf-8') as f:
             for line in f:
                 if 'Global PSNR' in line:
                     psnr['psnr'] = get_psnr(line)
