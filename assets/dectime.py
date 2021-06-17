@@ -290,42 +290,45 @@ class TileDecodeBenchmark:
         info(f'Saving {self.state.dectime_raw_json}')
         save_json(self.results, self.state.dectime_raw_json, compact=True)
 
-    def calcule_siti(self, overwrite=False) -> None:
-        self.state.quality = 28
-        self.state.tiling = Tiling('1x1', self.state.frame)
-        self.state.tile = self.state.tiling.tiles_list[0]
+    def calcule_siti(self, overwrite=False, animate_graph=False, save=True) -> None:
+        self.state.tiling_list = ['1x1']
+        self.state.quality_list = [28]
+        self.compress(overwrite=False)
 
-        for self.state.video in self.state.videos_list:
-            # Encode videos if they are not encoded.
-            compressed_file = self.state.compressed_file
-            exist_encoded = os.path.isfile(compressed_file)
-            if not exist_encoded or overwrite:
-                filename = self.state.compressed_file
-                folder, _ = os.path.split(filename)
-                _, tail = os.path.split(folder)
-                folder = f'{self.state.project}/siti/{tail}'
-                os.makedirs(folder, exist_ok=True)
-                self.compress(overwrite=overwrite)
+        for _ in enumerate(self._iterate(deep=1)):
+            siti = SiTi(self.state)
+            siti.calc_siti(animate_graph=animate_graph, overwrite=overwrite, save=save)
 
-            siti = SiTi(filename=self.state.compressed_file,
-                        scale=self.state.scale, plot_siti=False)
-            siti.calc_siti(verbose=True)
-            siti.save_siti(overwrite=overwrite)
-            siti.save_stats(overwrite=overwrite)
+        self._join_siti()
 
-    def _print_resume_config(self):
-        print('=' * 70)
-        print(f'Processing {len(self.config.videos_list)} videos:\n'
-              f'  function: {inspect.stack()[1][3]}\n'
-              f'  project: {self.config.project}\n'
-              f'  projection: {self.config.projection}\n'
-              f'  codec: {self.config.codec}\n'
-              f'  fps: {self.config.fps}\n'
-              f'  gop: {self.config.gop}\n'
-              f'  qualities: {self.config.quality_list}\n'
-              f'  patterns: {self.config.pattern_list}'
-              )
-        print('=' * 70)
+    def _join_siti(self):
+        siti_results_final = pd.DataFrame()
+        siti_stats_json_final = {}
+        num_frames = None
+
+        for _ in enumerate(self._iterate(deep=1)):
+            name = self.state.name
+
+            """Join siti_results"""
+            siti_results_file = self.state.siti_results
+            siti_results_df = pd.read_csv(siti_results_file)
+            if num_frames is None:
+                num_frames = self.state.video.duration * self.state.fps
+            elif num_frames < len(siti_results_df['si']):
+                dif = len(siti_results_df['si']) - num_frames
+                for _ in range(dif):
+                    siti_results_df.loc[len(siti_results_df)] = [0, 0]
+
+            siti_results_final[f'{name}_ti'] = siti_results_df['si']
+            siti_results_final[f'{name}_si'] = siti_results_df['ti']
+
+            """Join stats"""
+            siti_stats = self.state.siti_stats
+            with open(siti_stats, 'r', encoding='utf-8') as f:
+                individual_stats_json = json.load(f)
+                siti_stats_json_final[name] = individual_stats_json
+        siti_results_final.to_csv(f'{self.state.siti_folder / "siti_results_final.csv"}', index_label='frame')
+        pd.DataFrame(siti_stats_json_final).to_csv(f'{self.state.siti_folder / "siti_stats_final.csv"}')
 
     def _iterate(self, deep):
         count = 0
@@ -354,6 +357,20 @@ class TileDecodeBenchmark:
                                 count += 1
                                 yield count
                                 continue
+
+    def _print_resume_config(self):
+        print('=' * 70)
+        print(f'Processing {len(self.config.videos_list)} videos:\n'
+              f'  function: {inspect.stack()[1][3]}\n'
+              f'  project: {self.config.project}\n'
+              f'  projection: {self.config.projection}\n'
+              f'  codec: {self.config.codec}\n'
+              f'  fps: {self.config.fps}\n'
+              f'  gop: {self.config.gop}\n'
+              f'  qualities: {self.config.quality_list}\n'
+              f'  patterns: {self.config.pattern_list}'
+              )
+        print('=' * 70)
 
     def _collect_dectime(self) -> Dict[str, float]:
         """
