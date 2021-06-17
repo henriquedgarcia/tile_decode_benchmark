@@ -92,8 +92,6 @@ class SiTi:
 
             info(f'Add frame {self.frame_counter:05} to siti video.')
             self.make_animated_graph(frame, sob, difference)
-            # if self.frame_counter > 60:
-            #     break
 
         if animate_graph and (not movie_exist or overwrite):
             self.writer.close()
