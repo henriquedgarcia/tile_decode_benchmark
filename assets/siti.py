@@ -1,8 +1,7 @@
 import collections
 import json
-import os
-import subprocess
 from typing import List, Union
+from logging import info, debug, warning
 
 import matplotlib.axes as axes
 import matplotlib.figure as figure
@@ -14,8 +13,9 @@ import skvideo.io
 from assets.util import splitx, sobel
 from assets.video_state import AbstractVideoState
 
+
 class SiTi:
-    def __init__(self, state: AbstractVideoState, plot_siti=False):
+    def __init__(self, state: AbstractVideoState):
         self.state = state
         self.filename = state.compressed_file
         self.scale = state.scale
@@ -31,14 +31,13 @@ class SiTi:
                           ti_0q=[], ti_1q=[], ti_2q=[], ti_3q=[], ti_4q=[],
                           ti_average=[], ti_std=[])
 
-        os.makedirs(folder, exist_ok=True)
         self.jump_siti = False
-        self.folder = folder
-        self.plot_siti = plot_siti
         self.fig: Union[figure.Figure, None] = None
         self.ax: Union[List[List[axes.Axes]], None] = None
+        self.writer = skvideo.io.FFmpegWriter(f'{state.siti_movie}')
 
-    def _calc_si(self, frame: np.ndarray) -> (float, np.ndarray):
+    @staticmethod
+    def _calc_si(frame: np.ndarray) -> (float, np.ndarray):
         """
         Calcule Spatial Information for a video frame.
         :param frame: A luma video frame in numpy ndarray format.
@@ -46,7 +45,6 @@ class SiTi:
         """
         sob = sobel(frame)
         si = sob.std()
-        self.si.append(si)
         return si, sob
 
     def _calc_ti(self, frame: np.ndarray) -> (float, np.ndarray):
@@ -57,123 +55,143 @@ class SiTi:
         :return: Temporal information and diference frame. If first frame the
         diference is zero array on same shape of frame.
         """
-        if self.previous_frame:
+        if self.previous_frame is not None:
             difference = frame - self.previous_frame
             ti = difference.std()
         else:
             difference = np.zeros(frame.shape)
             ti = 0.0
 
-        self.ti.append(ti)
         self.previous_frame = frame
-
         return ti, difference
 
-    def calc_siti(self, verbose=False):
-        vreader = skvideo.io.vreader(fname=self.filename, as_grey=True)
-        jump_debug = True if os.path.isfile(
-                f'{self.folder}/siti.mp4') else False
-        self.jump_siti = True if os.path.isfile(
-                f'{self.folder}/siti.csv') else False
+    def calc_siti(self, animate_graph=False, overwrite=False, save=True):
+        vreader = skvideo.io.vreader(fname=str(self.filename), as_grey=True)
+        siti_results_exists = True if self.state.siti_results.exists() else False
+        movie_exist = self.state.siti_movie.exists()
+
+        if siti_results_exists and not overwrite:
+            warning(f'The file {self.state.siti_results} exist. Skipping.')
+            return
+
         for self.frame_counter, frame in enumerate(vreader, 1):
-            if self.jump_siti: break
+            '''Calculate Metrics'''
             width = frame.shape[1]
             height = frame.shape[2]
             frame = frame.reshape((width, height)).astype('float32')
-            value_si, sobel = self._calc_si(frame)
+
+            value_si, sob = self._calc_si(frame)
             value_ti, difference = self._calc_ti(frame)
-            if verbose:
-                print(f"{self.frame_counter:04}, "
-                      f"si={value_si:05.3f}, ti={value_ti:05.3f}")
-            else:
-                print('.', end='', flush=True)
+            self.si.append(value_si)
+            self.ti.append(value_ti)
+            info(f"{self.state.name} - {self.frame_counter:05}, si={value_si:05.3f}, ti={value_ti:05.3f}")
 
-            '''For Debug'''
-            if self.plot_siti and not jump_debug:
-                plt.close()
-                self.fig, self.ax = plt.subplots(2, 2, figsize=(12, 6))
-                self.fig.tight_layout()
+            '''Animate Graph'''
+            if not animate_graph or (movie_exist and not overwrite):
+                continue
 
-                '''Show frame'''
-                self.ax[0][0].imshow(frame, cmap='gray')
-                self.ax[0][0].set_xlabel('Frame luma')
-                self.ax[0][0].get_xaxis().set_ticks([])
-                self.ax[0][0].get_yaxis().set_ticks([])
+            info(f'Add frame {self.frame_counter:05} to siti video.')
+            self.make_animated_graph(frame, sob, difference)
+            # if self.frame_counter > 60:
+            #     break
 
-                '''Show sobel'''
-                self.ax[1][0].imshow(sobel, cmap='gray')
-                self.ax[1][0].set_xlabel('Sobel result')
-                self.ax[1][0].get_xaxis().set_ticks([])
-                self.ax[1][0].get_yaxis().set_ticks([])
+        if animate_graph and (not movie_exist or overwrite):
+            self.writer.close()
 
-                '''Show difference'''
-                if self.previous_frame is not None:
-                    self.ax[1][1].imshow(np.abs(difference), cmap='gray')
-                self.ax[1][1].set_xlabel('Diff result')
-                self.ax[1][1].get_xaxis().set_ticks([])
-                self.ax[1][1].get_yaxis().set_ticks([])
+        if save:
+            self.save_siti(overwrite=overwrite)
+            self.save_stats(overwrite=overwrite)
 
-                '''Show a moving si/ti graph'''
-                samples = 300
-                val_si = self.si
-                val_ti = self.ti
-                rotation = -samples
-                if len(self.si) < samples:
-                    val_si = self.si + [0] * (samples - len(self.si))
-                    val_ti = val_ti + [0] * (samples - len(self.ti))
-                    rotation = -self.frame_counter
-                v_si = collections.deque(val_si[-samples:])
-                v_ti = collections.deque(val_ti[-samples:])
-                v_si.rotate(rotation)
-                v_ti.rotate(rotation)
+    def make_animated_graph(self, frame, sob, difference):
+        plt.close()
+        fig, ax = plt.subplots(2, 2, figsize=(12, 6))
+        fig.tight_layout()
 
-                self.ax[0][1].plot(v_si, 'b', label=f'SI={value_si:05.3f}')
-                self.ax[0][1].plot(v_ti, 'r', label=f'TI={value_ti:05.3f}')
-                self.ax[0][1].set_xlabel('SI/TI')
-                self.ax[0][1].legend(loc='upper left',
-                                     bbox_to_anchor=(1.01, 0.99))
-                self.ax[0][1].set_ylim(bottom=0)
-                self.ax[0][1].set_xlim(left=0)
+        '''Show frame'''
+        debug('Making main frame.')
+        ax[0][0].imshow(frame, cmap='gray')
+        ax[0][0].set_xlabel('Frame luma')
+        ax[0][0].get_xaxis().set_ticks([])
+        ax[0][0].get_yaxis().set_ticks([])
 
-                '''Saving'''
-                plt.savefig(f'{self.folder}/frame_{self.frame_counter}.jpg',
-                            dpi=150)
-                # plt.show()
-        if self.plot_siti and not jump_debug:
-            subprocess.run(f'ffmpeg '
-                           f'-y -r 30 '
-                           f'-i {self.folder}/frame_%d.jpg '
-                           f'-c:v libx264 '
-                           f'-vf fps=30 '
-                           f'-pix_fmt yuv420p '
-                           f'{self.folder}/siti.mp4',
-                           shell=True, encoding='utf-8')
+        '''Show sobel'''
+        debug('Making sobel frame.')
+        ax[1][0].imshow(sob, cmap='gray')
+        ax[1][0].set_xlabel('Sobel result')
+        ax[1][0].get_xaxis().set_ticks([])
+        ax[1][0].get_yaxis().set_ticks([])
+
+        '''Show difference'''
+        debug('Making differences frame.')
+        if self.previous_frame is not None:
+            ax[1][1].imshow(np.abs(difference), cmap='gray')
+        ax[1][1].set_xlabel('Diff result')
+        ax[1][1].get_xaxis().set_ticks([])
+        ax[1][1].get_yaxis().set_ticks([])
+
+        '''A moving si/ti graph'''
+        debug('Making a queue.')
+        samples = 300
+        val_si = self.si
+        val_ti = self.ti
+        rotation = -samples
+        if len(val_si) < samples:
+            val_si = val_si + [0] * (samples - len(val_si))
+            val_ti = val_ti + [0] * (samples - len(val_ti))
+            rotation = -self.frame_counter
+        v_si = collections.deque(val_si[-samples:])
+        v_ti = collections.deque(val_ti[-samples:])
+        v_si.rotate(rotation)
+        v_ti.rotate(rotation)
+
+        debug('Making moving queue.')
+        ax[0][1].plot(v_si, 'b', label=f'SI={self.si[-1]:05.3f}')
+        ax[0][1].plot(v_ti, 'r', label=f'TI={self.ti[-1]:05.3f}')
+        ax[0][1].set_xlabel('SI/TI')
+        ax[0][1].legend(loc='upper left', bbox_to_anchor=(1.01, 0.99))
+        ax[0][1].set_ylim(bottom=0)
+        ax[0][1].set_xlim(left=0)
+
+        '''Saving'''
+        # path = self.folder / self.state.video.name
+        # path.mkdir(parents=True, exist_ok=True)
+        # frame_filename = path / f'frame_{self.frame_counter}.jpg'
+        # plt.savefig(str(frame_filename), dpi=150)
+        # plt.show()
+
+        debug('Convert Matplotlib to Numpy and save.')
+        fig.canvas.draw()
+        data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        self.writer.writeFrame(data)
 
     def save_siti(self, overwrite=False):
-        if self.jump_siti and not overwrite:
-            return
-        df = pd.DataFrame({'si': self.si, 'ti': self.ti})
-        df.to_csv(f'{self.folder}/siti.csv', index_label='frame')
+        siti_results_exists = True if self.state.siti_results.exists() else False
+
+        if not siti_results_exists or overwrite:
+            df = pd.DataFrame({'si': self.si, 'ti': self.ti})
+            df.to_csv(f'{self.state.siti_results}', index_label='frame')
 
     def save_stats(self, overwrite=False):
-        if self.jump_siti and not overwrite:
-            return
-        si = self.si
-        ti = self.ti
-        stats = dict(si_average=f'{np.average(si):05.3f}',
-                     si_std=f'{np.std(si):05.3f}',
-                     si_0q=f'{np.quantile(si, 0.00):05.3f}',
-                     si_1q=f'{np.quantile(si, 0.25):05.3f}',
-                     si_2q=f'{np.quantile(si, 0.50):05.3f}',
-                     si_3q=f'{np.quantile(si, 0.75):05.3f}',
-                     si_4q=f'{np.quantile(si, 1.00):05.3f}',
-                     ti_average=f'{np.average(ti):05.3f}',
-                     ti_std=f'{np.std(ti):05.3f}',
-                     ti_0q=f'{np.quantile(ti, 0.00):05.3f}',
-                     ti_1q=f'{np.quantile(ti, 0.25):05.3f}',
-                     ti_2q=f'{np.quantile(ti, 0.50):05.3f}',
-                     ti_3q=f'{np.quantile(ti, 0.75):05.3f}',
-                     ti_4q=f'{np.quantile(ti, 1.00):05.3f}')
+        siti_stats_exists = True if self.state.siti_stats.exists() else False
 
-        with open(f'{self.folder}/stats.json', 'w', encoding='utf-8') as f:
-            json.dump(stats, f, separators=(',', ':'))
+        if not siti_stats_exists or overwrite:
+            si = self.si
+            ti = self.ti
+            stats = dict(si_average=f'{np.average(si):05.3f}',
+                         si_std=f'{np.std(si):05.3f}',
+                         si_0q=f'{np.quantile(si, 0.00):05.3f}',
+                         si_1q=f'{np.quantile(si, 0.25):05.3f}',
+                         si_2q=f'{np.quantile(si, 0.50):05.3f}',
+                         si_3q=f'{np.quantile(si, 0.75):05.3f}',
+                         si_4q=f'{np.quantile(si, 1.00):05.3f}',
+                         ti_average=f'{np.average(ti):05.3f}',
+                         ti_std=f'{np.std(ti):05.3f}',
+                         ti_0q=f'{np.quantile(ti, 0.00):05.3f}',
+                         ti_1q=f'{np.quantile(ti, 0.25):05.3f}',
+                         ti_2q=f'{np.quantile(ti, 0.50):05.3f}',
+                         ti_3q=f'{np.quantile(ti, 0.75):05.3f}',
+                         ti_4q=f'{np.quantile(ti, 1.00):05.3f}')
+
+            with open(f'{self.state.siti_stats}', 'w', encoding='utf-8') as f:
+                json.dump(stats, f, separators=(',', ':'))
