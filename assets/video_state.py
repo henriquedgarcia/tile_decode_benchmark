@@ -282,11 +282,15 @@ class Paths(Params, Factors):
 
     @property
     def siti_results(self) -> Path:
-        return self.siti_folder / 'siti.csv'
+        return self.siti_folder / f'{self.name}_siti_results.csv'
 
     @property
-    def siti_debug(self) -> Path:
-        return self.siti_folder / 'siti.mp4'
+    def siti_movie(self) -> Path:
+        return self.siti_folder / f'{self.name}_siti_movie.mp4'
+
+    @property
+    def siti_stats(self) -> Path:
+        return self.siti_folder / f'{self.name}_siti_stats.json'
 
 
 class DectimeLists(Params, Factors):
