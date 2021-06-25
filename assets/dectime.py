@@ -501,7 +501,7 @@ class CheckProject(TileDecodeBenchmark):
         for i, video_file in enumerate(tqdm(files_list), 1):
             msg = self._check_video_size(video_file)
             df.loc[len(df)] = [video_file, msg]
-            if i % 300 == 0: self.save_report()
+            if i % 3000 == 0: self.save_report()
 
     def check_dectime(self):
         df = self.error_df
