@@ -12,7 +12,7 @@ from typing import Union, Any, Dict, List
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-
+import matplotlib.pyplot as plt
 from assets.siti import SiTi
 from assets.util import AutoDict, run_command, save_json, AbstractConfig
 from assets.video_state import AbstractVideoState, Frame
@@ -300,6 +300,25 @@ class TileDecodeBenchmark:
             siti.calc_siti(animate_graph=animate_graph, overwrite=overwrite, save=save)
 
         self._join_siti()
+        self._scatter_plot_siti()
+
+    def _scatter_plot_siti(self):
+        siti_results_df = pd.read_csv(f'{self.state.siti_folder / "siti_stats_final.csv"}', index_col=0)
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6), dpi=300)
+        fig: plt.Figure
+        ax: plt.Axes
+        for column in siti_results_df:
+            si = siti_results_df[column]['si_2q']
+            ti = siti_results_df[column]['ti_2q']
+            name = column.replace('_nas', '')
+            ax.scatter(si, ti, label=name)
+        ax.set_xlabel("Spatial Information", fontdict={'size': 12})
+        ax.set_ylabel('Temporal Information', fontdict={'size': 12})
+        ax.set_title('Si/Ti', fontdict={'size': 16})
+        ax.legend(loc='upper left', bbox_to_anchor=(1.01, 1.0), fontsize='small')
+        fig.tight_layout()
+        fig.savefig(self.state.siti_folder / 'scatter.png')
+        fig.show()
 
     def _join_siti(self):
         siti_results_final = pd.DataFrame()
