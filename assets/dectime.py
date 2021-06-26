@@ -465,16 +465,19 @@ class CheckProject(TileDecodeBenchmark):
             if i % 300 == 0: self.save_report()
 
     def check_lossless(self):
+        debug(f'Checking lossless files')
         df = self.error_df
         files_list = []
+        debug(f'Creating queue')
         for _ in self._iterate(deep=1):
             video_file = self.state.lossless_file
             files_list.append(video_file)
 
         for i, video_file in enumerate(tqdm(files_list), 1):
+            debug(f'Cheking the file {video_file}')
             msg = self._check_video_size(video_file)
+            debug(f'Message = {msg}')
             df.loc[len(df)] = [video_file, msg]
-            if i % 300 == 0: self.save_report()
 
     def check_compressed(self):
         df = self.error_df
@@ -537,18 +540,26 @@ class CheckProject(TileDecodeBenchmark):
         :param check_gop: must check GOP?
         :return:
         """
+        debug(f'checking size of {video_file}')
         size = check_file_size(video_file)
 
         if size > 0:
             if check_gop:
+                debug(f'Checking GOP of {video_file}.')
                 max_gop, gop = self.check_video_gop(video_file)[0]
+                debug(f'GOP = {gop}')
+                debug(f'MaxGOP = {max_gop}')
                 if not max_gop == self.config.gop:
+                    debug(f'Wrong GOP size')
                     return f'wrong_gop_size_{max_gop}'
+            debug(f'Apparently size is OK to {video_file}')
             return 'apparently_ok'
         elif size == 0:
+            debug(f'Size of {video_file} is 0')
             self._clean(video_file)
             return 'filesize==0'
         elif size < 0:
+            debug(f'The video {video_file} NOT FOUND')
             self._clean(video_file)
             return 'video_not_found'
 
@@ -581,6 +592,7 @@ class CheckProject(TileDecodeBenchmark):
 
     def _clean(self, video_file):
         if self.rem_error:
+            debug(f'Deleting {video_file} and the log')
             rem_file(video_file)
             log = video_file.with_suffix('.log')
             rem_file(log)
@@ -628,11 +640,13 @@ def menu(options_txt: list) -> int:
 
 
 def check_file_size(video_file) -> int:
+    debug(f'Checking size of {video_file}')
     if not os.path.isfile(video_file):
         return -1
     filesize = os.path.getsize(video_file)
     if filesize == 0:
         return 0
+    debug(f'The size is {filesize}')
     return filesize
 
 
