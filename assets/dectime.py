@@ -540,7 +540,7 @@ class CheckProject(TileDecodeBenchmark):
         :param check_gop: must check GOP?
         :return:
         """
-        debug(f'checking size of {video_file}')
+        debug(f'Inside _check_video_size method.')
         size = check_file_size(video_file)
 
         if size > 0:
