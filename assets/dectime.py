@@ -247,7 +247,7 @@ class TileDecodeBenchmark:
                 segment_file = self.state.segment_file
                 dectime_file = self.state.dectime_log
 
-                count = count_decoding(dectime_file)
+                count = self._count_decoding(dectime_file)
                 if count == -1:
                     warning(f'TileDecodeBenchmark.decode: Error on reading '
                             f'dectime log file: {dectime_file}.')
@@ -424,6 +424,21 @@ class TileDecodeBenchmark:
                     break
         return psnr
 
+    @staticmethod
+    def _count_decoding(log_file: Path) -> int:
+        """
+        Count how many times the word "utime" appears in "log_file"
+        :param log_file: A path-to-file string.
+        :return:
+        """
+        try:
+            with open(log_file, 'r', encoding='utf-8') as f:
+                return len(['' for line in f if 'utime' in line])
+        except FileNotFoundError:
+            return 0
+        except UnicodeDecodeError:
+            return -1
+
 
 class CheckProject(TileDecodeBenchmark):
     rem_error: bool = None
@@ -580,7 +595,7 @@ class CheckProject(TileDecodeBenchmark):
 
     def _verify_dectime_log(self, dectime_log: Path) -> str:
         if dectime_log.exists():
-            count_decode = count_decoding(dectime_log)
+            count_decode = self._count_decoding(dectime_log)
             if count_decode == -1:
                 self._clean(dectime_log)
                 msg = f'log_corrupt'
@@ -619,6 +634,8 @@ class CheckProject(TileDecodeBenchmark):
         return max_gop, gop
 
 
+
+
 def make_menu(options_txt: list) -> (list, str):
     options = [str(o) for o in range(len(options_txt))]
     menu_lines = ['Options:']
@@ -653,18 +670,3 @@ def check_file_size(video_file) -> int:
 def rem_file(file) -> None:
     if os.path.isfile(file):
         os.remove(file)
-
-
-def count_decoding(log_file: Path) -> int:
-    """
-    Count how many times the word "utime" appears in "log_file"
-    :param log_file: A path-to-file string.
-    :return:
-    """
-    try:
-        with open(log_file, 'r', encoding='utf-8') as f:
-            return len(['' for line in f if 'utime' in line])
-    except FileNotFoundError:
-        return 0
-    except UnicodeDecodeError:
-        return -1
