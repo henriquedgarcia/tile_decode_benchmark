@@ -171,20 +171,22 @@ class TileDecodeBenchmark:
         :param overwrite:
         :return:
         """
+        total = len(list(self._iterate(deep=4)))
         self._print_resume_config()
 
         queue = []
-        for _ in self._iterate(deep=4):
+        for _ in tqdm(self._iterate(deep=4), total=total, desc="Enqueuing..."):
             lossless_file = self.state.lossless_file
             if not lossless_file.exists():
                 warning(f'The file lossless file {lossless_file} not exist. Skipping.')
                 continue
+
             compressed_file = self.state.compressed_file
             if compressed_file.is_file() and not overwrite:
                 warning(f'The file {compressed_file} exist. Skipping.')
                 continue
 
-            info(f'Processing {compressed_file}')
+            info(f'Enqueuing {compressed_file}')
 
             quality = self.state.quality
             gop = self.state.gop
@@ -212,7 +214,7 @@ class TileDecodeBenchmark:
 
             queue.append((cmd, log))
 
-        for cmd in tqdm(queue):
+        for cmd in tqdm(queue, desc="Encoding tiles."):
             run_command(*cmd)
 
     def segment(self, overwrite=False) -> None:
