@@ -175,6 +175,10 @@ class TileDecodeBenchmark:
 
         queue = []
         for _ in self._iterate(deep=4):
+            lossless_file = self.state.lossless_file
+            if not lossless_file.exists():
+                warning(f'The file lossless file {lossless_file} not exist. Skipping.')
+                continue
             compressed_file = self.state.compressed_file
             if compressed_file.is_file() and not overwrite:
                 warning(f'The file {compressed_file} exist. Skipping.')
@@ -182,7 +186,6 @@ class TileDecodeBenchmark:
 
             info(f'Processing {compressed_file}')
 
-            lossless_file = self.state.lossless_file
             quality = self.state.quality
             gop = self.state.gop
             tile = self.state.tile
