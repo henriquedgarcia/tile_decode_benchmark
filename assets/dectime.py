@@ -177,9 +177,9 @@ class TileDecodeBenchmark:
         queue = []
         for _ in tqdm(self._iterate(deep=4), total=total, desc="Enqueuing..."):
             lossless_file = self.state.lossless_file
-            if not lossless_file.exists():
-                warning(f'The file lossless file {lossless_file} not exist. Skipping.')
-                continue
+            # if not lossless_file.exists():
+            #     warning(f'The file lossless file {lossless_file} not exist. Skipping.')
+            #     continue
 
             compressed_file = self.state.compressed_file
             if compressed_file.is_file() and not overwrite:
