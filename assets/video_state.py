@@ -261,8 +261,16 @@ class Paths(Params, Factors):
         return self.lossless_folder / f'{self.name}_{self.scale}_{self.fps}.mp4'
 
     @property
+    def lossless_log(self) -> Path:
+        return self.lossless_file.with_suffix('.log')
+
+    @property
     def compressed_file(self) -> Path:
         return self.compressed_folder / f'tile{self.tile_id}.mp4'
+
+    @property
+    def compressed_log(self) -> Path:
+        return self.compressed_file.with_suffix('.log')
 
     @property
     def segment_file(self) -> Path:
