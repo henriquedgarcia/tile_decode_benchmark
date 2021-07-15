@@ -20,7 +20,7 @@ from assets.video_state import AbstractVideoState, Frame
 
 class Check(Enum):
     ORIGINAL = 'check_original'
-    LOSSLESS = 'check_lossless'
+    PREPARE = 'check_lossless'
     COMPRESS = 'check_compressed'
     SEGMENT = 'check_segment'
     DECODE = 'check_dectime'
