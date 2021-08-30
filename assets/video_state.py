@@ -2,7 +2,7 @@ from itertools import product as prod
 from pathlib import Path
 from typing import Any, Dict, List, Union
 from abc import ABC, abstractmethod
-from assets.util import splitx, AbstractConfig
+from assets.util import splitx
 
 
 class Frame:
