@@ -84,6 +84,7 @@ class Video:
     chunks: range
     tiling: Tile
     _video_info: Dict[str, Any]
+    frame: Frame
 
     def __init__(self, name, video_info: Dict[str, Any]):
         self.video_info = video_info
@@ -114,6 +115,7 @@ class Factors:
     video: Video = None
     tiling: Tiling = None
     quality: int = None
+    original_quality: int = 0
     tile: Tile = None
     chunk: int = None
     rate_control: str = None
@@ -139,7 +141,7 @@ class Factors:
         return self.tile.idx
 
     @property
-    def state(self):
+    def state(self) -> str:
         state = None
         if self.name:
             state = (f'{state}_{self.name}'
@@ -271,6 +273,19 @@ class Paths(Params, Factors):
     @property
     def compressed_log(self) -> Path:
         return self.compressed_file.with_suffix('.log')
+
+    @property
+    def compressed_reference(self) -> Path:
+        basename = Path(f'{self.video.name}_'
+                        f'{self.scale}_'
+                        f'{self.fps}_'
+                        f'{self.pattern}_'
+                        f'{self.rate_control}{self.original_quality}')
+
+        folder = self.project / self._compressed_folder / basename
+        folder.mkdir(parents=True, exist_ok=True)
+
+        return self.compressed_folder / f'tile{self.tile_id}.mp4'
 
     @property
     def segment_file(self) -> Path:
