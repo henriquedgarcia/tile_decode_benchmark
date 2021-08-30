@@ -381,5 +381,5 @@ class DectimeLists(Params, Factors):
 
 class AbstractVideoState(ABC, Paths, DectimeLists):
     @abstractmethod
-    def __init__(self, config: AbstractConfig):
+    def __init__(self):
         pass
