@@ -22,13 +22,12 @@
   ],
   "rate_control": "crf",
   "quality_list": [
-    16,
+    0,
     22,
     28,
     34
   ],
   "pattern_list": [
-    "7x6",
     "6x4",
     "3x2",
     "1x1"
