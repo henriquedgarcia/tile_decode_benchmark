@@ -231,12 +231,6 @@ class Paths(Params, Factors):
         return folder
 
     @property
-    def compressed_folder(self) -> Path:
-        folder = self.project / self._compressed_folder / self.basename
-        folder.mkdir(parents=True, exist_ok=True)
-        return folder
-
-    @property
     def segment_folder(self) -> Path:
         folder = self.project / self._segment_folder / self.basename
         folder.mkdir(parents=True, exist_ok=True)
@@ -265,6 +259,12 @@ class Paths(Params, Factors):
     @property
     def lossless_log(self) -> Path:
         return self.lossless_file.with_suffix('.log')
+
+    @property
+    def compressed_folder(self) -> Path:
+        folder = self.project / self._compressed_folder / self.basename
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
 
     @property
     def compressed_file(self) -> Path:
