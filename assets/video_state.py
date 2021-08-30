@@ -300,8 +300,8 @@ class Paths(Params, Factors):
         return self.dectime_folder / f'tile{self.tile_id}_{self.chunk:03}.log'
 
     @property
-    def dectime_raw_json(self) -> Path:
-        return self.project / 'dectime_raw.json'
+    def dectime_json_file(self) -> Path:
+        return self.project / 'dectime.json'
 
     @property
     def siti_results(self) -> Path:
