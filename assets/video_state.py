@@ -293,8 +293,9 @@ class Paths(Params, Factors):
 
         folder = self.project / self._compressed_folder / basename
         folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f'tile{self.tile_id}.mp4'
+        return path
 
-        return self.compressed_folder / f'tile{self.tile_id}.mp4'
 
     @property
     def segment_file(self) -> Path:
