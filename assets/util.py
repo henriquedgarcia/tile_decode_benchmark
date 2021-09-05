@@ -15,7 +15,7 @@ class AutoDict(dict):
         return self[key]
 
 
-class AbstractConfig(ABC):
+class AbstractConfig:
     _config_data: dict = {}
 
     def __init__(self, config_file: Union[Path, str]):

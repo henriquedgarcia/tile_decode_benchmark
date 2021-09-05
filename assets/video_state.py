@@ -121,24 +121,27 @@ class Factors:
     rate_control: str = None
 
     @property
-    def name(self) -> str:
-        return self.video.name
+    def name(self) -> Union[str, None]:
+        value = self.video.name if self.video else None
+        return value
 
     @name.setter
     def name(self, name: str):
         self.video.name = name
 
     @property
-    def pattern(self) -> str:
-        return self.tiling.pattern
+    def pattern(self) -> Union[str, None]:
+        value = self.tiling.pattern if self.tiling else None
+        return value
 
     @pattern.setter
     def pattern(self, pattern: str):
         self.tiling.pattern = pattern
 
     @property
-    def tile_id(self) -> int:
-        return self.tile.idx
+    def tile_id(self) -> Union[int, None]:
+        value = self.tile.idx if self.tile else None
+        return value
 
     @property
     def state(self) -> str:
@@ -161,12 +164,18 @@ class Factors:
         return state
 
     def get_factors(self):
-        name = self.name
-        pattern = self.pattern
-        quality = self.quality
-        tile = self.tile_id
-        chunk = self.chunk
-        return name, pattern, quality, tile, chunk
+        factors = []
+        if self.name is not None:
+            factors.append(self.name)
+        if self.pattern is not None:
+            factors.append(self.pattern)
+        if self.quality is not None:
+            factors.append(self.quality)
+        if self.tile_id is not None:
+            factors.append(self.tile_id)
+        if self.chunk is not None:
+            factors.append(self.chunk)
+        return factors
 
     def get_name(self, base_name: Union[str, None] = None,
                  ext: Union[str, None] = None,
