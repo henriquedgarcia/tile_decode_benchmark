@@ -1,43 +1,57 @@
 #!/usr/bin/env python3
-import assets.dectime as dt
+from assets.dectime import QualityAssessment, TileDecodeBenchmark, CheckTileDecodeBenchmark
 import logging
 from datetime import datetime
 
-date = str(datetime.now()).replace(':', '-')
-logging.basicConfig(filename=f'{date}.log', level=logging.DEBUG,
-                    format='%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s')
+logging.basicConfig(level=logging.WARNING)
 
 
 def main():
-    """Config"""
-    # config = f'config/config_nas_cmp.json'
-    config = f'config/config_nas_erp.json'
-    # config = f'config/config_test.json'
-    # config = f'config/config_ffmpeg_crf_12videos_60s.json'
+    # Config
+    config_list = []
+    # config_list += [f'config/config_nas_cmp.json']
+    # config_list += [f'config/config_nas_erp.json']
+    config_list += [f'config/config_test.json']
+    # config_list += [f'config/config_ffmpeg_crf_12videos_60s.json']
 
-    """Tile_dectime"""
-    # dt.TileDecodeBenchmark(config).run('PREPARE', overwrite=False)
-    dt.TileDecodeBenchmark(config).run('COMPRESS', overwrite=False)
-    # dt.TileDecodeBenchmark(config).run('SEGMENT', overwrite=False)
-    # dt.TileDecodeBenchmark(config).run('DECODE', overwrite=False)
-    # dt.TileDecodeBenchmark(config).run('RESULTS', overwrite=False)
-    # dt.TileDecodeBenchmark(config).run('SITI', overwrite=False, animate_graph=False, save=True)
+    decode_time = False
+    siti = False
+    check_files = False
+    results = False
+    quality = True
 
-    # """Check files"""
-    # dt.CheckProject(config=config).run('ORIGINAL', rem_error=False)
-    # dt.CheckProject(config=config).run('LOSSLESS', rem_error=False)
-    dt.CheckProject(config=config).run('COMPRESS', rem_error=False)
-    # dt.CheckProject(config=config).run('SEGMENT', rem_error=False)
-    # dt.CheckProject(config=config).run('DECODE', rem_error=False)
-
-    # """Process graphs and sheets"""
-    # dta.HistByPattern(config).run(False)
-    # dta.HistByPatternByQuality(config).run(False)
-    # dta.BarByPatternByQuality(config).run(False)
-    # dta.HistByPatternFullFrame(config).run(False)
-    # dta.BarByPatternFullFrame(config).run(False)
-    print('## Finish. ##')
+    for config in config_list:
+        if decode_time:
+            TileDecodeBenchmark(config, 'PREPARE', overwrite=False)
+            TileDecodeBenchmark(config, 'COMPRESS', overwrite=False)
+            TileDecodeBenchmark(config, 'SEGMENT', overwrite=False)
+            TileDecodeBenchmark(config, 'DECODE', overwrite=False)
+            TileDecodeBenchmark(config, 'COLLECT_RESULTS', overwrite=False)
+        if siti:
+            # Measure normal SITI
+            TileDecodeBenchmark(config, 'SITI', overwrite=False, animate_graph=False, save=True)
+        if check_files:
+            CheckTileDecodeBenchmark(config, 'CHECK_ORIGINAL', rem_error=False)
+            CheckTileDecodeBenchmark(config, 'CHECK_PREPARE', rem_error=False)
+            CheckTileDecodeBenchmark(config, 'CHECK_COMPRESS', rem_error=False)
+            CheckTileDecodeBenchmark(config, 'CHECK_SEGMENT', rem_error=False)
+            CheckTileDecodeBenchmark(config, 'CHECK_DECODE', rem_error=False)
+            CheckTileDecodeBenchmark(config, 'CHECK_RESULTS', rem_error=False)
+        if results:
+            # operation = dt.TileDecodeBenchmark(config)
+            # operation.run('RESULTS', overwrite=False)
+            # dta.HistByPattern(config).run(False)
+            # dta.HistByPatternByQuality(config).run(False)
+            # dta.BarByPatternByQuality(config).run(False)
+            # dta.HistByPatternFullFrame(config).run(False)
+            # dta.BarByPatternFullFrame(config).run(False)
+            pass
+        if quality:
+            # Quality measurements
+            QualityAssessment(config, 'ALL', overwrite=False)
 
 
 if __name__ == '__main__':
     main()
+    print('## Finish. ##')
+
