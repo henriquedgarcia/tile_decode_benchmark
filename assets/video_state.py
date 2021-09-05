@@ -296,6 +296,13 @@ class Paths(Params, Factors):
         path = folder / f'tile{self.tile_id}.mp4'
         return path
 
+    @property
+    def compressed_quality_csv(self) -> Union[Path, None]:
+        return self.compressed_folder / f'tile{self.tile_id}.csv'
+
+    @property
+    def compressed_quality_result_json(self) -> Union[Path, None]:
+        return self.compressed_folder / f'tile{self.tile_id}.csv'
 
     @property
     def segment_file(self) -> Path:
