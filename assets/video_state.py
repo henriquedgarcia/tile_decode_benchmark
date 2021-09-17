@@ -30,6 +30,14 @@ class Frame:
         self._scale = scale
         self.w, self.h = tuple(map(int, scale.split('x')))
 
+    @property
+    def shape(self) -> tuple:
+        return self.h, self.w
+
+    @shape.setter
+    def shape(self, shape: tuple):
+        self.h, self.w = shape
+
 
 class Tile:
     def __init__(self, idx: int, scale: Frame, pos: tuple):
