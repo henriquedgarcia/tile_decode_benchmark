@@ -116,6 +116,10 @@ def menu(options_dict: Dict[int, Any]):
     return c
 
 
+def rem_file(file) -> None:
+    if os.path.isfile(file):
+        os.remove(file)
+
 class StatsData(NamedTuple):
     average: float = None
     std: float = None
