@@ -97,264 +97,65 @@ class VideoState(AbstractVideoState):
 
 
 class TileDecodeBenchmark:
-    """
-    The result dict have a following structure:
-    results[video_name][tile_pattern][quality][idx][chunk_id]['utime'|'bit rate']
-                                                   ['psnr'|'qp_avg']
-    [video_name]    : The video name
-    [tile_pattern]  : The tile tiling. eg. "6x4"
-    [quality]       : Quality. A int like in crf or qp.
-    [idx]           : the tile number. ex. max = 6*4
-    if [chunk_id]   : A id for chunk. With 1s chunk, 60s video have 60 chunks
-        [type]      : "utime" (User time), or "bit rate" (Bit rate in kbps) of a chunk.
-    if ['psnr']     : the ffmpeg calculated psnr for tile (before segmentation)
-    if ['qp_avg']   : The ffmpeg calculated average QP for a encoding.
-    """
-    role: Role
+    role: str = None
+    method: str
+    deep: int
     results = AutoDict()
-    log = defaultdict(list)
+    results_dataframe: pd.DataFrame
+    role_list = {'PREPARE': {'method': 'prepare', 'deep': 1},
+                 'COMPRESS': {'method': 'compress', 'deep': 4},
+                 'SEGMENT': {'method': 'segment', 'deep': 4},
+                 'DECODE': {'method': 'decode', 'deep': 5},
+                 'COLLECT_RESULTS': {'method': 'collect_dectime', 'deep': 5},
+                 'SITI': {'method': 'calcule_siti', 'deep': 1},
+                 }
 
-    def __init__(self, config: str):
+    def __init__(self, config: str, role: str = None, **kwargs):
+        """
+
+        :param config:
+        :param role: Someone from Role dict
+        :param kwargs: Role parameters
+        """
         self.config = Config(config)
         self.state = VideoState(self.config)
 
-        self.operation = {Role['PREPARE']: self.prepare_videos,
-                          Role['COMPRESS']: self.compress,
-                          Role['SEGMENT']: self.segment,
-                          Role['DECODE']: self.decode,
-                          Role['RESULTS']: self.collect_result,
-                          Role['SITI']: self.calcule_siti,
-                          }
+        if role is not None:
+            self.run(role, **kwargs)
 
-    # noinspection PyArgumentList
     def run(self, role: str, **kwargs):
-        self.operation[Role[role]](**kwargs)
+        self.role = role
+        self.method = self.role_list[role]['method']
+        self.deep = self.role_list[role]['deep']
+        self.print_resume()
 
-    def prepare_videos(self, overwrite=False) -> None:
-        """
-        Prepare video to encode. Uncompress and unify resolution, frame rate, pixel format.
-        :param overwrite: If True, this method overwrite previous files.
-        """
-        self._print_resume_config()
+        operation = getattr(self, self.method)
+        total = len(list(self.iterate(deep=self.deep)))
+        self.progressbar = tqdm(operation(**kwargs), total=total)
 
-        queue = []
-        for _ in self._iterate(deep=1):
-            uncompressed_file = self.state.lossless_file
-            if uncompressed_file.is_file() and not overwrite:
-                warning(f'The file {uncompressed_file} exist. Skipping.')
-                continue
+        for action in self.progressbar:
+            self.progressbar.set_description(desc=self.state.state)
+            if action == 'break': break
+            if action == 'continue': continue
 
-            info(f'Processing {uncompressed_file}')
+            fun, params = action
+            fun(*params)
 
-            frame = self.state.frame
-            fps = self.state.fps
-            original = self.state.original_file
-            video = self.state.video
-            dar = frame.w / frame.h
+    def print_resume(self):
+        print('=' * 70)
+        print(f'Processing {len(self.config.videos_list)} videos:\n'
+              f'  function: {self.method}\n'
+              f'  project: {self.config.project}\n'
+              f'  projection: {self.config.projection}\n'
+              f'  codec: {self.config.codec}\n'
+              f'  fps: {self.config.fps}\n'
+              f'  gop: {self.config.gop}\n'
+              f'  qualities: {self.config.quality_list}\n'
+              f'  patterns: {self.config.pattern_list}'
+              )
+        print('=' * 70)
 
-            command = f'ffmpeg '
-            command += f'-y -ss {video.offset} '
-            command += f'-i {original} '
-            command += f'-t {video.duration} -r {fps} -map 0:v -crf 0 '
-            command += f'-vf scale={frame.scale},setdar={dar} '
-            command += f'{uncompressed_file}'
-            log = f'{splitext(uncompressed_file)[0]}.log'
-
-            queue.append((command, log))
-
-        for cmd in tqdm(queue):
-            run_command(*cmd)
-
-    def compress(self, overwrite=False) -> None:
-        """
-        Encode videos using
-        :param overwrite:
-        :return:
-        """
-        total = len(list(self._iterate(deep=4)))
-        self._print_resume_config()
-
-        queue = []
-        for _ in tqdm(self._iterate(deep=4), total=total, desc="Enqueuing..."):
-            lossless_file = self.state.lossless_file
-            # if not lossless_file.exists():
-            #     warning(f'The file lossless file {lossless_file} not exist. Skipping.')
-            #     continue
-
-            compressed_file = self.state.compressed_file
-            if compressed_file.is_file() and not overwrite:
-                warning(f'The file {compressed_file} exist. Skipping.')
-                continue
-
-            info(f'Enqueuing {compressed_file}')
-
-            quality = self.state.quality
-            gop = self.state.gop
-            tile = self.state.tile
-
-            cmd = ['ffmpeg']
-            cmd += ['-hide_banner -y -psnr']
-            cmd += [f'-i {lossless_file}']
-            cmd += [f'-crf {quality} -tune "psnr"']
-            cmd += [f'-c:v libx265 '
-                    f'-x265-params "'
-                    f'keyint={gop}:'
-                    f'min-keyint={gop}:'
-                    f'open-gop=0:'
-                    f'scenecut=0:'
-                    f'info=0'
-                    f'"']
-            cmd += [f'-vf "'
-                    f'crop=w={tile.w}:h={tile.h}:'
-                    f'x={tile.x}:y={tile.y}'
-                    f'"']
-            cmd += [f'{compressed_file}']
-            cmd = ' '.join(cmd)
-            log = compressed_file.with_suffix('.log')
-
-            queue.append((cmd, log))
-
-        for cmd in tqdm(queue, desc="Encoding tiles."):
-            run_command(*cmd)
-
-    def segment(self, overwrite=False) -> None:
-        self._print_resume_config()
-
-        queue = []
-        for _ in self._iterate(deep=4):
-            # Check segment log size. If size is very small, overwrite.
-            segment_log = self.state.segment_log
-            if segment_log.is_file() and not overwrite:
-                size = os.path.getsize(segment_log)
-                if size > 10000 and not overwrite:
-                    warning(f'The segments of "{self.state.state}" exist. Skipping')
-                    continue
-
-            info(f'Queueing {self.state.basename}, tile {self.state.tile_id}')
-
-            cmd = 'MP4Box '
-            cmd += '-split 1 '
-            cmd += f'{self.state.compressed_file} '
-            cmd += f'-out {segment_log.parent}{Path("/")}'
-            queue.append((cmd, segment_log))
-
-        for cmd in tqdm(queue):
-            debug(cmd)
-            run_command(*cmd)
-
-    def decode(self, overwrite=False) -> None:
-        self._print_resume_config()
-
-        decoding_num = self.config.decoding_num
-        queue = []
-        for _ in range(decoding_num):
-            for _ in self._iterate(deep=5):
-                segment_file = self.state.segment_file
-                dectime_file = self.state.dectime_log
-
-                count = self._count_decoding(dectime_file)
-                if count == -1:
-                    warning(f'TileDecodeBenchmark.decode: Error on reading '
-                            f'dectime log file: {dectime_file}.')
-                    continue
-                elif count == decoding_num:
-                    warning(f'{segment_file} is decoded enough. Skipping.')
-                coding_ok = count >= decoding_num
-                if coding_ok and not overwrite: continue
-
-                cmd = (f'ffmpeg -hide_banner -benchmark '
-                       f'-codec hevc -threads 1 ')
-                cmd += f'-i {segment_file} '
-                cmd += f'-f null -'
-
-                queue.append((cmd, dectime_file))
-
-            for cmd in tqdm(queue):
-                run_command(*cmd, mode='a')
-
-    def collect_result(self, overwrite=False) -> None:
-        self._print_resume_config()
-
-        if self.state.dectime_raw_json.exists() and not overwrite:
-            warning(f'The file {self.state.dectime_raw_json} exist.')
-            # return
-
-        for _ in self._iterate(deep=5):
-            name, pattern, quality, tile, chunk = self.state.get_factors()
-            debug(f'Collecting {self.state.state}')
-
-            if chunk == 1:
-                # Collect quality {'psnr': float, 'qp_avg': float}
-                results = self.results[name][pattern][quality][tile]
-                results.update(self._collect_psnr())
-
-            # Collect decode time {avg:float, std:float} and bit rate in bps
-            results = self.results[name][pattern][quality][tile][chunk]
-            results.update(self._collect_dectime())
-
-        info(f'Saving {self.state.dectime_raw_json}')
-        save_json(self.results, self.state.dectime_raw_json, compact=True)
-
-    def calcule_siti(self, overwrite=False, animate_graph=False, save=True) -> None:
-        self.state.tiling_list = ['1x1']
-        self.state.quality_list = [28]
-        self.compress(overwrite=False)
-
-        for _ in enumerate(self._iterate(deep=1)):
-            siti = SiTi(self.state)
-            siti.calc_siti(animate_graph=animate_graph, overwrite=overwrite, save=save)
-
-        self._join_siti()
-        self._scatter_plot_siti()
-
-    def _scatter_plot_siti(self):
-        siti_results_df = pd.read_csv(f'{self.state.siti_folder / "siti_stats_final.csv"}', index_col=0)
-        fig, ax = plt.subplots(1, 1, figsize=(8, 6), dpi=300)
-        fig: plt.Figure
-        ax: plt.Axes
-        for column in siti_results_df:
-            si = siti_results_df[column]['si_2q']
-            ti = siti_results_df[column]['ti_2q']
-            name = column.replace('_nas', '')
-            ax.scatter(si, ti, label=name)
-        ax.set_xlabel("Spatial Information", fontdict={'size': 12})
-        ax.set_ylabel('Temporal Information', fontdict={'size': 12})
-        ax.set_title('Si/Ti', fontdict={'size': 16})
-        ax.legend(loc='upper left', bbox_to_anchor=(1.01, 1.0), fontsize='small')
-        fig.tight_layout()
-        fig.savefig(self.state.siti_folder / 'scatter.png')
-        fig.show()
-
-    def _join_siti(self):
-        siti_results_final = pd.DataFrame()
-        siti_stats_json_final = {}
-        num_frames = None
-
-        for _ in enumerate(self._iterate(deep=1)):
-            name = self.state.name
-
-            """Join siti_results"""
-            siti_results_file = self.state.siti_results
-            siti_results_df = pd.read_csv(siti_results_file)
-            if num_frames is None:
-                num_frames = self.state.video.duration * self.state.fps
-            elif num_frames < len(siti_results_df['si']):
-                dif = len(siti_results_df['si']) - num_frames
-                for _ in range(dif):
-                    siti_results_df.loc[len(siti_results_df)] = [0, 0]
-
-            siti_results_final[f'{name}_ti'] = siti_results_df['si']
-            siti_results_final[f'{name}_si'] = siti_results_df['ti']
-
-            """Join stats"""
-            siti_stats = self.state.siti_stats
-            with open(siti_stats, 'r', encoding='utf-8') as f:
-                individual_stats_json = json.load(f)
-                siti_stats_json_final[name] = individual_stats_json
-        siti_results_final.to_csv(f'{self.state.siti_folder / "siti_results_final.csv"}', index_label='frame')
-        pd.DataFrame(siti_stats_json_final).to_csv(f'{self.state.siti_folder / "siti_stats_final.csv"}')
-
-    def _iterate(self, deep):
+    def iterate(self, deep):
         count = 0
         for self.state.video in self.state.videos_list:
             if deep == 1:
@@ -382,22 +183,313 @@ class TileDecodeBenchmark:
                                 yield count
                                 continue
 
-    def _print_resume_config(self):
-        print('=' * 70)
-        print(f'Processing {len(self.config.videos_list)} videos:\n'
-              f'  function: {inspect.stack()[1][3]}\n'
-              f'  project: {self.config.project}\n'
-              f'  projection: {self.config.projection}\n'
-              f'  codec: {self.config.codec}\n'
-              f'  fps: {self.config.fps}\n'
-              f'  gop: {self.config.gop}\n'
-              f'  qualities: {self.config.quality_list}\n'
-              f'  patterns: {self.config.pattern_list}'
-              )
-        print('=' * 70)
-
-    def _collect_dectime(self) -> Dict[str, float]:
+    # PREPARE
+    def prepare(self, overwrite=False) -> None:
         """
+        Prepare video to encode. Uncompress and unify resolution, frame rate, pixel format.
+        :param overwrite: If True, this method overwrite previous files.
+        """
+        deep = self.role_list[self.role]['deep']
+        for _ in self.iterate(deep=deep):
+            original = self.state.original_file
+            uncompressed_file = self.state.lossless_file
+            lossless_log = self.state.lossless_log
+
+            info(f'Processing {uncompressed_file}')
+
+            if uncompressed_file.exists() and not overwrite:
+                warning(f'The file {uncompressed_file} exist. Skipping.')
+                continue
+
+            if not original.exists():
+                warning(f'The file {original} not exist. Skipping.')
+                continue
+
+            video = self.state.video
+            fps = self.state.fps
+            frame = self.state.frame
+            dar = frame.w / frame.h
+
+            cmd = f'ffmpeg '
+            cmd += f'-hide_banner -y '
+            cmd += f'-ss {video.offset} '
+            cmd += f'-i {original} '
+            cmd += f'-crf 0 '
+            cmd += f'-t {video.duration} '
+            cmd += f'-r {fps} '
+            cmd += f'-map 0:v '
+            cmd += f'-vf "scale={frame.scale},setdar={dar}" '
+            cmd += f'{uncompressed_file}'
+
+            yield run_command, (cmd, lossless_log, 'w')
+
+    # COMPRESS
+    def compress(self, overwrite=False) -> None:
+        """
+        Encode videos using
+        :param overwrite:
+        :return:
+        """
+        for _ in self.iterate(deep=self.deep):
+            uncompressed_file = self.state.lossless_file
+            compressed_file = self.state.compressed_file
+            compressed_log = self.state.compressed_log
+
+            info(f'Processing {compressed_file}')
+
+            if compressed_file.is_file() and not overwrite:
+                warning(f'The file {compressed_file} exist. Skipping.')
+                continue
+
+            if not uncompressed_file.exists():
+                warning(f'The file {uncompressed_file} not exist. Skipping.')
+                continue
+
+            quality = self.state.quality
+            gop = self.state.gop
+            tile = self.state.tile
+
+            cmd = ['ffmpeg']
+            cmd += ['-hide_banner -y -psnr']
+            cmd += [f'-i {uncompressed_file}']
+            cmd += [f'-crf {quality} '
+                    f'-tune "psnr"']
+            cmd += [f'-c:v libx265']
+            cmd += [f'-x265-params']
+            cmd += [f'"'
+                    f'keyint={gop}:'
+                    f'min-keyint={gop}:'
+                    f'open-gop=0:'
+                    f'scenecut=0:'
+                    f'info=0'
+                    f'"']
+            cmd += [f'-vf']
+            cmd += [f'"'
+                    f'crop='
+                    f'w={tile.w}:h={tile.h}:'
+                    f'x={tile.x}:y={tile.y}'
+                    f'"']
+            cmd += [f'{compressed_file}']
+            cmd = ' '.join(cmd)
+
+            yield run_command, (cmd, compressed_log, 'w')
+
+    # SEGMENT
+    def segment(self, overwrite=False) -> None:
+        for _ in self.iterate(deep=self.deep):
+            segment_log = self.state.segment_log
+            segment_folder = self.state.segment_folder
+            compressed_file = self.state.compressed_file
+
+            if segment_log.is_file() and segment_log.stat().st_size > 10000 and not overwrite:
+                # If Check segment log size is very small, infers error and overwrite.
+                warning(f'The file {segment_log} exist. Skipping.')
+                continue
+
+            if not compressed_file.is_file():
+                warning(f'The file {compressed_file} not exist. Skipping.')
+                continue
+
+            info(f'Queueing {self.state.basename}, tile {self.state.tile_id}')
+
+            # Alternative:
+            # ffmpeg -hide_banner -i {compressed_file} -c copy -f segment -segment_time 1 -reset_timestamps 1 output%03d.mp4
+
+            cmd = ['MP4Box']
+            cmd += ['-split 1']
+            cmd += [f'{compressed_file}']
+            cmd += [f'-out {segment_folder}{Path("/")}']
+            cmd = ' '.join(cmd)
+            cmd = f'bash -c "{cmd}"'
+
+            yield run_command, (cmd, segment_log, 'w')
+
+    # DECODE
+    def decode(self, overwrite=False) -> None:
+        decoding_num = self.config.decoding_num
+        for _ in self.iterate(deep=self.deep):
+            for _ in range(decoding_num):
+                segment_file = self.state.segment_file
+                dectime_log = self.state.dectime_log
+                count = self._count_decoding()
+
+                if count == -1:
+                    warning(f'TileDecodeBenchmark.decode: Error on reading '
+                            f'dectime log file: {dectime_log}.')
+                    continue
+                elif count >= decoding_num and not overwrite:
+                    warning(f'{segment_file} is decoded enough. Skipping.')
+                    continue
+                if not segment_file.is_file():
+                    warning(f'The file {segment_file} not exist. Skipping.')
+                    continue
+
+                cmd = [f'ffmpeg -hide_banner -benchmark '
+                       f'-codec hevc -threads 1 '
+                       f'-i {segment_file} '
+                       f'-f null -']
+
+                yield run_command, (cmd, dectime_log, 'a')
+
+    def _count_decoding(self) -> int:
+        """
+        Count how many times the word "utime" appears in "log_file"
+        :return:
+        """
+        log_file = self.state.dectime_log
+        try:
+            content = log_file.read_text(encoding='utf-8')
+        except FileNotFoundError:
+            return 0
+        except UnicodeDecodeError:
+            return -1
+
+        return len(['' for line in content.splitlines() if 'utime' in line])
+
+    # COLLECT RESULTS
+    def collect_dectime(self, overwrite=False) -> None:
+        """
+        The result dict have a following structure:
+        results[video_name][tile_pattern][quality][idx][chunk_id]['utime'|'bit rate']
+                                                       ['psnr'|'qp_avg']
+        [video_name]    : The video name
+        [tile_pattern]  : The tile tiling. eg. "6x4"
+        [quality]       : Quality. A int like in crf or qp.
+        [idx]           : the tile number. ex. max = 6*4
+        if [chunk_id]   : A id for chunk. With 1s chunk, 60s video have 60 chunks
+            [type]      : "utime" (User time), or "bit rate" (Bit rate in kbps) of a chunk.
+        if ['psnr']     : the ffmpeg calculated psnr for tile (before segmentation)
+        if ['qp_avg']   : The ffmpeg calculated average QP for a encoding.
+        :param overwrite:
+        :return:
+        """
+        dectime_json_file = self.state.dectime_json_file
+
+        if dectime_json_file.exists() and not overwrite:
+            dectime_json = json.loads(dectime_json_file.read_text(encoding='utf-8'))
+            self.results = AutoDict(dectime_json)
+
+        strip_time = lambda line: float(line.strip().split(' ')[1].split('=')[1][:-1])
+
+        for _ in self.iterate(deep=5):
+            debug(f'Collecting {self.state.state}')
+
+            if not self.state.segment_file.exists():
+                warning(f'The file {self.state.segment_file} not exist.Skipping.')
+                continue
+
+            if self.state.chunk == 1 and not self.state.compressed_file.exists():
+                warning(f'The file {self.state.compressed_file} not exist.Skipping.')
+                continue
+
+            try:
+                chunk_size = self.state.segment_file.stat().st_size
+                content = self.state.dectime_log.read_text(encoding='utf-8').splitlines()
+            except Exception:
+                break
+
+            bitrate = chunk_size * 8 / (self.state.gop / self.state.fps)
+            times = [strip_time(line) for line in content if 'utime' in line]
+            data = {'bitrate': bitrate, 'dectimes': times}
+            results = self.results
+            for factor in self.state.get_factors():
+                results = results[factor]
+            if not results == {}: return  # if value exist, then skip
+            results.update(data)
+            yield 'continue'
+
+        self.save_json()
+
+    def append_result(self, data: dict[str, float]):
+        name, pattern, quality, tile, chunk = self.state.get_factors()
+        results = self.results[name][pattern][quality][tile][chunk]
+        if not results == {}: return  # if value exist, then skip
+        results.update(data)
+
+    def save_json(self, compact=True):
+        filename = self.state.dectime_json_file
+        info(f'Saving {filename}')
+        separators, indent = ((',', ':'), None) if compact else (None, 2)
+        json_dumps = json.dumps(self.results, separators=separators, indent=indent)
+        filename.write_text(json_dumps, encoding='utf-8')
+
+    def json2pd(self):
+        """
+        old function. Maintained for compatibility
+        name_scale_fps_pattern_"CRF"quality_tile| chunk1 | chunk2 | ... | average | std | median
+
+        :return:
+        """
+        results_dataframe = pd.DataFrame(columns=self.state.chunk_list)
+        for _ in self.iterate(deep=4):
+            name, pattern, quality, tile, *_ = self.state.get_factors()
+
+            results = self.results[name][pattern][quality][tile]
+            chunks_values = [results[chunk] for chunk in self.state.chunk_list]
+            results_dataframe.loc[self.state.state] = chunks_values
+        self.results_dataframe = pd.DataFrame(results_dataframe)
+
+    # 'CALCULE SITI'
+    def siti(self, overwrite=False, animate_graph=False, save=True) -> None:
+        self.state.tiling_list = ['1x1']
+        self.state.quality_list = [28]
+        self.compress(overwrite=False)
+
+        for _ in self.iterate(deep=self.deep):
+            siti = SiTi(self.state)
+            siti.calc_siti(animate_graph=animate_graph, overwrite=overwrite, save=save)
+
+        self._join_siti()
+        self._scatter_plot_siti()
+
+    def _join_siti(self):
+        siti_results_final = pd.DataFrame()
+        siti_stats_json_final = {}
+        num_frames = None
+
+        for _ in enumerate(self.iterate(deep=1)):
+            name = self.state.name
+
+            """Join siti_results"""
+            siti_results_file = self.state.siti_results
+            siti_results_df = pd.read_csv(siti_results_file)
+            if num_frames is None:
+                num_frames = self.state.video.duration * self.state.fps
+            elif num_frames < len(siti_results_df['si']):
+                dif = len(siti_results_df['si']) - num_frames
+                for _ in range(dif):
+                    siti_results_df.loc[len(siti_results_df)] = [0, 0]
+
+            siti_results_final[f'{name}_ti'] = siti_results_df['si']
+            siti_results_final[f'{name}_si'] = siti_results_df['ti']
+
+            """Join stats"""
+            siti_stats = self.state.siti_stats
+            with open(siti_stats, 'r', encoding='utf-8') as f:
+                individual_stats_json = json.load(f)
+                siti_stats_json_final[name] = individual_stats_json
+        siti_results_final.to_csv(f'{self.state.siti_folder / "siti_results_final.csv"}', index_label='frame')
+        pd.DataFrame(siti_stats_json_final).to_csv(f'{self.state.siti_folder / "siti_stats_final.csv"}')
+
+    def _scatter_plot_siti(self):
+        siti_results_df = pd.read_csv(f'{self.state.siti_folder / "siti_stats_final.csv"}', index_col=0)
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6), dpi=300)
+        fig: plt.Figure
+        ax: plt.Axes
+        for column in siti_results_df:
+            si = siti_results_df[column]['si_2q']
+            ti = siti_results_df[column]['ti_2q']
+            name = column.replace('_nas', '')
+            ax.scatter(si, ti, label=name)
+        ax.set_xlabel("Spatial Information", fontdict={'size': 12})
+        ax.set_ylabel('Temporal Information', fontdict={'size': 12})
+        ax.set_title('Si/Ti', fontdict={'size': 16})
+        ax.legend(loc='upper left', bbox_to_anchor=(1.01, 1.0), fontsize='small')
+        fig.tight_layout()
+        fig.savefig(self.state.siti_folder / 'scatter.png')
+        fig.show()
+
+
 
         :return:
         """
