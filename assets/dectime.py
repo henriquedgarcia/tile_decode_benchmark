@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 from assets.siti import SiTi
 from assets.util import AutoDict, run_command, AbstractConfig
 from assets.video_state import AbstractVideoState, Frame
+import skvideo.io
 
 
 class Role(Enum):
@@ -566,42 +567,255 @@ class CheckTileDecodeBenchmark(TileDecodeBenchmark):
         return 'ok'
 
 
+class QualityAssessment(TileDecodeBenchmark):
+    PIXEL_MAX = 255
+    sph_points = []
+    sph_points_img: list = None
+    weight_ndarray: np.ndarray = None
+    results = defaultdict(list)
+    role_list: dict[str, dict[str, Any]] = {'PSNR':   {'method': 'calc_psnr',     'deep': 4, 'function':  'psnr'},
+                                            'WSPSNR': {'method': 'calc_wspsnr',   'deep': 4, 'function':  'wspsnr'},
+                                            'SPSNR':  {'method': 'calc_spsnr_nn', 'deep': 4, 'function':  'spsnr_nn'},
+                                            'ALL':    {'method': 'all',           'deep': 4, 'functions': ['psnr', 'wspsnr']},
+                                            'RESULT': {'method': 'result',        'deep': 4, 'functions': ['psnr', 'wspsnr']},
+                                            }
+    metric_table = ''
 
-        with open(log_file, 'r', encoding='utf-8') as f:
-            ok = bool(['' for line in f if 'Global PSNR' in line])
-
-        if not ok:
-            self._clean(video_file)
-            return 'log_corrupt'
-
-        return 'apparently_ok'
-
-    def _verify_dectime_log(self, dectime_log: Path) -> str:
-        if dectime_log.exists():
-            count_decode = self._count_decoding(dectime_log)
-            if count_decode == -1:
-                self._clean(dectime_log)
-                msg = f'log_corrupt'
-            else:
-                msg = f'decoded_{count_decode}x'
+    def __init__(self, config: str, role: str = None, sphere_file: str = None, **kwargs):
+        if sphere_file:
+            self.sph_file = Path(sphere_file)
         else:
-            msg = 'logfile_not_found'
-        return msg
+            self.sph_file = Path('assets/sphere_655362.txt')
+        assert self.sph_file.exists()
+        self.load_sph_point()
+        super().__init__(config, role, **kwargs)
 
-    def _clean(self, video_file):
-        if self.rem_error:
-            debug(f'Deleting {video_file} and the log')
-            rem_file(video_file)
-            log = video_file.with_suffix('.log')
-            rem_file(log)
+    def load_sph_point(self):
+        # S-PSNR_NN
+        # Load 655362 sample points (in degree). convert to rad in a list
+        sph_file = Path(self.sph_file)
+        content = sph_file.read_text().splitlines()[1:]
+        for line in content:
+            point = list(map(float, line.strip().split()))
+            self.sph_points.append((np.deg2rad(point[0]), np.deg2rad(point[1])))  # yaw, pitch
+
+    def all(self, overwrite=False):
+        self.state.original_quality = 0
+        metric_eval = {}
+        for metric in self.role_list['ALL']['functions']:
+            metric_eval[metric] = eval(f'self.{metric}')
+
+        for _ in self.iterate(deep=self.deep):
+            if self.state.quality == self.state.original_quality:
+                continue
+            debug(f'Processing {self.state.state}')
+            compressed_reference = self.state.compressed_reference
+            compressed_file = self.state.compressed_file
+            compressed_quality_csv = self.state.compressed_quality_csv
+
+            if compressed_quality_csv.is_file() and not overwrite:
+                warning(f'The file {compressed_quality_csv} exist. Skipping.')
+                continue
+
+            frames = zip(get_frame(compressed_reference),
+                         get_frame(compressed_file))
+
+            results = defaultdict(list)
+            for n,(framev1, framev2) in enumerate(frames):
+                for metric in self.role_list['ALL']['functions']:
+                    self.progressbar.set_description(desc=f'frame {n}, metric: {metric}')
+
+                    metric_func = metric_eval[metric]
+                    metric_value = metric_func(framev1, framev2)
+                    results[metric].append(metric_value)
+                yield 'continue'
+            pd.DataFrame(results).to_csv(compressed_quality_csv, encoding='utf-8', index_label='frame')
+
+    def calc_psnr(self, overwrite=False):
+        self.role_list['ALL']['function'] = [self.role_list['PSNR']['function']]
+        self.all(overwrite=overwrite)
+
+    def calc_wspsnr(self, overwrite=False):
+        self.role_list['ALL']['function'] = [self.role_list['WSPSNR']['function']]
+        self.all(overwrite=overwrite)
+
+    def calc_spsnr_nn(self, overwrite=False):
+        self.role_list['ALL']['function'] = [self.role_list['SPSNR']['function']]
+        self.all(overwrite=overwrite)
 
     @staticmethod
+    def psnr(im_ref: np.ndarray, im_deg: np.ndarray,
+             im_sal: np.ndarray = None) -> float:
+        """
+        im_ref será somente luminância.
+        equação: https://en.wikipedia.org/wiki/Peak_signal-to-noise_ratio
+        """
+        im_sqr_err = (im_ref - im_deg) ** 2
+        if im_sal is not None:
+            im_sqr_err = im_sqr_err * im_sal
+        mse = np.average(im_sqr_err)
+        return mse2psnr(mse)
+
+        # # separar as imagens de acordo com os canais de cores
+        # psnr_ = []
+        # if len(im_ref.shape[-1]) > 2:
+        #     for channel in range(im_ref.shape[-1]):
+        #         im_ref_ = im_ref[..., channel]
+        #         im_deg_ = im_deg[..., channel]
+        #         psnr_.append(psnr(im_ref_, im_deg_, im_sal))
+        # else:
+        #     psnr_.append(psnr(im_ref, im_deg, im_sal))
+        #
+        #
+        #     # for channel in
+        #     pass
+        #
+        # return
+
+    def wspsnr(self, im_ref: np.ndarray, im_deg: np.ndarray, im_sal: np.ndarray = None):
+        """
+        Aqui os pixels são somente da luminância do com valores do tipo int8
+        im_ref e im_deg precisam ter a mesma dimensão
+        pixel = uint8
+        """
+        if self.weight_ndarray is None:
+            height, width = self.state.frame.shape
+            func = lambda y, x: np.cos((y + 0.5 - height / 2) * np.pi / height)
+            self.weight_ndarray: Union[np.ndarray, object] = np.fromfunction(func, (height, width), dtype='float32')
+
+        x1 = self.state.tile.x
+        x2 = self.state.tile.x + self.state.tile.w
+        y1 = self.state.tile.y
+        y2 = self.state.tile.y + self.state.tile.h
+        weight_ndarray = self.weight_ndarray[y1:y2, x1:x2]
+
+        try:
+            im_weighted = weight_ndarray * (im_ref - im_deg) ** 2
+        except:
+            print('')
+
+        if im_sal is not None:
+            im_weighted = im_weighted * im_sal
+        wmse = np.average(im_weighted)
+
+        if wmse == 0:
+            return 1000
+
+        return mse2psnr(wmse)
+
+    def spsnr_nn(self, im_ref: np.ndarray, im_deg: np.ndarray, im_sal: np.ndarray = None):
+        if self.sph_points_img is None:
+            self.sph_points_img = [sph2erp(theta, phi, im_ref.shape) for phi, theta in self.sph_points]
+
+        sqr_err_salienced = []
+        for m, n in self.sph_points_img:
+            sqr_diff = (im_ref[n - 1, m - 1] - im_deg[n - 1, m - 1]) ** 2
+
+            if im_sal is not None:
+                sqr_diff = im_sal[n - 1, m - 1] * sqr_diff
+
+            sqr_err_salienced.append(sqr_diff)
+        mse = np.average(sqr_err_salienced)
+        return mse2psnr(mse)
+
+    # Colect Qualities
+    def result(self, overwrite=False):
+        self.state.original_quality = 0
+        metric_eval = {}
+        for metric in self.role_list['ALL']['function']:
+            metric_eval[metric] = eval(f'self.{self.metric_table[metric]}')
+
+        compressed_quality_result_json = self.state.compressed_quality_csv
+        result = {}
+        for _ in self.iterate(deep=self.deep):
+            compressed_quality_csv = self.state.compressed_quality_csv
+            if not compressed_quality_csv.is_file():
+                warning(f'The file {compressed_quality_csv} not exist. Skipping.')
+                continue
+            state = self.state.state
+            file_result = pd.read_csv(compressed_quality_csv, encoding='utf-8')
+            file_result.to_dict(file_result.to_dict(orient='list'))
+            result[state] = file_result
+
+    def ffmpeg_psnr(self):
+        if self.state.chunk == 1:
+            name, pattern, quality, tile, chunk = self.state.get_factors()
+            results = self.results[name][pattern][quality][tile]
+            results.update(self._collect_ffmpeg_psnr())
+
+    def _collect_ffmpeg_psnr(self) -> Dict[str, float]:
+        get_psnr = lambda l: float(l.strip().split(',')[3].split(':')[1])
+        get_qp = lambda l: float(l.strip().split(',')[2].split(':')[1])
+        psnr = None
+
+        content = self.state.compressed_log.read_text(encoding='utf-8')
+        content = content.splitlines()
+
+        for line in content:
+            if 'Global PSNR' in line:
+                psnr = {'psnr': get_psnr(line),
+                        'qp_avg': get_qp(line)}
+                break
+        return psnr
 
 
+####### erp2sph
+def erp2sph(m, n, shape: tuple) -> tuple[int, int]:
+    return uv2sph(*erp2uv(m, n, shape))
 
 
+def uv2sph(u, v):
+    theta = (u - 0.5) * 2 * np.pi
+    phi = -(v - 0.5) * np.pi
+    return phi, theta
 
 
+def erp2uv(m, n, shape: tuple):
+    u = (m + 0.5) / shape[1]
+    v = (n + 0.5) / shape[0]
+    return u, v
+
+
+####### sph2erp
+def sph2erp(theta, phi, shape: tuple) -> tuple[int, int]:
+    return uv2img(*sph2uv(theta, phi), shape)
+
+
+def sph2uv(theta, phi):
+    PI = np.pi
+    while True:
+        if theta >= PI:
+            theta -= 2 * PI
+            continue
+        elif theta < -PI:
+            theta += 2 * PI
+            continue
+        if phi < -PI / 2:
+            phi = -PI - phi
+            continue
+        elif phi > PI / 2:
+            phi = PI - phi
+            continue
+        break
+    u = theta / (2 * PI) + 0.5
+    v = -phi / PI + 0.5
+    return u, v
+
+
+def uv2img(u, v, shape: tuple):
+    m = round(u * shape[1] - 0.5)
+    n = round(v * shape[0] - 0.5)
+    return m, n
+
+
+####### Util
+def get_frame(video_path, gray=True, dtype='float32'):
+    vreader = skvideo.io.vreader(f'{video_path}', as_grey=gray)
+    for frame in vreader:
+        if gray:
+            _, height, width, _ = frame.shape
+            frame = frame.reshape((height, width)).astype(dtype)
+        yield frame
 
 
 def check_video_gop(video_file) -> (int, list):
@@ -638,6 +852,5 @@ def check_file_size(video_file) -> int:
     return filesize
 
 
-def rem_file(file) -> None:
-    if os.path.isfile(file):
-        os.remove(file)
+def mse2psnr(mse: float, pixel_max=255) -> float:
+    return 10 * np.log10((pixel_max ** 2 / mse))
