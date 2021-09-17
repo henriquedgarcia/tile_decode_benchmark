@@ -21,13 +21,14 @@ class Frame:
             self.scale = f'{scale[0]}x{scale[1]}'
 
     @property
-    def scale(self):
+    def scale(self) -> str:
+        self._scale = f'{self.w}x{self.h}'
         return self._scale
 
     @scale.setter
     def scale(self, scale: str):
         self._scale = scale
-        self.w, self.h = splitx(scale)
+        self.w, self.h = tuple(map(int, scale.split('x')))
 
 
 class Tile:
