@@ -47,6 +47,7 @@ class Tile:
         self.y: float = pos[1]
         self.w: int = scale.w
         self.h: int = scale.h
+        self.shape = scale.shape
 
 
 class Tiling:
