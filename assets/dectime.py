@@ -485,196 +485,87 @@ class TileDecodeBenchmark:
         fig.show()
 
 
+class CheckTileDecodeBenchmark(TileDecodeBenchmark):
+    role_list = {'CHECK_ORIGINAL': {'method': 'check_original', 'deep': 1},
+                 'CHECK_PREPARE': {'method': 'check_prepare', 'deep': 1},
+                 'CHECK_COMPRESS': {'method': 'check_compress', 'deep': 4},
+                 'CHECK_SEGMENT': {'method': 'check_segment', 'deep': 4},
+                 'CHECK_DECODE': {'method': 'check_decode', 'deep': 5},
+                 'CHECK_RESULTS': {'method': 'check_results', 'deep': 5},
+                 }
 
-        :return:
-        """
-        chunk_size = getsize(self.state.segment_file)
-        chunk_size = chunk_size * 8 / (self.state.gop / self.state.fps)
+    def check_prepare(self):
+        deep = self.role_list[self.role]['deep']
+        for _ in self.iterate(deep=deep):
+            lossless_file = self.state.lossless_file
 
-        strip_time = lambda line: float(line.strip().split(' ')[1].split('=')[1][:-1])
-
-        with open(self.state.dectime_log, 'r', encoding='utf-8') as f:
-            times = [strip_time(line) for line in f if 'utime' in line]
-
-        dectime = {'time': np.average(times),
-                   'time_std': np.std(times),
-                   'rate': chunk_size}
-
-        return dectime
-
-    def _collect_psnr(self):
-        psnr: Dict[str, float] = {}
-        get_psnr = lambda l: float(l.strip().split(',')[3].split(':')[1])
-        get_qp = lambda l: float(l.strip().split(',')[2].split(':')[1])
-        compressed_file = self.state.compressed_file
-
-        with open(compressed_file.with_suffix('.log'), 'r', encoding='utf-8') as f:
-            for line in f:
-                if 'Global PSNR' in line:
-                    psnr['psnr'] = get_psnr(line)
-                    psnr['qp_avg'] = get_qp(line)
-                    break
-        return psnr
-
-    @staticmethod
-    def _count_decoding(log_file: Path) -> int:
-        """
-        Count how many times the word "utime" appears in "log_file"
-        :param log_file: A path-to-file string.
-        :return:
-        """
-        try:
-            with open(log_file, 'r', encoding='utf-8') as f:
-                return len(['' for line in f if 'utime' in line])
-        except FileNotFoundError:
-            return 0
-        except UnicodeDecodeError:
-            return -1
-
-
-class CheckProject(TileDecodeBenchmark):
-    rem_error: bool = None
-    error_df: pd.DataFrame = None
-    role: Union[Check, None] = None
-
-    def __init__(self, config):
-        self.error_df = pd.DataFrame(columns=['video', 'msg'])
-        super().__init__(config)
-
-    def check_all(self):
-        self.check_original()
-        self.save_report()
-        self.check_lossless()
-        self.save_report()
-        self.check_compressed()
-        self.save_report()
-        self.check_segment()
-        self.save_report()
-        self.check_dectime()
-        self.save_report()
-
-    def run(self, role: str, overwrite=False, rem_error=False):
-        self.rem_error = rem_error
-        self.role = Check[role]
-        getattr(self, self.role.value)()
-        self.save_report()
-
-    def check_original(self):
-        df = self.error_df
-        files_list = []
-        for _ in self._iterate(deep=1):
-            video_file = self.state.original_file
-            files_list.append(video_file)
-
-        for i, video_file in enumerate(tqdm(files_list), 1):
-            msg = self._check_video_size(video_file)
-            df.loc[len(df)] = [video_file, msg]
-            if i % 300 == 0: self.save_report()
-
-    def check_lossless(self):
-        debug(f'Checking lossless files')
-        df = self.error_df
-        files_list = []
-        debug(f'Creating queue')
-        for _ in self._iterate(deep=1):
-            video_file = self.state.lossless_file
-            files_list.append(video_file)
-
-        for i, video_file in enumerate(tqdm(files_list), 1):
-            debug(f'Cheking the file {video_file}')
-            msg = self._check_video_size(video_file)
+            info(f'Checking the file {lossless_file}')
+            msg = self._check_video(lossless_file, check_gop=False)
             debug(f'Message = {msg}')
-            df.loc[len(df)] = [video_file, msg]
+            return msg
 
-    def check_compressed(self):
-        df = self.error_df
-        files_list = []
-        for _ in self._iterate(deep=4):
-            # if _ > 50: break
-            video_file = self.state.compressed_file
-            files_list.append(video_file)
+    def check_compress(self):
+        video_file = self.state.compressed_file
+        info(f'Checking the file {video_file}')
 
-        for i, video_file in enumerate(tqdm(files_list), 1):
-            msg = self._check_video_size(video_file, check_gop=False)
-            if 'ok' in msg:
-                msg = self._verify_encode_log(video_file)
-            df.loc[len(df)] = [video_file, msg]
-            if i % 300 == 0: self.save_report()
+        msg = self._check_video(video_file, check_gop=True)
+        debug(f'Message = {msg}')
+
+        return msg
 
     def check_segment(self):
-        df = self.error_df
-        files_list = []
-        for _ in self._iterate(deep=5):
-            video_file = self.state.segment_file
-            files_list.append(video_file)
+        video_file = self.state.segment_file
+        info(f'Checking the file {video_file}')
+        msg = self._check_video(video_file, check_gop=False)
+        debug(f'Message = {msg}')
+        return msg
 
-        for i, video_file in enumerate(tqdm(files_list), 1):
-            msg = self._check_video_size(video_file)
-            df.loc[len(df)] = [video_file, msg]
-            if i % 3000 == 0: self.save_report()
+    def check_decode(self):
+        dectime_log = self.state.dectime_log
 
-    def check_dectime(self):
-        df = self.error_df
-        files_list = []
-        for _ in self._iterate(deep=5):
-            dectime_log = self.state.dectime_log
-            files_list.append(dectime_log)
+        if not dectime_log.exists():
+            warning('logfile_not_found')
+            return 0
 
-        for i, dectime_log in enumerate(tqdm(files_list), 1):
-            msg = self._verify_dectime_log(dectime_log)
-            df.loc[len(df)] = [dectime_log, msg]
-            if i % 300 == 0: self.save_report()
+        count_decode = self._count_decoding()
 
-    def save_report(self):
-        folder = f"{self.state.project}/check_dectime"
-        os.makedirs(folder, exist_ok=True)
+        if count_decode == -1:
+            dectime_log.unlink()
+            count_decode = 0
 
-        filename = f'{folder}/{self.role.name}.log'
-        self.error_df.to_csv(filename)
+        return count_decode
 
-        pretty_json = json.dumps(Counter(self.error_df['msg']), indent=2)
-        print(f'\nRESUME: {self.role.name}\n'
-              f'{pretty_json}')
-
-        filename = f'{folder}/{self.role.name}-resume.log'
-        with open(filename, 'w') as f:
-            json.dump(Counter(self.error_df['msg']), f, indent=2)
-
-    def _check_video_size(self, video_file: Union[Path, str], check_gop=False) -> str:
+    # 'CHECK VIDEO LOGS AND GOP'
+    def _check_video(self, video_file: Path, check_gop) -> str:
         """
-        Check video existence, size and GOP.
+        Check video existence, log, size and GOP.
         :param video_file: Path to video
         :param check_gop: must check GOP?
         :return:
         """
         debug(f'Inside _check_video_size method.')
-        size = check_file_size(video_file)
+        log = video_file.with_suffix('.log')
 
-        if size > 0:
-            if check_gop:
-                debug(f'Checking GOP of {video_file}.')
-                max_gop, gop = self.check_video_gop(video_file)[0]
-                debug(f'GOP = {gop}')
-                debug(f'MaxGOP = {max_gop}')
-                if not max_gop == self.config.gop:
-                    debug(f'Wrong GOP size')
-                    return f'wrong_gop_size_{max_gop}'
-            debug(f'Apparently size is OK to {video_file}')
-            return 'apparently_ok'
-        elif size == 0:
-            debug(f'Size of {video_file} is 0')
-            self._clean(video_file)
-            return 'filesize==0'
-        elif size < 0:
-            debug(f'The video {video_file} NOT FOUND')
-            self._clean(video_file)
+        if not video_file.exists():
+            log.unlink(missing_ok=True)
             return 'video_not_found'
 
-    def _verify_encode_log(self, video_file) -> str:
-        log_file = video_file.with_suffix('.log')
+        if video_file.stat().st_size == 0:
+            video_file.unlink(missing_ok=True)
+            log.unlink(missing_ok=True)
+            return 'filesize==0'
 
-        if not os.path.isfile(log_file):
-            return 'logfile_not_found'
+        if check_gop:
+            info(f'Checking GOP of {video_file}.')
+            max_gop, gop = check_video_gop(video_file)[0]
+            debug(f'GOP = {gop}')
+            debug(f'MaxGOP = {max_gop}')
+            if not max_gop == self.config.gop:
+                warning(f'Wrong GOP size')
+                return f'wrong_gop_size_{max_gop}'
+        return 'ok'
+
+
 
         with open(log_file, 'r', encoding='utf-8') as f:
             ok = bool(['' for line in f if 'Global PSNR' in line])
