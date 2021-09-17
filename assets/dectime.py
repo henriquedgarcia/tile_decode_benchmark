@@ -1,10 +1,8 @@
-import inspect
 import json
 import os
 from collections import Counter, defaultdict
 from enum import Enum
 from logging import warning, info, debug
-from os.path import getsize, splitext
 from pathlib import Path
 from subprocess import run
 from typing import Union, Any, Dict, List
@@ -14,16 +12,8 @@ import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from assets.siti import SiTi
-from assets.util import AutoDict, run_command, save_json, AbstractConfig
+from assets.util import AutoDict, run_command, AbstractConfig
 from assets.video_state import AbstractVideoState, Frame
-
-
-class Check(Enum):
-    ORIGINAL = 'check_original'
-    PREPARE = 'check_lossless'
-    COMPRESS = 'check_compressed'
-    SEGMENT = 'check_segment'
-    DECODE = 'check_dectime'
 
 
 class Role(Enum):
