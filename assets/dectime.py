@@ -619,24 +619,10 @@ class CheckTileDecodeBenchmark(TileDecodeBenchmark):
 
 
 
-def make_menu(options_txt: list) -> (list, str):
-    options = [str(o) for o in range(len(options_txt))]
-    menu_lines = ['Options:']
-    menu_lines.extend([f'{o} - {text}'
-                       for o, text in zip(options, options_txt)])
-    menu_lines.append(':')
-    menu_txt = '\n'.join(menu_lines)
-    return options, menu_txt
 
 
-def menu(options_txt: list) -> int:
-    options, menu_ = make_menu(options_txt)
 
-    c = None
-    while c not in options:
-        c = input(menu_)
 
-    return int(c)
 
 
 def check_file_size(video_file) -> int:
