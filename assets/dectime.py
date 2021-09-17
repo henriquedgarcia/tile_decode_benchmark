@@ -27,13 +27,18 @@ class Check(Enum):
 
 
 class Role(Enum):
-    PREPARE = 'prepare_videos'
+    CHECK_ORIGINAL = 'check_original'
+    PREPARE = 'prepare'
+    CHECK_PREPARE = 'check_prepare'
     COMPRESS = 'compress'
+    CHECK_COMPRESS = 'check_compress'
     SEGMENT = 'segment'
+    CHECK_SEGMENT = 'check_segment'
     DECODE = 'decode'
-    RESULTS = 'collect_result'
+    CHECK_DECODE = 'check_decode'
+    COLLECT_RESULTS = 'collect_dectime'
+    CHECK_RESULTS = 'check_results'
     SITI = 'calcule_siti'
-    CHECK = 'check_all'
 
 
 class Config(AbstractConfig):
