@@ -1,7 +1,10 @@
+import os
 import json
+import math
 import subprocess
-from abc import ABC
+import sys
 from logging import info, debug, critical
+from numbers import Real
 from pathlib import Path
 from typing import Any, Dict, Hashable, Iterable, NamedTuple, Tuple, Union
 
@@ -52,18 +55,6 @@ def run_command(command: str, log_to_save: Union[str, Path], mode: str = 'w'):
                        stderr=subprocess.STDOUT, encoding='utf-8')
 
 
-def save_json(data: dict, filename, compact=False):
-    if compact:
-        separators = (',', ':')
-        indent = None
-    else:
-        separators = None
-        indent = 2
-
-    with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(data, f, separators=separators, indent=indent)
-
-
 def splitx(string: str) -> tuple:
     return tuple(map(int, string.split('x')))
 
@@ -73,17 +64,25 @@ def update_dictionary(value, dictionary: AutoDict, key1: Hashable = None,
                       key4: Hashable = None, key5: Hashable = None):
     dict_ = dictionary
     if key1:
-        if key2: dict_ = dict_[key1]
-        else: dict_[key1] = value
+        if key2:
+            dict_ = dict_[key1]
+        else:
+            dict_[key1] = value
     if key2:
-        if key3: dict_ = dict_[key2]
-        else: dict_[key2] = value
+        if key3:
+            dict_ = dict_[key2]
+        else:
+            dict_[key2] = value
     if key3:
-        if key4: dict_ = dict_[key3]
-        else: dict_[key3] = value
+        if key4:
+            dict_ = dict_[key3]
+        else:
+            dict_[key3] = value
     if key4:
-        if key5: dict_ = dict_[key4]
-        else: dict_[key4] = value
+        if key5:
+            dict_ = dict_[key4]
+        else:
+            dict_[key4] = value
     if key5:
         dict_[key5] = value
 
@@ -102,7 +101,27 @@ def dishevel_dictionary(dictionary: dict, key1: Hashable = None,
     return disheveled_dictionary
 
 
-def menu(options_dict: Dict[int, Any]):
+def make_menu(options_txt: list) -> (list, str):
+    options = [str(o) for o in range(len(options_txt))]
+    menu_lines = ['Options:']
+    menu_lines.extend([f'{o} - {text}'
+                       for o, text in zip(options, options_txt)])
+    menu_lines.append(':')
+    menu_txt = '\n'.join(menu_lines)
+    return options, menu_txt
+
+
+def menu(options_txt: list) -> int:
+    options, menu_ = make_menu(options_txt)
+
+    c = None
+    while c not in options:
+        c = input(menu_)
+
+    return int(c)
+
+
+def menu2(options_dict: Dict[int, Any]):
     options = []
     text = f'Options:\n'
     for idx in options_dict:
