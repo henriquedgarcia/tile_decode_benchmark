@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from assets.dectime import QualityAssessment, TileDecodeBenchmark, CheckTileDecodeBenchmark
 import logging
-from datetime import datetime
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -24,9 +23,9 @@ def main():
         if decode_time:
             TileDecodeBenchmark(config, 'PREPARE', overwrite=False)
             TileDecodeBenchmark(config, 'COMPRESS', overwrite=False)
-            TileDecodeBenchmark(config, 'SEGMENT', overwrite=False)
-            TileDecodeBenchmark(config, 'DECODE', overwrite=False)
-            TileDecodeBenchmark(config, 'COLLECT_RESULTS', overwrite=False)
+            # TileDecodeBenchmark(config, 'SEGMENT', overwrite=False)
+            # TileDecodeBenchmark(config, 'DECODE', overwrite=False)
+            # TileDecodeBenchmark(config, 'COLLECT_RESULTS', overwrite=False)
         if siti:
             # Measure normal SITI
             TileDecodeBenchmark(config, 'SITI', overwrite=False, animate_graph=False, save=True)
@@ -47,8 +46,7 @@ def main():
             # dta.BarByPatternFullFrame(config).run(False)
             pass
         if quality:
-            # Quality measurements
-            QualityAssessment(config, 'ALL', overwrite=False)
+            QualityAssessment(config, 'ALL', overwrite=True)
 
 
 if __name__ == '__main__':
