@@ -84,6 +84,9 @@ class Tiling:
         self.m, self.n = splitx(pattern)
         self.total_tiles = self.m * self.n
 
+    def __str__(self):
+        return self.pattern
+
 
 class Video:
     _name: str
