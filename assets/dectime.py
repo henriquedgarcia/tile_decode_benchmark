@@ -596,33 +596,35 @@ class CheckTileDecodeBenchmark(TileDecodeBenchmark):
             rem_file(log)
 
     @staticmethod
-    def check_video_gop(video_file) -> (int, list):
-        command = f'ffprobe -show_frames "{video_file}"'
-        process = run(command, shell=True, capture_output=True, encoding='utf-8')
-        output = process.stdout
-        gop = [line.strip().split('=')[1]
-               for line in output.splitlines()
-               if 'pict_type' in line]
 
-        # Count GOP
-        max_gop = 0
-        len_gop = 0
-        for pict_type in gop:
-            if pict_type in 'I':
+
+
+
+
+
+
+
+def check_video_gop(video_file) -> (int, list):
+    command = (f'ffprobe.exe -hide_banner -loglevel 0 '
+               f'-of default=nk=1:nw=1 '
+               f'-show_entries frame=pict_type '
+               f'"{video_file}"')
+    process = run(command, shell=True, capture_output=True, encoding='utf-8')
+    output = process.stdout
+    gop = []
+    max_gop = 0
+    len_gop = 0
+    for line in output.splitlines():
+        line = line.strip()
+        if line in ['I', 'B', 'P']:
+            if line in 'I':
                 len_gop = 1
             else:
                 len_gop += 1
             if len_gop > max_gop:
                 max_gop = len_gop
-        return max_gop, gop
-
-
-
-
-
-
-
-
+            gop.append(line)
+    return max_gop, gop
 
 
 def check_file_size(video_file) -> int:
