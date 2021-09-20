@@ -43,6 +43,11 @@ class Frame(FrameAbstract):
 
 
 class Tile:
+    # todo: implementar a seguinte ideia. Um tile é um objeto que possui um frame e está contido em um frame maior.
+    # todo: O Frame contem informações espaciais da imagem, como dimensão, informação de cor e opcionalmente da projeção
+    # todo: o Tile terá informações temporais e de posição, como idx, posição e Tiling.
+    # todo: O Tiling terá informações sobre o frame da projeção, total de tiles, segmentação MxN, e uma referência pra cada tile. (lista de tiles)
+
     def __init__(self, idx: int, scale: Frame, pos: tuple):
         self.idx = idx
         self.scale = scale
