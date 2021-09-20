@@ -5,20 +5,23 @@ from abc import ABC, abstractmethod
 from assets.util import splitx
 
 
-class Frame:
-    _scale: str
+class FrameAbstract:
     w: int
     h: int
 
-    def __init__(self, scale: Union[str, tuple]):
-        """
+class Frame(FrameAbstract):
+    _scale: str
 
-        :param scale: a string like "1200x600"
+    def __init__(self, scale: Union[str, tuple, FrameAbstract]):
+        """
+        :param scale: scale: a string like "1200x600"
         """
         if isinstance(scale, str):
             self.scale = scale
         elif isinstance(scale, tuple):
             self.scale = f'{scale[0]}x{scale[1]}'
+        elif isinstance(scale, FrameAbstract):
+            self.scale = f'{scale.w}x{scale.h}'
 
     @property
     def scale(self) -> str:
