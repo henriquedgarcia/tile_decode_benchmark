@@ -597,7 +597,6 @@ class QualityAssessment(TileDecodeBenchmark):
             self.sph_points.append((np.deg2rad(point[0]), np.deg2rad(point[1])))  # yaw, pitch
         self.sph_points_img = [sph2erp(theta, phi, self.state.frame.shape) for phi, theta in self.sph_points]
 
-
     def all(self, overwrite=False):
         self.state.original_quality = 0
         metric_eval = {}
@@ -627,6 +626,38 @@ class QualityAssessment(TileDecodeBenchmark):
                     results[metric].append(metric_value)
             pd.DataFrame(results).to_csv(compressed_quality_csv, encoding='utf-8', index_label='frame')
             yield 'continue'
+        return 'break'
+
+    def result(self, overwrite=False):
+        self.state.original_quality = 0
+        metric_eval = {}
+
+        compressed_quality_result_json = self.state.compressed_quality_result_json
+
+        if compressed_quality_result_json.is_file() and not overwrite:
+            warning(f'The file {compressed_quality_result_json} exist. Skipping.')
+            return 'break'
+
+        results = {}
+
+        for _ in self.iterate(deep=self.deep):
+            if self.state.quality == self.state.original_quality:
+                continue
+
+            debug(f'Processing {self.state.state}')
+
+            compressed_quality_csv = self.state.compressed_quality_csv
+            if not compressed_quality_csv.is_file():
+                warning(f'The file {compressed_quality_csv} not exist. Skipping.')
+                continue
+
+            quality = pd.read_csv(compressed_quality_csv, index_col=0)
+            for metric in self.role_list['ALL']['functions']:
+                key_name = f'{self.state.state}_{metric}'
+                results[key_name] = quality[metric].to_list()
+
+            yield 'continue'
+        compressed_quality_result_json.write_text(json.dumps(results), encoding='utf-8')
         return 'break'
 
     def calc_psnr(self, overwrite=False):

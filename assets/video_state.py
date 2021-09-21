@@ -323,7 +323,7 @@ class Paths(Params, Factors):
 
     @property
     def compressed_quality_result_json(self) -> Union[Path, None]:
-        return self.compressed_folder / f'tile{self.tile_id}.csv'
+        return self.project / 'compressed_quality_result.json'
 
     @property
     def segment_file(self) -> Path:
