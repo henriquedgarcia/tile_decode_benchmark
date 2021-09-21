@@ -622,12 +622,10 @@ class QualityAssessment(TileDecodeBenchmark):
             results = defaultdict(list)
             for n,(framev1, framev2) in enumerate(frames):
                 for metric in self.role_list['ALL']['functions']:
-                    self.progressbar.set_description(desc=f'frame {n}, metric: {metric}')
-
                     metric_func = metric_eval[metric]
                     metric_value = metric_func(framev1, framev2)
                     results[metric].append(metric_value)
-                yield 'continue'
+            yield 'continue'
             pd.DataFrame(results).to_csv(compressed_quality_csv, encoding='utf-8', index_label='frame')
 
     def calc_psnr(self, overwrite=False):
