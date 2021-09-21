@@ -569,6 +569,7 @@ class CheckTileDecodeBenchmark(TileDecodeBenchmark):
 
 class QualityAssessment(TileDecodeBenchmark):
     PIXEL_MAX = 255
+    sph_file = Path('assets/sphere_655362.txt')
     sph_points = []
     sph_points_img: list = None
     weight_ndarray: np.ndarray = None
@@ -582,22 +583,20 @@ class QualityAssessment(TileDecodeBenchmark):
     metric_table = ''
 
     def __init__(self, config: str, role: str = None, sphere_file: str = None, **kwargs):
-        if sphere_file:
-            self.sph_file = Path(sphere_file)
-        else:
-            self.sph_file = Path('assets/sphere_655362.txt')
-        assert self.sph_file.exists()
-        self.load_sph_point()
         super().__init__(config, role, **kwargs)
+        self.load_sph_point()
 
-    def load_sph_point(self):
+    def load_sph_point(self, sph_file = None):
         # S-PSNR_NN
         # Load 655362 sample points (in degree). convert to rad in a list
-        sph_file = Path(self.sph_file)
-        content = sph_file.read_text().splitlines()[1:]
+        if sph_file is not None: self.sph_file = Path(sph_file)
+        assert self.sph_file.exists()
+        content = self.sph_file.read_text().splitlines()[1:]
         for line in content:
             point = list(map(float, line.strip().split()))
             self.sph_points.append((np.deg2rad(point[0]), np.deg2rad(point[1])))  # yaw, pitch
+        self.sph_points_img = [sph2erp(theta, phi, self.state.frame.shape) for phi, theta in self.sph_points]
+
 
     def all(self, overwrite=False):
         self.state.original_quality = 0
