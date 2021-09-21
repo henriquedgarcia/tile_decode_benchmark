@@ -678,9 +678,18 @@ class QualityAssessment(TileDecodeBenchmark):
         pixel = uint8
         """
         if self.weight_ndarray is None:
-            height, width = self.state.frame.shape
-            func = lambda y, x: np.cos((y + 0.5 - height / 2) * np.pi / height)
-            self.weight_ndarray: Union[np.ndarray, object] = np.fromfunction(func, (height, width), dtype='float32')
+            if self.config.projection == 'equirectangular':
+                height, width = self.state.frame.shape
+                func = lambda y, x: np.cos((y + 0.5 - height / 2) * np.pi / height)
+                self.weight_ndarray: Union[np.ndarray, object] = np.fromfunction(func, (height, width), dtype='float32')
+            elif self.config.projection == 'cubemap':
+                face = self.state.frame.shape[0] / 2  # Cada face deve ser quadrada.
+                radius = face/2
+                squared_distance = lambda y, x: (x + 0.5 - radius)**2 + (y + 0.5 - radius)**2
+                func = lambda y, x: (1 + squared_distance(y, x) / (radius ** 2)) ** (-3/2)
+                weighted_face: Union[np.ndarray, object] = np.fromfunction(func, (int(face), int(face)), dtype='float32')
+                weight_ndarray = np.concatenate((weighted_face,weighted_face))
+                self.weight_ndarray = np.concatenate((weight_ndarray,weight_ndarray,weight_ndarray), axis=1)
 
         x1 = self.state.tile.x
         x2 = self.state.tile.x + self.state.tile.w
