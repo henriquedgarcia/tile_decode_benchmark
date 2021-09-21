@@ -631,15 +631,15 @@ class QualityAssessment(TileDecodeBenchmark):
             pd.DataFrame(results).to_csv(compressed_quality_csv, encoding='utf-8', index_label='frame')
 
     def calc_psnr(self, overwrite=False):
-        self.role_list['ALL']['function'] = [self.role_list['PSNR']['function']]
+        self.role_list['ALL']['functions'] = [self.role_list['PSNR']['function']]
         self.all(overwrite=overwrite)
 
     def calc_wspsnr(self, overwrite=False):
-        self.role_list['ALL']['function'] = [self.role_list['WSPSNR']['function']]
+        self.role_list['ALL']['functions'] = [self.role_list['WSPSNR']['function']]
         self.all(overwrite=overwrite)
 
     def calc_spsnr_nn(self, overwrite=False):
-        self.role_list['ALL']['function'] = [self.role_list['SPSNR']['function']]
+        self.role_list['ALL']['functions'] = [self.role_list['SPSNR']['function']]
         self.all(overwrite=overwrite)
 
     @staticmethod
