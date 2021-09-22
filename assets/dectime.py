@@ -18,18 +18,32 @@ import skvideo.io
 
 
 class Role(Enum):
-    CHECK_ORIGINAL = 'check_original'
     PREPARE = 'prepare'
-    CHECK_PREPARE = 'check_prepare'
     COMPRESS = 'compress'
-    CHECK_COMPRESS = 'check_compress'
     SEGMENT = 'segment'
-    CHECK_SEGMENT = 'check_segment'
     DECODE = 'decode'
-    CHECK_DECODE = 'check_decode'
     COLLECT_RESULTS = 'collect_dectime'
-    CHECK_RESULTS = 'check_results'
     SITI = 'calcule_siti'
+    CHECK_ORIGINAL = 'check_original'
+    CHECK_PREPARE = 'check_prepare'
+    CHECK_COMPRESS = 'check_compress'
+    CHECK_SEGMENT = 'check_segment'
+    CHECK_DECODE = 'check_decode'
+    CHECK_RESULTS = 'check_results'
+
+    def deep(self):
+        deep = {'PREPARE': 1,
+                'COMPRESS': 4,
+                'SEGMENT': 4,
+                'DECODE': 5,
+                'SITI': 1,
+                }
+        return deep[self.name]
+
+    def method(self, cls):
+        return getattr(cls, self.value)
+
+
 
 
 class Config(AbstractConfig):
