@@ -17,35 +17,6 @@ from assets.video_state import AbstractVideoState, Frame
 import skvideo.io
 
 
-class Role(Enum):
-    PREPARE = 'prepare'
-    COMPRESS = 'compress'
-    SEGMENT = 'segment'
-    DECODE = 'decode'
-    COLLECT_RESULTS = 'collect_dectime'
-    SITI = 'calcule_siti'
-    CHECK_ORIGINAL = 'check_original'
-    CHECK_PREPARE = 'check_prepare'
-    CHECK_COMPRESS = 'check_compress'
-    CHECK_SEGMENT = 'check_segment'
-    CHECK_DECODE = 'check_decode'
-    CHECK_RESULTS = 'check_results'
-
-    def deep(self):
-        deep = {'PREPARE': 1,
-                'COMPRESS': 4,
-                'SEGMENT': 4,
-                'DECODE': 5,
-                'SITI': 1,
-                }
-        return deep[self.name]
-
-    def method(self, cls):
-        return getattr(cls, self.value)
-
-
-
-
 class Config(AbstractConfig):
     original_folder = 'original'
     lossless_folder = 'lossless'
@@ -121,6 +92,55 @@ class TileDecodeBenchmark:
                  }
 
     def __init__(self, config: str, role: str = None, **kwargs):
+class Role:
+    PREPARE = Operation('PREPARE', 'stub', 'prepare', 'stub', 1)
+    COMPRESS = Operation('COMPRESS', 'stub', 'compress', 'stub', 4)
+    SEGMENT = Operation('SEGMENT', 'stub', 'segment', 'stub', 4)
+    DECODE = Operation('DECODE', 'stub', 'decode', 'stub', 4)
+    COLLECT_RESULTS = Operation('COLLECT_RESULTS', 'init_collect_dectime', 'collect_dectime', 'save_dectime', 5)
+    SITI = Operation('SITI', 'init_siti', 'calcule_siti', 'end_siti', 4)
+
+    CHECK_ORIGINAL = Operation('CHECK_ORIGINAL', 'stub', 'check_original', 'stub', 1)
+    CHECK_PREPARE = Operation('CHECK_PREPARE', 'stub', 'check_prepare', 'stub', 1)
+    CHECK_COMPRESS = Operation('CHECK_COMPRESS', 'stub', 'check_compress', 'stub', 4)
+    CHECK_SEGMENT = Operation('CHECK_SEGMENT', 'stub', 'check_segment', 'stub', 4)
+    CHECK_DECODE = Operation('CHECK_DECODE', 'stub', 'check_decode', 'stub', 5)
+    CHECK_RESULTS = Operation('CHECK_RESULTS', 'stub', 'check_results', 'stub', 5)
+
+
+    def __init__(self, name):
+        self.op: Operation = getattr(Role, name)
+
+    @property
+    def name(self) -> str:
+        return self.op.name
+
+    def init(self, cls) -> Callable:
+        try:
+            function = getattr(cls, self.op.init)
+        except AttributeError:
+            function = getattr(cls, 'stub')
+        return function
+
+    def operation(self, cls) -> Callable:
+        try:
+            function = getattr(cls, self.op.method)
+        except AttributeError:
+            function = getattr(cls, 'stub')
+        return function
+
+    def finish(self, cls) -> Callable:
+        try:
+            function = getattr(cls, self.op.finish)
+        except AttributeError:
+            function = getattr(cls, 'stub')
+        return function
+
+    @property
+    def deep(self) -> int:
+        return self.op.deep
+
+
         """
 
         :param config:
