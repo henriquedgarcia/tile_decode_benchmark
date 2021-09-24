@@ -92,6 +92,8 @@ class TileDecodeBenchmark:
                  }
 
     def __init__(self, config: str, role: str = None, **kwargs):
+Operation = namedtuple('Operation', ('name', 'init', 'method', 'finish', 'deep'))
+
 class Role:
     PREPARE = Operation('PREPARE', 'stub', 'prepare', 'stub', 1)
     COMPRESS = Operation('COMPRESS', 'stub', 'compress', 'stub', 4)
