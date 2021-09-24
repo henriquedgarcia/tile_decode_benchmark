@@ -241,6 +241,7 @@ class Paths(Params, Factors):
     _segment_folder: Path
     _dectime_folder: Path
     _siti_folder: Path
+    _check_folder: Path
 
     @property
     def basename(self):
@@ -252,6 +253,10 @@ class Paths(Params, Factors):
 
     @property
     def original_folder(self) -> Path:
+        return self._original_folder
+
+    @property
+    def check_folder(self) -> Path:
         return self._original_folder
 
     @property
@@ -313,7 +318,6 @@ class Paths(Params, Factors):
                         f'{self.rate_control}{self.original_quality}')
 
         folder = self.project / self._compressed_folder / basename
-        folder.mkdir(parents=True, exist_ok=True)
         path = folder / f'tile{self.tile_id}.mp4'
         return path
 
