@@ -47,7 +47,7 @@ def main():
             pass
         if quality:
             QualityAssessment(config, 'QUALITY_ALL', overwrite=True)
-            # QualityAssessment(config, 'COLLECT_RESULTS', overwrite=False)
+            QualityAssessment(config, 'RESULTS', overwrite=False)
 
 
 if __name__ == '__main__':
