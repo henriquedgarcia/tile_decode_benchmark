@@ -507,8 +507,16 @@ class TileDecodeBenchmark(BaseTileBenchmark):
         fig.show()
 
 
-class CheckTileDecodeBenchmark(BaseTileDecodeBenchmark):
+class CheckTileDecodeBenchmark(TileDecodeBenchmark):
     resume = {'filename': [], 'msg': []}
+
+    class Role(Role):
+        CHECK_ORIGINAL = Operation('CHECK_ORIGINAL', 1, 'stub', 'check_original', 'stub')
+        CHECK_PREPARE = Operation('CHECK_PREPARE', 1, 'stub', 'check_prepare', 'stub')
+        CHECK_COMPRESS = Operation('CHECK_COMPRESS', 4, 'stub', 'check_compress', 'stub')
+        CHECK_SEGMENT = Operation('CHECK_SEGMENT', 4, 'stub', 'check_segment', 'stub')
+        CHECK_DECODE = Operation('CHECK_DECODE', 5, 'stub', 'check_decode', 'stub')
+        CHECK_RESULTS = Operation('CHECK_RESULTS', 5, 'stub', 'check_results', 'stub')
 
     def check_prepare(self):
         lossless_file = self.state.lossless_file
@@ -586,6 +594,9 @@ class CheckTileDecodeBenchmark(BaseTileDecodeBenchmark):
                 warning(f'Wrong GOP size')
                 return f'wrong_gop_size_{max_gop}'
         return 'ok'
+
+    def _count_decoding(self):
+        pass
 
 
 class QualityAssessment(TileDecodeBenchmark):
