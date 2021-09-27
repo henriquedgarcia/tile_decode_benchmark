@@ -599,41 +599,49 @@ class CheckTileDecodeBenchmark(TileDecodeBenchmark):
         pass
 
 
-class QualityAssessment(TileDecodeBenchmark):
+class QualityAssessment(BaseTileBenchmark):
     PIXEL_MAX = 255
-    sph_file = Path('assets/sphere_655362.txt')
     sph_points = []
     sph_points_img: list = None
     weight_ndarray: np.ndarray = None
-    results = defaultdict(list)
-    metric_table = ''
-    metrics_info: dict[str, dict[str, Any]] = {'PSNR': {'method': 'calc_psnr'},
-                                               'WS-PSNR': {'method': 'calc_wspsnr'},
-                                               # 'S-PSNR': {'method': 'calc_spsnr_nn', 'deep': 4, 'function': 'spsnr_nn'},
-                                               }
-    metrics_methods = None
+    results = AutoDict()
+    HCSPoint = NamedTuple('HCSPoint', (('yaw', float), ('pitch', float)))
+    metrics_methods: Dict[str, Callable] = {}
+    metrics_reg = {'PSNR': 'psnr',
+                   'WS-PSNR': 'wspsnr',
+                   # 'S-PSNR': 'spsnr_nn',
+                   }
 
-    class Role(Role):
-        QUALITY_ALL = Operation('QUALITY_ALL', 'stub', 'all', 'stub', 4)
+    class QualityRole(Role):
+        Role.QUALITY_ALL = Operation('QUALITY_ALL', 4, 'all_init', 'all', 'None')
+        Role.RESULTS = Operation('RESULTS', 4, 'init_result', 'result', 'save_result')
+
+        def __init__(self, name):
+            super().__init__(name)
 
     def __init__(self, config: str, role: str, sphere_file: str = None, **kwargs):
-        self.load_sph_point(sph_file=sphere_file)
-        self.role = QualityAssessment.Role(role)
-        super().__init__(config, role, **kwargs)
-
-    def load_sph_point(self, sph_file=None):
-        # S-PSNR_NN
-        # Load 655362 sample points (in degree). convert to rad in a list
-        self.sph_file = self.sph_file if sph_file is None else Path(sph_file)
+        self.sph_file = Path('assets/sphere_655362.txt') \
+            if sphere_file is None else Path(sphere_file)
         assert self.sph_file.exists()
 
+        self.config = Config(config) if self.config is None else self.config
+        self.state = VideoState(self.config) if self.state is None else self.state
+        self.role = self.QualityRole(role)
+
+        self.print_resume()
+        self.run(**kwargs)
+
+    def load_sph_point(self):
+        # Load 655362 sample points (elevation, azimuth). Angles in degree.
         content = self.sph_file.read_text().splitlines()[1:]
         for line in content:
             point = list(map(float, line.strip().split()))
-            self.sph_points.append((np.deg2rad(point[0]), np.deg2rad(point[1])))  # yaw, pitch
-        self.sph_points_img = [sph2erp(theta, phi, self.state.frame.shape) for phi, theta in self.sph_points]
+            self.sph_points.append(QualityAssessment.HCSPoint(*point))
+            # m, n = sph2erp(np.deg2rad(point[1]), np.deg2rad(point[0]),
+            #                self.state.frame.shape)
+            # self.sph_points_img.append((m, n))
 
-        # #Convert spherical coordinate into Cartesian 3D coordinate
+        ## Convert spherical coordinate into Cartesian 3D coordinate
         # cart_coord = []
         # for phi, theta in self.sph_points:
         #     cart_coord.append([np.sin(theta) * np.cos(phi),
@@ -647,9 +655,10 @@ class QualityAssessment(TileDecodeBenchmark):
         #                        height * (np.acos(x[1]) / np.pi)])
 
     def all_init(self):
+        # self.load_sph_point()
         self.state.original_quality = 0
-        for metric in self.metrics_info:
-            method = self.metrics_info[metric]['method']
+        for metric in self.metrics_reg:
+            method = self.metrics_reg[metric]
             self.metrics_methods[metric] = eval(f'self.{method}')
 
     def all(self, overwrite=False):
@@ -662,7 +671,7 @@ class QualityAssessment(TileDecodeBenchmark):
         compressed_file = self.state.compressed_file
         compressed_quality_csv = self.state.compressed_quality_csv
 
-        if compressed_quality_csv.is_file() and not overwrite:
+        if compressed_quality_csv.exists() and not overwrite:
             warning(f'The file {compressed_quality_csv} exist. Skipping.')
             return 'continue'
 
@@ -670,57 +679,47 @@ class QualityAssessment(TileDecodeBenchmark):
                      get_frame(compressed_file))
 
         results = defaultdict(list)
-        for n, (framev1, framev2) in enumerate(frames):
-            debug(f'frame {n}')
+        for n, (frame_video1, frame_video2) in enumerate(frames):
+            debug(f'Frame {n}')
             for metric in self.metrics_methods:
                 metrics_method = self.metrics_methods[metric]
-                metric_value = metrics_method(framev1, framev2)
+                metric_value = metrics_method(frame_video1, frame_video2)
                 results[metric].append(metric_value)
         pd.DataFrame(results).to_csv(compressed_quality_csv, encoding='utf-8', index_label='frame')
+        return 'continue'
 
-    def result(self, overwrite=False):
+    def init_result(self):
         self.state.original_quality = 0
-        metric_eval = {}
 
         compressed_quality_result_json = self.state.compressed_quality_result_json
 
-        if compressed_quality_result_json.is_file() and not overwrite:
-            warning(f'The file {compressed_quality_result_json} exist. Skipping.')
-            return 'break'
+        if compressed_quality_result_json.is_file():
+            warning(f'The file {compressed_quality_result_json} exist. Loading.')
+            self.results = json.loads(compressed_quality_result_json.read_text(encoding='utf-8'))
 
-        results = {}
+    def result(self, overwrite=False):
+        if self.state.quality == self.state.original_quality:
+            return 'continue'
 
-        for _ in self.iterate(deep=self.deep):
-            if self.state.quality == self.state.original_quality:
-                continue
+        debug(f'Processing {self.state.state}')
+        compressed_quality_csv = self.state.compressed_quality_csv
 
-            debug(f'Processing {self.state.state}')
+        if not compressed_quality_csv.is_file():
+            warning(f'The file {compressed_quality_csv} not exist. Skipping.')
+            return 'continue'
 
-            compressed_quality_csv = self.state.compressed_quality_csv
-            if not compressed_quality_csv.is_file():
-                warning(f'The file {compressed_quality_csv} not exist. Skipping.')
-                continue
+        quality = pd.read_csv(compressed_quality_csv, index_col=0)
+        for metric in self.metrics_methods:
+            if self.results[self.state.state][metric] != {} and not overwrite:
+                warning(f'The key [{self.state.state}][{metric}] exist. Skipping.')
+                return 'continue'
 
-            quality = pd.read_csv(compressed_quality_csv, index_col=0)
-            for metric in self.role_list['ALL']['functions']:
-                key_name = f'{self.state.state}_{metric}'
-                results[key_name] = quality[metric].to_list()
+            self.results[self.state.state][metric] = quality[metric].to_list()
+        return 'continue'
 
-            yield 'continue'
-        compressed_quality_result_json.write_text(json.dumps(results), encoding='utf-8')
-        return 'break'
-
-    def calc_psnr(self, overwrite=False):
-        self.role_list['ALL']['functions'] = [self.role_list['PSNR']['function']]
-        self.all(overwrite=overwrite)
-
-    def calc_wspsnr(self, overwrite=False):
-        self.role_list['ALL']['functions'] = [self.role_list['WSPSNR']['function']]
-        self.all(overwrite=overwrite)
-
-    def calc_spsnr_nn(self, overwrite=False):
-        self.role_list['ALL']['functions'] = [self.role_list['SPSNR']['function']]
-        self.all(overwrite=overwrite)
+    def save_result(self):
+        compressed_quality_result_json = self.state.compressed_quality_result_json
+        compressed_quality_result_json.write_text(json.dumps(self.results), encoding='utf-8')
 
     @staticmethod
     def psnr(im_ref: np.ndarray, im_deg: np.ndarray,
@@ -778,10 +777,7 @@ class QualityAssessment(TileDecodeBenchmark):
         y2 = self.state.tile.y + self.state.tile.h
         weight_ndarray = self.weight_ndarray[y1:y2, x1:x2]
 
-        try:
-            im_weighted = weight_ndarray * (im_ref - im_deg) ** 2
-        except:
-            print('')
+        im_weighted = weight_ndarray * (im_ref - im_deg) ** 2
 
         if im_sal is not None:
             im_weighted = im_weighted * im_sal
