@@ -1,6 +1,7 @@
 import json
 import os
 from collections import Counter, defaultdict, namedtuple
+from abc import abstractmethod, ABC
 from logging import warning, info, debug
 from pathlib import Path
 from subprocess import run
@@ -94,21 +95,21 @@ class Role(ABC):
         try:
             function = getattr(cls, self.op.init)
         except AttributeError:
-            function = getattr(cls, 'stub')
+            function = self.stub
         return function
 
     def operation(self, cls) -> Callable:
         try:
             function = getattr(cls, self.op.method)
         except AttributeError:
-            function = getattr(cls, 'stub')
+            function = self.stub
         return function
 
     def finish(self, cls) -> Callable:
         try:
             function = getattr(cls, self.op.finish)
         except AttributeError:
-            function = getattr(cls, 'stub')
+            function = self.stub
         return function
 
     @property
@@ -119,6 +120,8 @@ class Role(ABC):
     def deep(self) -> int:
         return self.op.deep
 
+    def stub(self):
+        ...
 
 class BaseTileDecodeBenchmark:
     config: Config = None
@@ -203,8 +206,6 @@ class BaseTileDecodeBenchmark:
                                 count += 1
                                 yield count
                                 continue
-
-    def stub(self, **kwargs) -> None: ...
 
 
 class TileDecodeBenchmark(BaseTileDecodeBenchmark):
