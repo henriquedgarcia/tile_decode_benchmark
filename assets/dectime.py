@@ -90,10 +90,6 @@ class Role(ABC):
     def __init__(self, name):
         self.op: Operation = getattr(Role, name)
 
-    @property
-    def name(self) -> str:
-        return self.op.name
-
     def init(self, cls) -> Callable:
         try:
             function = getattr(cls, self.op.init)
@@ -114,6 +110,10 @@ class Role(ABC):
         except AttributeError:
             function = getattr(cls, 'stub')
         return function
+
+    @property
+    def name(self) -> str:
+        return self.op.name
 
     @property
     def deep(self) -> int:
