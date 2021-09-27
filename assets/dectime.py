@@ -616,9 +616,6 @@ class QualityAssessment(BaseTileBenchmark):
         Role.QUALITY_ALL = Operation('QUALITY_ALL', 4, 'all_init', 'all', 'None')
         Role.RESULTS = Operation('RESULTS', 4, 'init_result', 'result', 'save_result')
 
-        def __init__(self, name):
-            super().__init__(name)
-
     def __init__(self, config: str, role: str, sphere_file: str = None, **kwargs):
         self.sph_file = Path('assets/sphere_655362.txt') \
             if sphere_file is None else Path(sphere_file)
