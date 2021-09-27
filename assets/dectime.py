@@ -394,7 +394,7 @@ class TileDecodeBenchmark(BaseTileBenchmark):
             results = results[factor]
 
         if not results == {} and not overwrite:
-            warning(f'The result key for {self.state.state}contain some value. Skipping.')
+            warning(f'The result key for {self.state.state} contain some value. Skipping.')
             return 'continue'  # if value exist and not overwrite, then skip
 
         if not self.state.segment_file.exists():
