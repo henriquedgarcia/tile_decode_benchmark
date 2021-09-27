@@ -804,25 +804,6 @@ class QualityAssessment(BaseTileBenchmark):
         mse = np.average(sqr_err_salienced)
         return mse2psnr(mse)
 
-    # Colect Qualities
-    def result(self, overwrite=False):
-        self.state.original_quality = 0
-        metric_eval = {}
-        for metric in self.role_list['ALL']['function']:
-            metric_eval[metric] = eval(f'self.{self.metric_table[metric]}')
-
-        compressed_quality_result_json = self.state.compressed_quality_csv
-        result = {}
-        for _ in self.iterate(deep=self.role.deep):
-            compressed_quality_csv = self.state.compressed_quality_csv
-            if not compressed_quality_csv.is_file():
-                warning(f'The file {compressed_quality_csv} not exist. Skipping.')
-                continue
-            state = self.state.state
-            file_result = pd.read_csv(compressed_quality_csv, encoding='utf-8')
-            file_result.to_dict(file_result.to_dict(orient='list'))
-            result[state] = file_result
-
     def ffmpeg_psnr(self):
         if self.state.chunk == 1:
             name, pattern, quality, tile, chunk = self.state.get_factors()
