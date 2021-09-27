@@ -1,7 +1,7 @@
 import json
 import os
-from collections import Counter, defaultdict, namedtuple
 from abc import abstractmethod, ABC
+from collections import Counter, defaultdict
 from logging import warning, info, debug
 from pathlib import Path
 from subprocess import run
