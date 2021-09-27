@@ -83,21 +83,9 @@ class Operation(NamedTuple):
     method: str
     finish: str
 
-class Role:
-    PREPARE = Operation('PREPARE', 'stub', 'prepare', 'stub', 1)
-    COMPRESS = Operation('COMPRESS', 'stub', 'compress', 'stub', 4)
-    SEGMENT = Operation('SEGMENT', 'stub', 'segment', 'stub', 4)
-    DECODE = Operation('DECODE', 'stub', 'decode', 'stub', 4)
-    COLLECT_RESULTS = Operation('COLLECT_RESULTS', 'init_collect_dectime', 'collect_dectime', 'save_dectime', 5)
-    SITI = Operation('SITI', 'init_siti', 'calcule_siti', 'end_siti', 4)
 
-    CHECK_ORIGINAL = Operation('CHECK_ORIGINAL', 'stub', 'check_original', 'stub', 1)
-    CHECK_PREPARE = Operation('CHECK_PREPARE', 'stub', 'check_prepare', 'stub', 1)
-    CHECK_COMPRESS = Operation('CHECK_COMPRESS', 'stub', 'check_compress', 'stub', 4)
-    CHECK_SEGMENT = Operation('CHECK_SEGMENT', 'stub', 'check_segment', 'stub', 4)
-    CHECK_DECODE = Operation('CHECK_DECODE', 'stub', 'check_decode', 'stub', 5)
-    CHECK_RESULTS = Operation('CHECK_RESULTS', 'stub', 'check_results', 'stub', 5)
-
+class Role(ABC):
+    NONE = Operation('NONE', 0, 'NONE', 'NONE', 'NONE')
 
     def __init__(self, name):
         self.op: Operation = getattr(Role, name)
