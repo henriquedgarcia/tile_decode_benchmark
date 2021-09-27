@@ -167,19 +167,19 @@ class Factors:
     @property
     def state(self) -> str:
         state = None
-        if self.name:
+        if self.name is not None:
             state = (f'{state}_{self.name}'
                      if state else f'{self.name}')
-        if self.pattern:
+        if self.pattern is not None:
             state = (f'{state}_{self.pattern}'
                      if state else f'{self.pattern}')
-        if self.quality:
+        if self.quality is not None:
             state = (f'{state}_{self.rate_control}{self.quality}'
                      if state else f'{self.rate_control}{self.quality}')
-        if self.tile:
+        if self.tile is not None:
             state = (f'{state}_tile{self.tile_id}'
                      if state else f'tile{self.tile_id}')
-        if self.chunk:
+        if self.chunk is not None:
             state = (f'{state}_chunk{self.chunk}'
                      if state else f'chunk{self.chunk}')
         return state
