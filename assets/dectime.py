@@ -123,24 +123,15 @@ class Role(ABC):
     def stub(self):
         ...
 
-class BaseTileDecodeBenchmark:
+
+class BaseTileBenchmark:
     config: Config = None
     state: VideoState = None
     role: Role = None
 
-    def __init__(self, config: str, role: str, **kwargs):
-        """
-
-        :param config:
-        :param role: Someone from Role dict
-        :param kwargs: Role parameters
-        """
-        self.config = Config(config) if self.config is None else self.config
-        self.state = VideoState(self.config) if self.state is None else self.state
-        self.role = Role(role) if self.role is None else self.role
-
-        self.print_resume()
-        self.run(**kwargs)
+    @abstractmethod
+    def __init__(self):
+        ...
 
     def run(self, **kwargs):
         deep = self.role.deep
@@ -160,7 +151,7 @@ class BaseTileDecodeBenchmark:
                 continue
             elif action is None:
                 break
-            else:
+            elif len(action) == 2:
                 fun, params = action
                 fun(*params)
         finish()
