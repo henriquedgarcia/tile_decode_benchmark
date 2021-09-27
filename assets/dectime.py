@@ -199,12 +199,31 @@ class BaseTileBenchmark:
                                 continue
 
 
-class TileDecodeBenchmark(BaseTileDecodeBenchmark):
+class TileDecodeBenchmark(BaseTileBenchmark):
     results = AutoDict()
     results_dataframe: pd.DataFrame
 
+    class Role(Role):
+        PREPARE = Operation('PREPARE', 1, 'stub', 'prepare', 'stub')
+        COMPRESS = Operation('COMPRESS', 4, 'stub', 'compress', 'stub')
+        SEGMENT = Operation('SEGMENT', 4, 'stub', 'segment', 'stub')
+        DECODE = Operation('DECODE', 4, 'stub', 'decode', 'stub')
+        COLLECT_RESULTS = Operation('COLLECT_RESULTS', 5, 'init_collect_dectime', 'collect_dectime', 'save_dectime')
+        SITI = Operation('SITI', 4, 'init_siti', 'calcule_siti', 'end_siti')
+
     def __init__(self, config: str, role: str, **kwargs):
-        super().__init__(config, role, **kwargs)
+        """
+
+        :param config:
+        :param role: Someone from Role dict
+        :param kwargs: Role parameters
+        """
+        self.config = Config(config) if self.config is None else self.config
+        self.state = VideoState(self.config) if self.state is None else self.state
+        self.role = self.Role(role) if self.role is None else self.role
+
+        self.print_resume()
+        self.run(**kwargs)
 
     # PREPARE
     def prepare(self, overwrite=False) -> Any:
@@ -326,7 +345,7 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
             if self.state.dectime_log.exists():
                 content = self.state.dectime_log.read_text(encoding='utf-8')
                 count = len(['' for line in content.splitlines()
-                               if 'utime' in line])
+                             if 'utime' in line])
 
                 if count >= self.config.decoding_num and not overwrite:
                     warning(f'{segment_file} is decoded enough. Skipping.')
