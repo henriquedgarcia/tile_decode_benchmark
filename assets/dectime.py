@@ -1,5 +1,6 @@
 import json
 import os
+import pickle
 from abc import abstractmethod, ABC
 from collections import Counter, defaultdict
 from logging import warning, info, debug
@@ -717,6 +718,8 @@ class QualityAssessment(BaseTileBenchmark):
 
     def save_result(self):
         compressed_quality_result_json = self.state.compressed_quality_result_json
+        compressed_quality_result_pickle = compressed_quality_result_json.with_suffix('.pickle')
+        compressed_quality_result_pickle.write_bytes(pickle.dumps(self.results))
         compressed_quality_result_json.write_text(json.dumps(self.results), encoding='utf-8')
 
     @staticmethod
