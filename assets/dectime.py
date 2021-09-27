@@ -702,12 +702,17 @@ class QualityAssessment(BaseTileBenchmark):
             return 'continue'
 
         quality = pd.read_csv(compressed_quality_csv, index_col=0)
-        for metric in self.metrics_methods:
-            if self.results[self.state.state][metric] != {} and not overwrite:
+
+        results = self.results
+        for factor in self.state.get_factors():
+            results = results[factor]
+
+        for metric in self.metrics_reg:
+            if results[metric] != {} and not overwrite:
                 warning(f'The key [{self.state.state}][{metric}] exist. Skipping.')
                 return 'continue'
 
-            self.results[self.state.state][metric] = quality[metric].to_list()
+            results[metric] = quality[metric].to_list()
         return 'continue'
 
     def save_result(self):
