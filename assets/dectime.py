@@ -76,7 +76,12 @@ class VideoState(AbstractVideoState):
         self._check_folder = Path('check')
 
 
-Operation = namedtuple('Operation', ('name', 'init', 'method', 'finish', 'deep'))
+class Operation(NamedTuple):
+    name: str
+    deep: int
+    init: str
+    method: str
+    finish: str
 
 class Role:
     PREPARE = Operation('PREPARE', 'stub', 'prepare', 'stub', 1)
