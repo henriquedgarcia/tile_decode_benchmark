@@ -46,7 +46,7 @@ def main():
             # dta.BarByPatternFullFrame(config).run(False)
             pass
         if quality:
-            QualityAssessment(config, 'QUALITY_ALL', overwrite=True)
+            QualityAssessment(config, 'QUALITY_ALL', overwrite=False)
             QualityAssessment(config, 'RESULTS', overwrite=False)
 
 
