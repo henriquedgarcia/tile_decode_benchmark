@@ -653,7 +653,6 @@ class QualityAssessment(BaseTileBenchmark):
 
     def all_init(self):
         # self.load_sph_point()
-        self.state.original_quality = 0
         for metric in self.metrics_reg:
             method = self.metrics_reg[metric]
             self.metrics_methods[metric] = eval(f'self.{method}')
@@ -686,10 +685,7 @@ class QualityAssessment(BaseTileBenchmark):
         return 'continue'
 
     def init_result(self):
-        self.state.original_quality = 0
-
         compressed_quality_result_json = self.state.compressed_quality_result_json
-
         if compressed_quality_result_json.is_file():
             warning(f'The file {compressed_quality_result_json} exist. Loading.')
             self.results = json.loads(compressed_quality_result_json.read_text(encoding='utf-8'))
