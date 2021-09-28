@@ -257,7 +257,9 @@ class Paths(Params, Factors):
 
     @property
     def check_folder(self) -> Path:
-        return self._original_folder
+        folder = self.project / self._check_folder
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
 
     @property
     def lossless_folder(self) -> Path:

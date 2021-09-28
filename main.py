@@ -30,12 +30,12 @@ def main():
             # Measure normal SITI
             TileDecodeBenchmark(config, 'SITI', overwrite=False, animate_graph=False, save=True)
         if check_files:
-            CheckTileDecodeBenchmark(config, 'CHECK_ORIGINAL', rem_error=False)
-            CheckTileDecodeBenchmark(config, 'CHECK_PREPARE', rem_error=False)
-            CheckTileDecodeBenchmark(config, 'CHECK_COMPRESS', rem_error=False)
-            CheckTileDecodeBenchmark(config, 'CHECK_SEGMENT', rem_error=False)
-            CheckTileDecodeBenchmark(config, 'CHECK_DECODE', rem_error=False)
-            CheckTileDecodeBenchmark(config, 'CHECK_RESULTS', rem_error=False)
+            CheckTileDecodeBenchmark(config, 'CHECK_ORIGINAL', clean=False, check_gop=False)
+            CheckTileDecodeBenchmark(config, 'CHECK_PREPARE', clean=False, check_gop=False)
+            CheckTileDecodeBenchmark(config, 'CHECK_COMPRESS', clean=False, check_gop=False)
+            # CheckTileDecodeBenchmark(config, 'CHECK_SEGMENT', clean=False, check_gop=False)
+            # CheckTileDecodeBenchmark(config, 'CHECK_DECODE')
+            # CheckTileDecodeBenchmark(config, 'CHECK_RESULTS')
         if results:
             # operation = dt.TileDecodeBenchmark(config)
             # operation.run('RESULTS', overwrite=False)

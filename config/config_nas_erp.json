@@ -22,6 +22,7 @@
   ],
   "rate_control": "crf",
   "quality_list": [
+    0,
     16,
     22,
     28,
