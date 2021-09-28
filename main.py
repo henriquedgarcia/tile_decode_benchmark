@@ -15,9 +15,9 @@ def main():
 
     decode_time = False
     siti = False
-    check_files = False
+    check_files = True
     results = False
-    quality = True
+    quality = False
 
     for config in config_list:
         if decode_time:
@@ -31,7 +31,7 @@ def main():
             TileDecodeBenchmark(config, 'SITI', overwrite=False, animate_graph=False, save=True)
         if check_files:
             CheckTileDecodeBenchmark(config, 'CHECK_ORIGINAL', clean=False, check_gop=False)
-            CheckTileDecodeBenchmark(config, 'CHECK_PREPARE', clean=False, check_gop=False)
+            CheckTileDecodeBenchmark(config, 'CHECK_LOSSLESS', clean=False, check_gop=False)
             CheckTileDecodeBenchmark(config, 'CHECK_COMPRESS', clean=False, check_gop=False)
             # CheckTileDecodeBenchmark(config, 'CHECK_SEGMENT', clean=False, check_gop=False)
             # CheckTileDecodeBenchmark(config, 'CHECK_DECODE')

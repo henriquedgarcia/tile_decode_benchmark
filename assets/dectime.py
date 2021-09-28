@@ -202,15 +202,12 @@ class BaseTileBenchmark:
 
 
 class TileDecodeBenchmark(BaseTileBenchmark):
-    results = AutoDict()
-    results_dataframe: pd.DataFrame
-
     Role.PREPARE = Operation('PREPARE', 1, 'stub', 'prepare', 'stub')
     Role.COMPRESS = Operation('COMPRESS', 4, 'stub', 'compress', 'stub')
     Role.SEGMENT = Operation('SEGMENT', 4, 'stub', 'segment', 'stub')
     Role.DECODE = Operation('DECODE', 4, 'stub', 'decode', 'stub')
     Role.COLLECT_RESULTS = Operation('COLLECT_RESULTS', 5, 'init_collect_dectime', 'collect_dectime', 'save_dectime')
-    # Role.SITI = Operation('SITI', 4, 'init_siti', 'calculate_siti', 'end_siti')
+    Role.SITI = Operation('SITI', 4, 'init_siti', 'calculate_siti', 'end_siti')
 
     def __init__(self, config: str, role: str, **kwargs):
         """
@@ -219,6 +216,9 @@ class TileDecodeBenchmark(BaseTileBenchmark):
         :param role: Someone from Role dict
         :param kwargs: Role parameters
         """
+        self.results = AutoDict()
+        self.results_dataframe: pd.DataFrame
+
         self.config = Config(config) if self.config is None else self.config
         self.state = VideoState(self.config) if self.state is None else self.state
         self.role = Role(role) if self.role is None else self.role
@@ -509,16 +509,15 @@ class TileDecodeBenchmark(BaseTileBenchmark):
 
 
 class CheckTileDecodeBenchmark(TileDecodeBenchmark):
-    check_table = {'state': [], 'msg': []}
-
     Role.CHECK_ORIGINAL = Operation('CHECK_ORIGINAL', 1, 'stub', 'check_original', 'save')
-    Role.CHECK_PREPARE = Operation('CHECK_PREPARE', 1, 'stub', 'check_prepare', 'save')
+    Role.CHECK_LOSSLESS = Operation('CHECK_LOSSLESS', 1, 'stub', 'check_lossless', 'save')
     Role.CHECK_COMPRESS = Operation('CHECK_COMPRESS', 4, 'stub', 'check_compress', 'save')
     Role.CHECK_SEGMENT = Operation('CHECK_SEGMENT', 4, 'stub', 'check_segment', 'save')
     Role.CHECK_DECODE = Operation('CHECK_DECTIME', 5, 'stub', 'check_dectime', 'save')
     Role.CHECK_RESULTS = Operation('CHECK_RESULTS', 5, 'stub', 'check_results', 'save')
 
     def __init__(self, config: str, role: str, **kwargs):
+        self.check_table = {'state': [], 'msg': []}
         super().__init__(config, role, **kwargs)
 
     def check_original(self, clean=False, check_gop=False):
@@ -528,12 +527,12 @@ class CheckTileDecodeBenchmark(TileDecodeBenchmark):
         msg = self.check_video(original_file, log_pattern, clean=clean, check_gop=check_gop)
         return self.append_msg, (original_file, msg,)
 
-    def check_prepare(self, clean=False, check_gop=False):
+    def check_lossless(self, clean=False, check_gop=False):
         lossless_file = self.state.lossless_file
         debug(f'Checking the file {lossless_file}')
         duration = self.state.video.duration
         fps = self.state.config.fps
-        log_pattern = f'frame= {duration * fps}'
+        log_pattern = f'frame={duration * fps:5}'
         msg = self.check_video(lossless_file, log_pattern, clean=clean, check_gop=check_gop)
 
         return self.append_msg, (lossless_file, msg,)
@@ -651,13 +650,12 @@ class CheckTileDecodeBenchmark(TileDecodeBenchmark):
         resume.to_csv(resume_filename, encoding='utf-8', index_label='msg')
 
 
+HCSPoint = NamedTuple('HCSPoint', (('yaw', float), ('pitch', float)))
 class QualityAssessment(BaseTileBenchmark):
     PIXEL_MAX = 255
     sph_points = []
     sph_points_img: list = None
     weight_ndarray: np.ndarray = None
-    results = AutoDict()
-    HCSPoint = NamedTuple('HCSPoint', (('yaw', float), ('pitch', float)))
     metrics_methods: Dict[str, Callable] = {}
     metrics_reg = {'PSNR': 'psnr',
                    'WS-PSNR': 'wspsnr',
@@ -673,6 +671,7 @@ class QualityAssessment(BaseTileBenchmark):
             if sphere_file is None else Path(sphere_file)
         assert self.sph_file.exists()
 
+        self.results = AutoDict()
         self.config = Config(config) if self.config is None else self.config
         self.state = VideoState(self.config) if self.state is None else self.state
         self.role = self.QualityRole(role)
@@ -685,7 +684,7 @@ class QualityAssessment(BaseTileBenchmark):
         content = self.sph_file.read_text().splitlines()[1:]
         for line in content:
             point = list(map(float, line.strip().split()))
-            self.sph_points.append(QualityAssessment.HCSPoint(*point))
+            self.sph_points.append(HCSPoint(point[1], point[0]))
             # m, n = sph2erp(np.deg2rad(point[1]), np.deg2rad(point[0]),
             #                self.state.frame.shape)
             # self.sph_points_img.append((m, n))
