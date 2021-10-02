@@ -520,43 +520,46 @@ class CheckTileDecodeBenchmark(TileDecodeBenchmark):
     Role.CHECK_SEGMENT = Operation('CHECK_SEGMENT', 4, 'stub', 'check_segment', 'save')
     Role.CHECK_DECODE = Operation('CHECK_DECTIME', 5, 'stub', 'check_dectime', 'save')
     Role.CHECK_RESULTS = Operation('CHECK_RESULTS', 5, 'stub', 'check_results', 'save')
+    Role.CLEAN = Operation('CLEAN', 0, 'none', 'clean', 'none')
 
     def __init__(self, config: str, role: str, **kwargs):
-        self.check_table = {'state': [], 'msg': []}
+        self.check_table = {'file': [], 'msg': []}
         super().__init__(config, role, **kwargs)
 
-    def check_original(self, clean=False, check_gop=False):
+    def check_original(self, check_gop=False):
         original_file = self.state.original_file
         debug(f'==== Checking {original_file} ====')
         log_pattern = None
-        msg = self.check_video(original_file, log_pattern, clean=clean, check_gop=check_gop)
+        msg = self.check_video(original_file, log_pattern, check_gop=check_gop)
         return self.append_msg, (original_file, msg,)
 
-    def check_lossless(self, clean=False, check_gop=False):
+    def check_lossless(self, check_gop=False):
         lossless_file = self.state.lossless_file
         debug(f'Checking the file {lossless_file}')
         duration = self.state.video.duration
         fps = self.state.config.fps
         log_pattern = f'frame={duration * fps:5}'
-        msg = self.check_video(lossless_file, log_pattern, clean=clean, check_gop=check_gop)
+        msg = self.check_video(lossless_file, log_pattern, check_gop=check_gop)
 
         return self.append_msg, (lossless_file, msg,)
 
-    def check_compress(self, clean=False, check_gop=False):
+    def check_compress(self, only_error=True, **keyword):
         video_file = self.state.compressed_file
         debug(f'Checking the file {video_file}')
         duration = self.state.video.duration
         fps = self.state.config.fps
         log_pattern = f'encoded {duration * fps} frames'
-        msg = self.check_video(video_file, log_pattern, clean=clean, check_gop=check_gop)
-
+        msg = self.check_video(video_file, log_pattern, **keyword)
+        if only_error:
+            if msg in 'log_ok-video_ok':
+                return 'continue'
         return self.append_msg, (video_file, msg,)
 
-    def check_segment(self, clean=False, check_gop=False):
+    def check_segment(self, check_gop=False):
         segment_file = self.state.segment_file
         debug(f'Checking the file {segment_file}')
         log_pattern = None
-        msg = self.check_video(segment_file, log_pattern, clean=clean, check_gop=check_gop)
+        msg = self.check_video(segment_file, log_pattern, check_gop=check_gop)
         return self.append_msg, (segment_file, msg,)
 
     def check_dectime(self):
@@ -594,56 +597,77 @@ class CheckTileDecodeBenchmark(TileDecodeBenchmark):
         return len(['' for line in content if 'utime' in line])
 
     def append_msg(self, file, msg):
-        self.check_table['state'].append(file)
+        self.check_table['file'].append(file)
         self.check_table['msg'].append(msg)
 
-    def check_video(self, video: Path, log_pattern, clean=False, check_gop=False) -> str:
+    def check_video(self, video: Path, log_pattern, check_log=True,
+                    check_video=True, check_gop=False) -> str:
         debug(f'Checking video {video}.')
         log = video.with_suffix('.log')
         msg = []
 
-        # Check log
-        if log_pattern is None:
-            msg += ['log_ok']
-        elif not log.exists():
-            msg += ['log_not_found']
-        elif log.stat().st_size == 0:
-            if clean:
-                log.unlink(missing_ok=True)
-            msg += ['log_size==0']
-        else:
-            log_content = log.read_text().splitlines()
-            encoded_len = len(['' for line in log_content
-                               if log_pattern in line])
-            if encoded_len > 0:
+        if check_log:
+            if log_pattern is None:
                 msg += ['log_ok']
+            elif not log.exists():
+                msg += ['log_not_found']
+            elif log.stat().st_size == 0:
+                msg += ['log_size==0']
             else:
-                if clean:
-                    log.unlink(missing_ok=True)
-                msg += ['log_corrupt']
+                log_content = log.read_text().splitlines()
+                log_check_patthern = len(['' for line in log_content
+                                          if log_pattern in line])
+                if log_check_patthern > 0:
+                    msg += ['log_ok']
+                else:
+                    log_check_videopath = len(['' for line in log_content
+                                               if 'No such file or directory'
+                                               in line])
+                    if log_check_videopath > 0:
+                        msg += ['log_vid_n_found']
+                    else:
+                        msg += ['log_corrupt']
 
-        # Check video
-        if not video.exists():
-            msg += ['video_not_found']
-        elif video.stat().st_size == 0:
-            if clean:
-                video.unlink(missing_ok=True)
-            msg += ['video_size==0']
-        else:
-            if check_gop:
-                max_gop, gop = check_video_gop(video)
-                if max_gop != self.config.gop:
-                    msg += [f'video_wrong_gop_{max_gop}']
+        if check_video:
+            if not video.exists():
+                msg += ['video_not_found']
+            elif video.stat().st_size == 0:
+                msg += ['video_size==0']
+            else:
+                if check_gop:
+                    max_gop, gop = check_video_gop(video)
+                    if max_gop != self.config.gop:
+                        msg += [f'video_wrong_gop_{max_gop}']
+                    else:
+                        msg += ['video_ok']
                 else:
                     msg += ['video_ok']
-            else:
-                msg += ['video_ok']
         return '-'.join(msg)
+
+    def clean(self, table_of_check: str, clean_log, clean_video,
+              video_of_log=False):
+        folder = self.state.check_folder
+        table_filename = folder / table_of_check
+        check_table = pd.read_csv(table_filename, index_col=0)
+        for idx, line in check_table.iterrows():
+            video = Path(line['file'])
+            msg = line['msg']
+            msg_log, msg_video = msg.split('-')
+            if msg_log not in 'log_ok' and clean_log:
+                log = video.with_suffix('.log')
+                debug(f'Cleaning {log}')
+                log.unlink(missing_ok=True)
+                if video_of_log:
+                    video.unlink(missing_ok=True)
+            if msg_video not in 'video_ok' and clean_video:
+                debug(f'Cleaning {video}')
+                video.unlink(missing_ok=True)
+        return 'continue'
 
     def save(self):
         folder = self.state.check_folder
-        table_filename: Union[Path, None] = folder / f'{self.role.name}-table-{datetime.date.today()}.csv'
-        resume_filename: Union[Path, None] = folder / f'{self.role.name}-resume-{datetime.date.today()}.csv'
+        table_filename: Union[Path, None] = folder / f'{self.role.name}-table-{datetime.datetime.today()}.csv'
+        resume_filename: Union[Path, None] = folder / f'{self.role.name}-resume-{datetime.datetime.today()}.csv'
 
         check_table = pd.DataFrame(self.check_table)
         check_table.to_csv(table_filename, encoding='utf-8', index_label='counter')
