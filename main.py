@@ -15,7 +15,7 @@ def main():
 
     decode_time = False
     siti = False
-    check_files = True
+    check_files = False
     results = False
     quality = False
 
@@ -28,12 +28,23 @@ def main():
             TileDecodeBenchmark(config, 'COLLECT_RESULTS', overwrite=False)
         if siti:
             # Measure normal SITI
-            TileDecodeBenchmark(config, 'SITI', overwrite=False, animate_graph=False, save=True)
+            TileDecodeBenchmark(config, 'SITI', overwrite=False,
+                                animate_graph=False, save=True)
         if check_files:
-            CheckTileDecodeBenchmark(config, 'CHECK_ORIGINAL', clean=False, check_gop=False)
-            CheckTileDecodeBenchmark(config, 'CHECK_LOSSLESS', clean=False, check_gop=False)
-            CheckTileDecodeBenchmark(config, 'CHECK_COMPRESS', clean=False, check_gop=False)
-            # CheckTileDecodeBenchmark(config, 'CHECK_SEGMENT', clean=False, check_gop=False)
+            # CheckTileDecodeBenchmark(config, 'CHECK_ORIGINAL', clean=False,
+            #                          check_gop=False)
+            # CheckTileDecodeBenchmark(config, 'CHECK_LOSSLESS', clean=False,
+            #                          check_gop=False)
+            CheckTileDecodeBenchmark(config, 'CHECK_COMPRESS', only_error=True,
+                                     check_log=True, check_video=True,
+                                     check_gop=False)
+            # CheckTileDecodeBenchmark(config, 'CHECK_SEGMENT', clean=False,
+            #                          check_gop=False)
+            # CheckTileDecodeBenchmark(config, 'CLEAN',
+            #                          table_of_check=(
+            #                              'CHECK_COMPRESS-table-2021-09-30 15:54:29.901483.csv'),
+            #                          clean_log=True, clean_video=True,
+            #                          video_of_log=False)
             # CheckTileDecodeBenchmark(config, 'CHECK_DECODE')
             # CheckTileDecodeBenchmark(config, 'CHECK_RESULTS')
         if results:
