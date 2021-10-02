@@ -685,10 +685,6 @@ class CheckTileDecodeBenchmark(TileDecodeBenchmark):
 HCSPoint = NamedTuple('HCSPoint', (('yaw', float), ('pitch', float)))
 class QualityAssessment(BaseTileBenchmark):
     PIXEL_MAX = 255
-    sph_points = []
-    sph_points_img: list = None
-    weight_ndarray: np.ndarray = None
-    metrics_methods: Dict[str, Callable] = {}
     metrics_reg = {'PSNR': 'psnr',
                    'WS-PSNR': 'wspsnr',
                    # 'S-PSNR': 'spsnr_nn',
@@ -699,11 +695,16 @@ class QualityAssessment(BaseTileBenchmark):
         Role.RESULTS = Operation('RESULTS', 4, 'init_result', 'result', 'save_result')
 
     def __init__(self, config: str, role: str, sphere_file: str = None, **kwargs):
+        self.sph_points: Union[list, None] = None
+        self.sph_points_img: Union[list, None] = None
+        self.weight_ndarray: Union[np.ndarray, None] = None
+        self.metrics_methods: Dict[str, Callable] = {}
+        self.results = AutoDict()
+
         self.sph_file = Path('assets/sphere_655362.txt') \
             if sphere_file is None else Path(sphere_file)
         assert self.sph_file.exists()
 
-        self.results = AutoDict()
         self.config = Config(config) if self.config is None else self.config
         self.state = VideoState(self.config) if self.state is None else self.state
         self.role = self.QualityRole(role)
