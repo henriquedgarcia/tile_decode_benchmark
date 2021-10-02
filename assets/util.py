@@ -47,7 +47,7 @@ def run_command(command: str, log_to_save: Union[str, Path], mode: str = 'w'):
     :param mode: The write mode: 'w' or 'a'.
     :return: stdout.
     """
-    info(command)
+    debug(command)
 
     with open(log_to_save, mode, encoding='utf-8') as f:
         f.write(f'{command}\n')
