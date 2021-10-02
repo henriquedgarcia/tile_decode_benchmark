@@ -372,7 +372,6 @@ class TileDecodeBenchmark(BaseTileBenchmark):
             return run_command, (cmd, dectime_log, 'a')
 
     # COLLECT RESULTS
-
     def init_collect_dectime(self) -> Any:
         dectime_json_file = self.state.dectime_json_file
 
@@ -977,11 +976,15 @@ def get_frame(video_path, gray=True, dtype='float32'):
 
 
 def check_video_gop(video_file) -> (int, list):
-    command = (f'ffprobe.exe -hide_banner -loglevel 0 '
+    command = (f'ffprobe -hide_banner -loglevel 0 '
                f'-of default=nk=1:nw=1 '
                f'-show_entries frame=pict_type '
                f'"{video_file}"')
     process = run(command, shell=True, capture_output=True, encoding='utf-8')
+    if process.returncode != 0:
+        warning(f'FFPROBE ERROR: Return {process.returncode} to video {video_file}')
+        return 0, []
+
     output = process.stdout
     gop = []
     max_gop = 0
