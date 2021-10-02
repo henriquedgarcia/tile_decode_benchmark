@@ -174,6 +174,11 @@ class BaseTileBenchmark:
 
     def iterate(self, deep):
         count = 0
+        if deep == 0:
+            count += 1
+            yield count
+            return None
+
         for self.state.video in self.state.videos_list:
             if deep == 1:
                 count += 1
