@@ -30,7 +30,8 @@ class AbstractConfig(ABC):
         debug(f'Loading {config_file}.')
         
         config_file = Path(config_file)
-        assert config_file.exists()
+        assert config_file.exists(), (f'AbstractConfig.load_config: '
+                                      f'{config_file} not exist.')
         content = config_file.read_text()
         self._config_data.update(json.loads(content))
 
