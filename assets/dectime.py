@@ -81,7 +81,7 @@ class VideoState(AbstractVideoState):
         self._segment_folder = Path(config.segment_folder)
         self._dectime_folder = Path(config.dectime_folder)
         self._siti_folder = Path(config.siti_folder)
-        self._check_folder = Path('check')
+        self._check_folder = Path(config.check_folder)
 
 
 class Operation(NamedTuple):
