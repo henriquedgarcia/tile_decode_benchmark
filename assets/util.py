@@ -3,6 +3,7 @@ import json
 import math
 import subprocess
 import sys
+from abc import ABC, abstractmethod
 from logging import info, debug, critical
 from numbers import Real
 from pathlib import Path
@@ -18,20 +19,20 @@ class AutoDict(dict):
         return self[key]
 
 
-class AbstractConfig:
+class AbstractConfig(ABC):
     _config_data: dict = {}
-
-    def __init__(self, config_file: Union[Path, str]):
-        try:
-            self.load_config(config_file)
-        except FileNotFoundError:
-            critical(f'Config file: {config_file} not found.')
+    
+    @abstractmethod
+    def __init__(self, config_file: Union[Path, str]): 
+        self.load_config(config_file)
 
     def load_config(self, config_file: Union[Path, str]):
-        info(f'Loading {config_file}.')
-
-        with open(config_file, 'r') as f:
-            self._config_data.update(json.load(f))
+        debug(f'Loading {config_file}.')
+        
+        config_file = Path(config_file)
+        assert config_file.exists()
+        content = config_file.read_text()
+        self._config_data.update(json.loads(content))
 
         for key in self._config_data:
             debug(f'Setting {key}')
