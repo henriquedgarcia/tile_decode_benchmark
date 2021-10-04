@@ -27,6 +27,7 @@ class Config(AbstractConfig):
     stats_folder = 'stats'
     graphs_folder = "graphs"
     siti_folder = "siti"
+    check_folder = 'check'
     project: str
     error_metric: str
     decoding_num: int
@@ -43,7 +44,10 @@ class Config(AbstractConfig):
     videos_file: str
 
     def __init__(self, config):
-        super().__init__(config)
+        self.load_config(config)
+        self.load_videos()
+
+    def load_videos(self):
         videos_file = Path(f'config/{self.videos_file}')
         assert videos_file.exists()
         content = videos_file.read_text()
