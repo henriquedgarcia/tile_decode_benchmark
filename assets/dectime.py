@@ -162,6 +162,7 @@ class BaseTileBenchmark:
                 fun, params = action
                 fun(*params)
         finish()
+        print(f'The end of {self.role.name}')
 
     def print_resume(self):
         print('=' * 70)
