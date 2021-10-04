@@ -44,10 +44,11 @@ class Config(AbstractConfig):
 
     def __init__(self, config):
         super().__init__(config)
-
-        with open(f'config/{self.videos_file}', 'r') as f:
-            video_list = json.load(f)
-            self.videos_list: Dict[str, Any] = video_list['videos_list']
+        videos_file = Path(f'config/{self.videos_file}')
+        assert videos_file.exists()
+        content = videos_file.read_text()
+        video_list = json.loads(content)
+        self.videos_list: Dict[str, Any] = video_list['videos_list']
 
 
 class VideoState(AbstractVideoState):
