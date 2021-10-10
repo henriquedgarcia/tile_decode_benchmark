@@ -617,9 +617,9 @@ class CheckTileDecodeBenchmark(TileDecodeBenchmark):
                 msg += ['log_size==0']
             else:
                 log_content = log.read_text().splitlines()
-                log_check_patthern = len(['' for line in log_content
+                log_check_pattern = len(['' for line in log_content
                                           if log_pattern in line])
-                if log_check_patthern > 0:
+                if log_check_pattern > 0:
                     msg += ['log_ok']
                 else:
                     log_check_videopath = len(['' for line in log_content
