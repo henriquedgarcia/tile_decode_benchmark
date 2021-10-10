@@ -196,9 +196,6 @@ class BaseTileBenchmark:
                         continue
                     for self.state.tile in self.state.tiles_list:
                         if deep == 4:
-                            if self.role.name is 'COMPRESS' \
-                                    and self.state.compressed_file.exists():
-                                continue
                             count += 1
                             yield count
                             continue
