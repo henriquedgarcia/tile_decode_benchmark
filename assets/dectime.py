@@ -672,13 +672,14 @@ class CheckTileDecodeBenchmark(TileDecodeBenchmark):
         resume_filename: Union[Path, None] = folder / f'{self.role.name}-resume-{datetime.datetime.today()}.csv'
 
         check_table = pd.DataFrame(self.check_table)
-        check_table.to_csv(table_filename, encoding='utf-8', index_label='counter')
+        check_table.to_csv(f'{table_filename}'.replace(':', '-'), encoding='utf-8', index_label='counter')
 
         resume = dict(Counter(check_table['msg']))
+        print('Resume:')
         print(json.dumps(resume, indent=2))
         resume = pd.DataFrame.from_dict(resume, orient='index',
                                         columns=('count',))
-        resume.to_csv(resume_filename, encoding='utf-8', index_label='msg')
+        resume.to_csv(f'{resume_filename}'.replace(':', '-'), encoding='utf-8', index_label='msg')
 
 
 HCSPoint = NamedTuple('HCSPoint', (('yaw', float), ('pitch', float)))
