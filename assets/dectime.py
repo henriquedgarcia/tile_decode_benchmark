@@ -225,7 +225,7 @@ class TileDecodeBenchmark(BaseTileBenchmark):
         :param kwargs: Role parameters
         """
         self.results = AutoDict()
-        self.results_dataframe: pd.DataFrame
+        self.results_dataframe = pd.DataFrame()
 
         self.config = Config(config) if self.config is None else self.config
         self.state = VideoState(self.config) if self.state is None else self.state
