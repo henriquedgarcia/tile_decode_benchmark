@@ -884,15 +884,15 @@ class QualityAssessment(BaseTileBenchmark):
         if self.sph_points_img is None:
             self.sph_points_img = [sph2erp(theta, phi, im_ref.shape) for phi, theta in self.sph_points]
 
-        sqr_err_salienced = []
+        sqr_err_salient = []
         for m, n in self.sph_points_img:
             sqr_diff = (im_ref[n - 1, m - 1] - im_deg[n - 1, m - 1]) ** 2
 
             if im_sal is not None:
                 sqr_diff = im_sal[n - 1, m - 1] * sqr_diff
 
-            sqr_err_salienced.append(sqr_diff)
-        mse = np.average(sqr_err_salienced)
+            sqr_err_salient.append(sqr_diff)
+        mse = np.average(sqr_err_salient)
         return mse2psnr(mse)
 
     def ffmpeg_psnr(self):
