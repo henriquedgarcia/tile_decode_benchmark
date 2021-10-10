@@ -27,6 +27,7 @@ class Config(AbstractConfig):
     stats_folder = 'stats'
     graphs_folder = "graphs"
     siti_folder = "siti"
+    check_folder = 'check'
     project: str
     error_metric: str
     decoding_num: int
@@ -43,11 +44,15 @@ class Config(AbstractConfig):
     videos_file: str
 
     def __init__(self, config):
-        super().__init__(config)
+        self.load_config(config)
+        self.load_videos()
 
-        with open(f'config/{self.videos_file}', 'r') as f:
-            video_list = json.load(f)
-            self.videos_list: Dict[str, Any] = video_list['videos_list']
+    def load_videos(self):
+        videos_file = Path(f'config/{self.videos_file}')
+        assert videos_file.exists()
+        content = videos_file.read_text()
+        video_list = json.loads(content)
+        self.videos_list: Dict[str, Any] = video_list['videos_list']
 
 
 class VideoState(AbstractVideoState):
@@ -76,7 +81,7 @@ class VideoState(AbstractVideoState):
         self._segment_folder = Path(config.segment_folder)
         self._dectime_folder = Path(config.dectime_folder)
         self._siti_folder = Path(config.siti_folder)
-        self._check_folder = Path('check')
+        self._check_folder = Path(config.check_folder)
 
 
 class Operation(NamedTuple):
@@ -157,6 +162,7 @@ class BaseTileBenchmark:
                 fun, params = action
                 fun(*params)
         finish()
+        print(f'The end of {self.role.name}')
 
     def print_resume(self):
         print('=' * 70)
