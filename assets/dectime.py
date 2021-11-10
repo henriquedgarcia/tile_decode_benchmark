@@ -606,7 +606,7 @@ class CheckTileDecodeBenchmark(TileDecodeBenchmark):
         self.check_table['msg'].append(msg)
 
     def check_video(self, video: Path, log_pattern, check_log=True,
-                    check_video=True, check_gop=False) -> str:
+                    check_video=True, check_gop=False, **keyword) -> str:
         debug(f'Checking video {video}.')
         log = video.with_suffix('.log')
         msg = []

@@ -38,7 +38,7 @@ def main():
             #                          check_gop=False)
             CheckTileDecodeBenchmark(config, 'CHECK_COMPRESS', only_error=True,
                                      check_log=True, check_video=True,
-                                     check_gop=False)
+                                     check_gop=False, clean=False)
             # CheckTileDecodeBenchmark(config, 'CHECK_SEGMENT', clean=False,
             #                          check_gop=False)
             # CheckTileDecodeBenchmark(config, 'CLEAN',
