@@ -13,11 +13,12 @@ def main():
     # config_list += [f'config/config_test.json']
     # config_list += [f'config/config_ffmpeg_crf_12videos_60s.json']
 
-    decode_time = False
-    siti = False
-    check_files = False
-    results = False
-    quality = False
+    x = True
+    decode_time = []
+    siti = []
+    check_files = [x]
+    results = []
+    quality = []
 
     for config in config_list:
         if decode_time:
