@@ -8,9 +8,9 @@ logging.basicConfig(level=logging.WARNING)
 def main():
     # Config
     config_list = []
-    # config_list += [f'config/config_nas_cmp.json']
+    config_list += [f'config/config_nas_cmp.json']
     # config_list += [f'config/config_nas_erp.json']
-    config_list += [f'config/config_test.json']
+    # config_list += [f'config/config_test.json']
     # config_list += [f'config/config_ffmpeg_crf_12videos_60s.json']
 
     decode_time = False
