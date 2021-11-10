@@ -1,4 +1,4 @@
-python>=3.6
+python3>=3.9
 numpy
 pandas
 scikit-video
