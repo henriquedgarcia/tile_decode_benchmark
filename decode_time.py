@@ -1,4 +1,4 @@
-from assets.dectime import TileDecodeBenchmark, CheckTileDecodeBenchmark
+from lib.dectime import TileDecodeBenchmark, CheckTileDecodeBenchmark
 
 config_list = []
 # config_list += [f'config/config_nas_cmp.json']

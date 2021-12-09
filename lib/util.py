@@ -1,10 +1,9 @@
 import os
-import json
+import skvideo.io
 import math
 import subprocess
 import sys
-from abc import ABC, abstractmethod
-from logging import info, debug, critical, error, warning
+from logging import debug, error, warning
 from numbers import Real
 from pathlib import Path
 from typing import Any, Dict, Hashable, Iterable, NamedTuple, Tuple, Union
@@ -17,14 +16,6 @@ class AutoDict(dict):
     def __missing__(self, key):
         self[key] = type(self)()
         return self[key]
-
-
-class AbstractConfig(ABC):
-    _config_data: dict = {}
-    
-    @abstractmethod
-    def __init__(self, config_file: Union[Path, str]): 
-        self.load_config(config_file)
 
 
 # ------------------ erp2sph ------------------

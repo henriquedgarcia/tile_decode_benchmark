@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from assets.dectime import QualityAssessment, TileDecodeBenchmark, \
+from lib.dectime import QualityAssessment, TileDecodeBenchmark, \
     CheckTileDecodeBenchmark
 import logging
 

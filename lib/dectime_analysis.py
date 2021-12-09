@@ -20,9 +20,9 @@ import pandas as pd
 from cycler import cycler
 from fitter.fitter import Fitter
 
-from assets.config import Config
-from assets.util import AutoDict, calc_stats
-from assets.video_state import Tile, Tiling, Video, VideoState
+from lib.config import Config
+from lib.util import AutoDict, calc_stats
+from lib.video_state import Tile, Tiling, Video, VideoState
 
 
 class DectimeFactors:
@@ -718,7 +718,7 @@ class BarByPatternByQuality(HistByPatternByQuality):
 
             data: Union[pd.DataFrame] = df[df['tiling'] == pattern]
 
-            # bar plot of assets
+            # bar plot of lib
             x = xticks = data['quality']
             time_avg = data['Mean Time']
             time_std = data['Deviation Time']

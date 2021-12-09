@@ -12,13 +12,13 @@ from typing import Union, Any, Dict, List, NamedTuple, Callable
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from assets.siti import SiTi
-from assets.util import AutoDict, run_command
+from lib.siti import SiTi
+from lib.util import AutoDict, run_command
 import skvideo.io
 import datetime
 
 
-from assets.video_state import Config, VideoContext, Role, Operation
+from lib.video_state import Config, VideoContext, Role, Operation
 
 
 # class Video:
@@ -809,7 +809,7 @@ class QualityAssessment(TileDecodeBenchmark):
         self.weight_ndarray: Union[np.ndarray, None] = None
         self.metrics_methods: Dict[str, Callable] = {}
 
-        self.sph_file = Path('assets/sphere_655362.txt') \
+        self.sph_file = Path('lib/sphere_655362.txt') \
             if sphere_file is None else Path(sphere_file)
         assert self.sph_file.exists()
 

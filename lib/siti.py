@@ -10,8 +10,8 @@ import numpy as np
 import pandas as pd
 import skvideo.io
 
-from assets.util import splitx, sobel
-from assets.video_state import AbstractVideoState
+from lib.util import splitx, sobel
+from lib.video_state import AbstractVideoState
 
 
 class SiTi:

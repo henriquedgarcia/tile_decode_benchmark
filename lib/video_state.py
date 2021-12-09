@@ -1,7 +1,7 @@
 from itertools import product as prod
 from pathlib import Path
 from typing import Any, Dict, List, Union, NamedTuple, Tuple, Callable
-from assets.util import splitx
+from lib.util import splitx
 from logging import debug
 import json
 

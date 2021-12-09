@@ -3,7 +3,7 @@
 /results/
 .idea/
 __pycache__/
-assets/old
+lib/old
 projections/
 .gitignore
 *.log
