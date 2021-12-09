@@ -4,11 +4,11 @@ import math
 import subprocess
 import sys
 from abc import ABC, abstractmethod
-from logging import info, debug, critical
+from logging import info, debug, critical, error, warning
 from numbers import Real
 from pathlib import Path
 from typing import Any, Dict, Hashable, Iterable, NamedTuple, Tuple, Union
-
+from subprocess import run
 import numpy as np
 from scipy import ndimage
 
@@ -26,19 +26,107 @@ class AbstractConfig(ABC):
     def __init__(self, config_file: Union[Path, str]): 
         self.load_config(config_file)
 
-    def load_config(self, config_file: Union[Path, str]):
-        debug(f'Loading {config_file}.')
-        
-        config_file = Path(config_file)
-        assert config_file.exists(), (f'AbstractConfig.load_config: '
-                                      f'{config_file} not exist.')
-        content = config_file.read_text()
-        self._config_data.update(json.loads(content))
 
-        for key in self._config_data:
-            debug(f'Setting {key}')
-            value = self._config_data[key]
-            setattr(self, key, value)
+# ------------------ erp2sph ------------------
+def erp2sph(m, n, shape: tuple) -> tuple[int, int]:
+    return uv2sph(*erp2uv(m, n, shape))
+
+
+def uv2sph(u, v):
+    theta = (u - 0.5) * 2 * np.pi
+    phi = -(v - 0.5) * np.pi
+    return phi, theta
+
+
+def erp2uv(m, n, shape: tuple):
+    u = (m + 0.5) / shape[1]
+    v = (n + 0.5) / shape[0]
+    return u, v
+
+
+# ------------------ sph2erp ------------------
+def sph2erp(theta, phi, shape: tuple) -> tuple[int, int]:
+    return uv2img(*sph2uv(theta, phi), shape)
+
+
+def sph2uv(theta, phi):
+    PI = np.pi
+    while True:
+        if theta >= PI:
+            theta -= 2 * PI
+            continue
+        elif theta < -PI:
+            theta += 2 * PI
+            continue
+        if phi < -PI / 2:
+            phi = -PI - phi
+            continue
+        elif phi > PI / 2:
+            phi = PI - phi
+            continue
+        break
+    u = theta / (2 * PI) + 0.5
+    v = -phi / PI + 0.5
+    return u, v
+
+
+def uv2img(u, v, shape: tuple):
+    m = round(u * shape[1] - 0.5)
+    n = round(v * shape[0] - 0.5)
+    return m, n
+
+
+# ------------------ Util ------------------
+def get_frame(video_path, gray=True, dtype='float32'):
+    vreader = skvideo.io.vreader(f'{video_path}', as_grey=gray)
+    for frame in vreader:
+        if gray:
+            _, height, width, _ = frame.shape
+            frame = frame.reshape((height, width)).astype(dtype)
+        yield frame
+
+
+def check_video_gop(video_file) -> (int, list):
+    command = (f'ffprobe -hide_banner -loglevel 0 '
+               f'-of default=nk=1:nw=1 '
+               f'-show_entries frame=pict_type '
+               f'"{video_file}"')
+    process = run(command, shell=True, capture_output=True, encoding='utf-8')
+    if process.returncode != 0:
+        warning(
+            f'FFPROBE ERROR: Return {process.returncode} to video {video_file}')
+        return 0, []
+
+    output = process.stdout
+    gop = []
+    max_gop = 0
+    len_gop = 0
+    for line in output.splitlines():
+        line = line.strip()
+        if line in ['I', 'B', 'P']:
+            if line in 'I':
+                len_gop = 1
+            else:
+                len_gop += 1
+            if len_gop > max_gop:
+                max_gop = len_gop
+            gop.append(line)
+    return max_gop, gop
+
+
+def check_file_size(video_file) -> int:
+    debug(f'Checking size of {video_file}')
+    if not os.path.isfile(video_file):
+        return -1
+    filesize = os.path.getsize(video_file)
+    if filesize == 0:
+        return 0
+    debug(f'The size is {filesize}')
+    return filesize
+
+
+def mse2psnr(mse: float, pixel_max=255) -> float:
+    return 10 * np.log10((pixel_max ** 2 / mse))
 
 
 def run_command(command: str, log_to_save: Union[str, Path], mode: str = 'w'):
@@ -53,8 +141,10 @@ def run_command(command: str, log_to_save: Union[str, Path], mode: str = 'w'):
 
     with open(log_to_save, mode, encoding='utf-8') as f:
         f.write(f'{command}\n')
-        subprocess.run(command, shell=True, stdout=f,
-                       stderr=subprocess.STDOUT, encoding='utf-8')
+        p = subprocess.run(command, shell=True, stdout=f,
+                           stderr=subprocess.STDOUT, encoding='utf-8')
+    if not p.returncode == 0:
+        error('run error in {command}. Continuing.')
 
 
 def splitx(string: str) -> tuple:
@@ -141,6 +231,7 @@ def rem_file(file) -> None:
     if os.path.isfile(file):
         os.remove(file)
 
+
 class StatsData(NamedTuple):
     average: float = None
     std: float = None
@@ -226,7 +317,8 @@ class CircularNumber(Real):
         self._value = v
         self.turn += t
 
-    def __init__(self, v: Union[float, int], turn: int = 0, value_range=(0., 360.)):
+    def __init__(self, v: Union[float, int], turn: int = 0,
+                 value_range=(0., 360.)):
         self.turn = turn
         self.ini_value = value_range[0]
         self.end_value = value_range[1]
@@ -269,7 +361,8 @@ class CircularNumber(Real):
         elif isinstance(other, (float, int)):
             lt = len(self) < other
         else:
-            raise TypeError(f"unsupported operand type(s) for <: '{type(self)}' and '{type(other)}'")
+            raise TypeError(f"unsupported operand type(s) for <: "
+                            f"'{type(self)}' and '{type(other)}'")
         return lt
 
     def __le__(self, other: Any) -> bool:
@@ -278,7 +371,8 @@ class CircularNumber(Real):
         elif isinstance(other, (float, int)):
             lt = len(self) > other
         else:
-            raise TypeError(f"unsupported operand type(s) for <=: '{type(self)}' and '{type(other)}'")
+            raise TypeError(f"unsupported operand type(s) for <=: "
+                            f"'{type(self)}' and '{type(other)}'")
         return lt
 
     def __eq__(self, other):
@@ -287,7 +381,8 @@ class CircularNumber(Real):
         elif isinstance(other, (float, int)):
             lt = len(self) == other
         else:
-            raise TypeError(f"unsupported operand type(s) for <=: '{type(self)}' and '{type(other)}'")
+            raise TypeError(f"unsupported operand type(s) for <=: "
+                            f"'{type(self)}' and '{type(other)}'")
         return lt
 
     def __abs__(self):
@@ -299,7 +394,8 @@ class CircularNumber(Real):
         elif isinstance(other, (float, int)):
             cn = CircularNumber(len(self) // other)
         else:
-            raise TypeError(f"unsupported operand type(s) for //: '{type(self)}' and '{type(other)}'")
+            raise TypeError(f"unsupported operand type(s) for //: "
+                            f"'{type(self)}' and '{type(other)}'")
         return cn
 
     def __rfloordiv__(self, other: Union[int, float]) -> Any:
@@ -308,7 +404,8 @@ class CircularNumber(Real):
         elif isinstance(other, (float, int)):
             cn = CircularNumber(other // len(self))
         else:
-            raise TypeError(f"unsupported operand type(s) for //: '{type(other)}' and '{type(self)}'")
+            raise TypeError(f"unsupported operand type(s) for //: "
+                            f"'{type(other)}' and '{type(self)}'")
         return cn
 
     def __mod__(self, other: Any) -> Any:
@@ -317,7 +414,8 @@ class CircularNumber(Real):
         elif isinstance(other, (float, int)):
             cn = CircularNumber(len(self) % other)
         else:
-            raise TypeError(f"unsupported operand type(s) for %: '{type(self)}' and '{type(other)}'")
+            raise TypeError(f"unsupported operand type(s) for %: "
+                            f"'{type(self)}' and '{type(other)}'")
         return cn
 
     def __rmod__(self, other: Any) -> Any:
@@ -326,7 +424,8 @@ class CircularNumber(Real):
         elif isinstance(other, (float, int)):
             cn = CircularNumber(other % len(self))
         else:
-            raise TypeError(f"unsupported operand type(s) for %: '{type(other)}' and '{type(self)}'")
+            raise TypeError(f"unsupported operand type(s) for %: "
+                            f"'{type(other)}' and '{type(self)}'")
         return cn
 
     def __add__(self, other: Any) -> Any:
@@ -335,7 +434,8 @@ class CircularNumber(Real):
         elif isinstance(other, (float, int)):
             cn = CircularNumber(len(self) + other)
         else:
-            raise TypeError(f"unsupported operand type(s) for +: '{type(self)}' and '{type(other)}'")
+            raise TypeError(f"unsupported operand type(s) for +: "
+                            f"'{type(self)}' and '{type(other)}'")
         return cn
 
     def __radd__(self, other: Any) -> Any:
@@ -344,7 +444,8 @@ class CircularNumber(Real):
         elif isinstance(other, (float, int)):
             cn = CircularNumber(len(self) + other)
         else:
-            raise TypeError(f"unsupported operand type(s) for +: '{type(other)}' and '{type(self)}'")
+            raise TypeError(f"unsupported operand type(s) for +: "
+                            f"'{type(other)}' and '{type(self)}'")
         return cn
 
     def __mul__(self, other: Any) -> Any:
@@ -353,7 +454,8 @@ class CircularNumber(Real):
         elif isinstance(other, (float, int)):
             cn = CircularNumber(len(self) * other)
         else:
-            raise TypeError(f"unsupported operand type(s) for *: '{type(self)}' and '{type(other)}'")
+            raise TypeError(f"unsupported operand type(s) for *: "
+                            f"'{type(self)}' and '{type(other)}'")
         return cn
 
     def __rmul__(self, other: Any) -> Any:
@@ -362,7 +464,8 @@ class CircularNumber(Real):
         elif isinstance(other, (float, int)):
             cn = CircularNumber(len(self) * other)
         else:
-            raise TypeError(f"unsupported operand type(s) for *: '{type(other)}' and '{type(self)}'")
+            raise TypeError(f"unsupported operand type(s) for *: "
+                            f"'{type(other)}' and '{type(self)}'")
         return cn
 
     if sys.version_info < (3, 0):
@@ -378,7 +481,8 @@ class CircularNumber(Real):
         elif isinstance(other, (float, int)):
             cn = CircularNumber(len(self) / other)
         else:
-            raise TypeError(f"unsupported operand type(s) for /: '{type(self)}' and '{type(other)}'")
+            raise TypeError(f"unsupported operand type(s) for /: "
+                            f"'{type(self)}' and '{type(other)}'")
         return cn
 
     def __rtruediv__(self, other: Any) -> Any:
@@ -387,7 +491,8 @@ class CircularNumber(Real):
         elif isinstance(other, (float, int)):
             cn = CircularNumber(other / len(self))
         else:
-            raise TypeError(f"unsupported operand type(s) for /: '{type(other)}' and '{type(self)}'")
+            raise TypeError(f"unsupported operand type(s) for /: "
+                            f"'{type(other)}' and '{type(self)}'")
         return cn
 
     def __neg__(self) -> Any:
