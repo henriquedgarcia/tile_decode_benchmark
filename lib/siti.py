@@ -1,7 +1,7 @@
 import collections
 import json
-from typing import List, Union
 from logging import info, debug, warning
+from typing import List, Union
 
 import matplotlib.axes as axes
 import matplotlib.figure as figure
@@ -10,16 +10,16 @@ import numpy as np
 import pandas as pd
 import skvideo.io
 
-from lib.util import splitx, sobel
-from lib.video_state import AbstractVideoState
+from lib.util import sobel
+from lib.video_state import VideoContext
 
 
 class SiTi:
-    def __init__(self, state: AbstractVideoState):
+    def __init__(self, state: VideoContext):
         self.state = state
         self.filename = state.compressed_file
-        self.scale = state.scale
-        self.width, self.height = splitx(state.scale)
+        self.scale = state.frame.resolution.resolution
+        self.height, self.width = state.frame.resolution.shape
         self.folder = state.siti_folder
 
         self.si = []
