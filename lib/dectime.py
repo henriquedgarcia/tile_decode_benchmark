@@ -265,9 +265,9 @@ class TileDecodeBenchmark:
         dectime_json_file = self.state.dectime_json_file
 
         if dectime_json_file.exists():
-            dectime_json = json.loads(
-                dectime_json_file.read_text(encoding='utf-8'))
-            self.results = AutoDict(dectime_json)
+            self.results = json.loads(
+                dectime_json_file.read_text(encoding='utf-8'),
+                object_hook=AutoDict)
 
     def collect_dectime(self, overwrite=False) -> Any:
         """
@@ -292,7 +292,7 @@ class TileDecodeBenchmark:
 
         results = self.results
         for factor in self.state.factors_list:
-            results = AutoDict(results[factor])
+            results = results[factor]
 
         if not results == {} and not overwrite:
             warning(f'The result key for {self.state} contain some value. '
@@ -500,8 +500,8 @@ class CheckTileDecodeBenchmark(TileDecodeBenchmark):
 
     def load_results(self):
         dectime_json_file = self.state.dectime_json_file
-        with dectime_json_file.open() as f:
-            self.results = json.load(f)
+        self.results = json.loads(dectime_json_file.read_text(encoding='utf-8'),
+                                  object_hook=AutoDict)
 
     def check_result(self, only_error=True, clean=False):
         results = self.results
