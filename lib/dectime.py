@@ -503,25 +503,29 @@ class CheckTileDecodeBenchmark(TileDecodeBenchmark):
         self.results = json.loads(dectime_json_file.read_text(encoding='utf-8'),
                                   object_hook=AutoDict)
 
-    def check_result(self, only_error=True, clean=False):
+    def check_result(self, only_error=True):
         results = self.results
         for factor in self.state.factors_list:
             results = results[factor]
 
-        bitrate = float(results['bitrate'])
-        if bitrate > 0:
-            msg = 'bitrate_ok'
+        if results == {}:
+            warning(f'The result key for {self.state} is empty.')
+            msg = 'empty_key'
         else:
-            msg = 'bitrate==0'
+            bitrate = float(results['bitrate'])
+            if bitrate > 0:
+                msg = 'bitrate_ok'
+            else:
+                msg = 'bitrate==0'
 
-        dectimes = results['dectimes']
-        if len(dectimes) > 0:
-            msg += '_dectimes_ok'
-        else:
-            msg += '_dectimes==0'
+            dectimes = results['dectimes']
+            if len(dectimes) > 0:
+                msg += '_dectimes_ok'
+            else:
+                msg += '_dectimes==0'
 
-        if only_error and msg == 'bitrate_ok_dectimes_ok':
-            'continue'
+            if only_error and msg == 'bitrate_ok_dectimes_ok':
+                return 'continue'
 
         return self.update_table, (msg,)
 
