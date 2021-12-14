@@ -52,6 +52,8 @@ class Resolution:
     def __iter__(self):
         return iter((self.h, self.w))
 
+    def __str__(self):
+        return self._resolution
 
 class Chunk:
     duration: int
@@ -83,6 +85,9 @@ class Frame:
 
     def __iter__(self):
         iter((self.resolution, self.position))
+
+    def __str__(self):
+        return self.resolution
 
     @property
     def x(self):
@@ -123,7 +128,7 @@ class Tiling:
     _tiles_list: List[Tile] = None
     n: int
 
-    def __init__(self, pattern, frame: Frame):
+    def __init__(self, pattern: str, frame: Frame):
         self.pattern = pattern
         self.frame = frame
 
@@ -259,7 +264,7 @@ class VideoContext:
     gop: int
     frame: Frame
     original: str
-    offset: int
+    offset: str
     duration: int
     chunks: range
     group: int
@@ -287,8 +292,6 @@ class VideoContext:
         self.rate_control: str = config['rate_control']
         self.original_quality: str = config['original_quality']
 
-        self.make_lists()
-
     def __len__(self):
         i = 0
         for i in self: ...
@@ -302,48 +305,32 @@ class VideoContext:
             yield count
             return None
 
-        for self.name in self.names_list:
+        for self.name in self.config.videos_list:
             if deep == 1:
                 count += 1
                 yield count
                 continue
-            for self.tiling in self.tiling_list:
+            for pattern in self.config['tiling_list']:
+                self.tiling = Tiling(pattern, self.frame)
                 if deep == 2:
                     count += 1
                     yield count
                     continue
-                for self.quality in self.quality_list:
+                for self.quality in self.config['quality_list']:
                     if deep == 3:
                         count += 1
                         yield count
                         continue
-                    for self.tile in self.tiles_list[self.tiling.pattern]:
+                    for self.tile in self.tiling.tiles_list:
                         if deep == 4:
                             count += 1
                             yield count
                             continue
-                        for self.chunk in self.chunk_list[self.name]:
+                        for self.chunk in self.chunks:
                             if deep == 5:
                                 count += 1
                                 yield count
                                 continue
-
-    def make_lists(self):
-        for name in self.config.videos_list:
-            duration = self.config.videos_list[name]['duration']
-            fps = self.config.videos_list[name]['fps']
-            gop = self.config.videos_list[name]['gop']
-            n_chunks = duration / (gop / fps)
-            self.chunk_list[name] = range(n_chunks)
-            self.names_list.append(name)
-
-        for pattern in self.config['tiling_list']:
-            tiling = Tiling(pattern, self.frame)
-            self.tiling_list.append(tiling)
-            self.tiles_list[pattern] = tiling.tiles_list
-
-        for quality in self.config['quality_list']:
-            self.quality_list.append(int(quality))
 
     @property
     def name(self) -> str:
@@ -355,33 +342,33 @@ class VideoContext:
         video_info: dict = self.config.videos_list[name]
 
         self.original: str = video_info['original']
-        self.frame = Frame(video_info['scale'], Position(0, 0))
+        self.frame = Frame(Resolution(video_info['scale']), Position(0, 0))
         self.projection: str = video_info['projection']
-        self.offset = int(video_info['offset'])
+        self.offset = str(video_info['offset'])
         self.duration = int(video_info['duration'])
-        self.chunks = range(1, (self.duration + 1))
         self.group = int(video_info['group'])
         self.fps = int(video_info['fps'])
         self.gop = int(video_info['gop'])
+        self.chunks = range(1, (int(self.duration / (self.gop / self.fps)) + 1))
 
     @property
     def tiling(self) -> Tiling:
-        return self.tiling
+        return self._tiling
 
     @tiling.setter
     def tiling(self, tiling: (str, Tiling)):
         if isinstance(tiling, Tiling):
-            self.tiling = Tiling(tiling, self.frame)
+            self._tiling = tiling
         elif isinstance(tiling, str):
-            self.tiling = tiling
+            self._tiling = Tiling(tiling, self.frame)
 
     @property
     def factors_list(self) -> list:
         factors = []
         if self.name is not None:
             factors.append(self.name)
-        if self.projection is not None:
-            factors.append(self.projection)
+        # if self.projection is not None:
+        #     factors.append(self.projection)
         if self.tiling is not None:
             factors.append(str(self.tiling))
         if self.quality is not None:
@@ -411,9 +398,11 @@ class VideoContext:
 
     @property
     def basename(self):
-        return Path(f'{self.name}_'
-                    f'{self.projection}_'
-                    f'{self.frame}_'
+        # todo: remover essa gambiarra na próxima rodada
+        name = self.name.replace("cmp_", "")
+        name = name.replace("erp_", "")
+        return Path(f'{name}_'
+                    f'{self.frame.resolution}_'
                     f'{self.fps}_'
                     f'{self.tiling}_'
                     f'{self.rate_control}{self.quality}')

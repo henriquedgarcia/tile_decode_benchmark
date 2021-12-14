@@ -1,7 +1,5 @@
 import json
-import os
 import pickle
-from abc import abstractmethod, ABC
 from builtins import PermissionError
 from collections import Counter, defaultdict
 from logging import warning, info, debug
@@ -13,168 +11,12 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from lib.siti import SiTi
-from lib.util import AutoDict, run_command
-import skvideo.io
+from lib.util import AutoDict, run_command, check_video_gop, get_frame, mse2psnr
+from lib.util import sph2erp
 import datetime
 
 
 from lib.video_state import Config, VideoContext, Role, Operation
-
-
-# class Video:
-#     def __init__(self, config: Config):
-#         # Global
-        # if True:
-            # self.config = config
-            # self.project = config.project
-            # self.fps = config.fps
-            # self.gop = config.gop
-            # self.rate_control = config.rate_control
-
-        # Video dependent
-        # if True:
-        #     self.original: Path = None
-        #     self.frame: Frame = None
-        #     self.projection: str = None
-        #     self.offset: int = None
-        #     self.duration: int = None
-        #     self.group: int = None
-        #     self.chunks_list: List[int]
-
-        # Factors
-        # if True:
-        #     self._name: str = None
-        #     self._projection: str = None
-        #     self._tiling: Tiling = None
-        #     self._quality: int = None
-        #     self._tile: int = None
-        #     self._chunk: int = None
-
-    # if True:
-    #     @property
-    #     def name(self):
-    #         return self._name
-    #
-    #     @name.setter
-    #     def name(self, name: str):
-    #         self._name = name
-    #         info = self.config.videos_list[name]
-    #         self.original = Path(info['original'])
-    #         self.scale = Frame(info['scale'], Position)
-    #         self.projection = str(info['projection'])
-    #         self.offset = int(info['offset'])
-    #         self.duration = int(info['duration'])
-    #         self.group = int(info['group'])
-
-    # if True:
-    #     @property
-    #     def projection(self):
-    #         return self.projection
-    #
-    #     @projection.setter
-    #     def projection(self, projection: str):
-    #         self._projection = projection
-    #
-    # if True:
-    #     @property
-    #     def tiling(self):
-    #         return self._tiling
-    #
-    #     @tiling.setter
-    #     def tiling(self, tiling: str):
-    #         self._tiling = Tiling(tiling, self.frame)
-    #
-    # if True:
-    #     @property
-    #     def quality(self):
-    #         return self._quality
-    #
-    #     @quality.setter
-    #     def quality(self, quality: int):
-    #         self._quality = quality
-    #
-    # if True:
-    #     @property
-    #     def tile(self):
-    #         return self._tile
-    #
-    #     @tile.setter
-    #     def tile(self, tile: str):
-    #         self._tile = tile
-    #
-    # if True:
-    #     @property
-    #     def chunk(self):
-    #         return self._chunk
-    #
-    #     @chunk.setter
-    #     def chunk(self, chunk: str):
-    #         self._chunk = chunk
-
-
-# class VideoState(AbstractVideoState):
-#     def __init__(self, config: Config, deep: int):
-#         """
-#         Class to create tile files path to process.
-#         :param config: Config object.
-#         """
-        # self.deep = deep
-        # self.config = config
-        # self.project = Path(f'results/{config.project}')
-        # self.scale = config.scale
-        # self.frame = Frame(config.scale)
-        # self.fps = config.fps
-        # self.gop = config.gop
-        # self.rate_control = config.rate_control
-        # self.projection = config.projection
-        # self.videos_dict = config.videos_list
-        #
-        # self.videos_list = config.videos_list
-        # self.quality_list = config.quality_list
-        # self.pattern_list = config.pattern_list
-        #
-        # self._original_folder = Path(config.original_folder)
-        # self._lossless_folder = Path(config.lossless_folder)
-        # self._compressed_folder = Path(config.compressed_folder)
-        # self._segment_folder = Path(config.segment_folder)
-        # self._dectime_folder = Path(config.dectime_folder)
-        # self._siti_folder = Path(config.siti_folder)
-        # self._check_folder = Path(config.check_folder)
-    #
-    # def __iter__(self):
-    #     count = 0
-    #     deep = self.deep
-    #     if deep == 0:
-    #         count += 1
-    #         yield count
-    #         return None
-    #
-    #     for self.video in self.videos_list:
-    #         if deep == 1:
-    #             count += 1
-    #             yield count
-    #             continue
-    #         for self.tiling in self.tiling_list:
-    #             if deep == 2:
-    #                 count += 1
-    #                 yield count
-    #                 continue
-    #             for self.quality in self.quality_list:
-    #                 if deep == 3:
-    #                     count += 1
-    #                     yield count
-    #                     continue
-    #                 for self.tile in self.tiles_list:
-    #                     if deep == 4:
-    #                         count += 1
-    #                         yield count
-    #                         continue
-    #                     for self.chunk in self.chunk_list:
-    #                         if deep == 5:
-    #                             count += 1
-    #                             yield count
-    #                             continue
-    #
 
 
 class TileDecodeBenchmark:
@@ -243,12 +85,11 @@ class TileDecodeBenchmark:
         print(f'Processing {len(self.config.videos_list)} videos:\n'
               f'  operation: {self.role.op.name}\n'
               f'  project: {self.state.project}\n'
-              f'  projection: {self.state.projection}\n'
-              f'  codec: {self.state.codec}\n'
-              f'  fps: {self.state.fps}\n'
-              f'  gop: {self.state.gop}\n'
-              f'  qualities: {self.state.quality_list}\n'
-              f'  patterns: {self.state.tiling_list}'
+              f'  codec: {self.config["codec"]}\n'
+              f'  fps: {self.config["fps"]}\n'
+              f'  gop: {self.config["gop"]}\n'
+              f'  qualities: {self.config["quality_list"]}\n'
+              f'  patterns: {self.config["tiling_list"]}'
               )
         print('=' * 70)
 
@@ -434,7 +275,6 @@ class TileDecodeBenchmark:
         results[video_name][tile_pattern][quality][idx][chunk_id]
                 ['utime'|'bit rate']['psnr'|'qp_avg']
         [video_name]    : The video name
-        [projection]    : The video projection
         [tile_pattern]  : The tile tiling. eg. "6x4"
         [quality]       : Quality. A int like in crf or qp.
         [idx]           : the tile number. ex. max = 6*4
@@ -452,34 +292,31 @@ class TileDecodeBenchmark:
 
         results = self.results
         for factor in self.state.factors_list:
-            results = results[factor]
+            results = AutoDict(results[factor])
 
         if not results == {} and not overwrite:
-            warning(
-                f'The result key for {self.state} contain some value. '
-                f'Skipping.')
+            warning(f'The result key for {self.state} contain some value. '
+                    f'Skipping.')
             return 'continue'  # if value exist and not overwrite, then skip
 
         if not self.state.segment_file.exists():
             warning(f'The file {self.state.segment_file} not exist. Skipping.')
             return 'continue'
 
-        if self.state.chunk == 1 and not self.state.compressed_file.exists():
-            warning(
-                f'The file {self.state.compressed_file} not exist. Skipping.')
+        if not self.state.dectime_log.exists():
+            warning(f'The file {self.state.dectime_log} not exist. Skipping.')
             return 'continue'
 
         try:
             chunk_size = self.state.segment_file.stat().st_size
-        except (FileNotFoundError, PermissionError):
-            warning(
-                f'unexpected error on reading size of '
-                f'{self.state.segment_file}. Skipping.')
+        except PermissionError:
+            warning(f'unexpected error on reading size of '
+                    f'{self.state.segment_file}. Skipping.')
             return 'continue'
 
-        times = self.get_times()
-
         bitrate = chunk_size * 8 / (self.state.gop / self.state.fps)
+
+        times = self.get_times()
 
         data = {'bitrate': bitrate, 'dectimes': times}
         results.update(data)
