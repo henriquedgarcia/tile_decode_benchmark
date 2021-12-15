@@ -1,6 +1,6 @@
 from itertools import product as prod
 from pathlib import Path
-from typing import Any, Dict, List, Union, NamedTuple, Tuple, Callable
+from typing import Any, Dict, List, Union, NamedTuple, Tuple, Callable, Optional
 from lib.util import splitx
 from logging import debug
 import json
@@ -190,52 +190,8 @@ class Config:
     def __getitem__(self, key):
         return self.config_data[key]
 
-
-class Operation(NamedTuple):
-    name: str
-    deep: int
-    init: str
-    method: str
-    finish: str
-
-
-class Role:
-    NONE = Operation('NONE', 0, 'NONE', 'NONE', 'NONE')
-
-    def __init__(self, name):
-        self.op: Operation = getattr(Role, name)
-
-    def init(self, cls) -> Callable:
-        try:
-            function = getattr(cls, self.op.init)
-        except AttributeError:
-            function = self.stub
-        return function
-
-    def operation(self, cls) -> Callable:
-        try:
-            function = getattr(cls, self.op.method)
-        except AttributeError:
-            function = self.stub
-        return function
-
-    def finish(self, cls) -> Callable:
-        try:
-            function = getattr(cls, self.op.finish)
-        except AttributeError:
-            function = self.stub
-        return function
-
-    @property
-    def name(self) -> str:
-        return self.op.name
-
-    @property
-    def deep(self) -> int:
-        return self.op.deep
-
-    def stub(self):
-        ...
+    def __setitem__(self, key, value):
+        self.config_data[key] = value
 
 
 class VideoContext:
@@ -279,11 +235,11 @@ class VideoContext:
     def __str__(self):
         return self.state_str
 
-    def __init__(self, config: Config, role: Role):
+    def __init__(self, config: Config, deep: int):
         self.config = config
-        self.role = role
+        self.deep = deep
 
-        self.project = Path('results') / Path(config['project'])
+        self.project = Path('results') / config['project']
         self.result_error_metric: str = config['project']
         self.decoding_num: int = config['decoding_num']
         self.codec: str = config['codec']
@@ -299,7 +255,7 @@ class VideoContext:
 
     def __iter__(self):
         count = 0
-        deep = self.role.deep
+        deep = self.deep
         if deep == 0:
             count += 1
             yield count

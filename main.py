@@ -1,24 +1,22 @@
 #!/usr/bin/env python3
-from lib.dectime import QualityAssessment, TileDecodeBenchmark, \
-    CheckTileDecodeBenchmark
+from lib.dectime import TileDecodeBenchmark, CheckTileDecodeBenchmark
 import logging
 
 logging.basicConfig(level=logging.ERROR)
 
 
 def main():
-    # Config
     config_list = []
-    config_list += [f'config/config_nas_cmp.json']
+    # config_list += [f'config/config_nas_cmp.json']
     config_list += [f'config/config_nas_erp.json']
     # config_list += [f'config/config_test.json']
     # config_list += [f'config/config_ffmpeg_crf_12videos_60s.json']
 
     x = True
-    decode_time = [x, 5]  # 1-pre, 2-com, 3-seg, 4-dec, 5-collect
+    decode_time = [0, 5]  # 1-pre, 2-com, 3-seg, 4-dec, 5-collect
+    check_files = [x, 7]  # 1-ori, 2-loss, 3-comp, 4-seg, 5-clean, 6-dec, 7-res
     siti = [0, 2]
-    check_files = [0, 6]  # 1-ori, 2-loss, 3-comp, 4-seg, 5-clean, 6-dec, 7-res
-    results = [0, 6]
+    make_graphs = [0, 6]
     quality = [0, 5]
 
     for config in config_list:
@@ -35,10 +33,6 @@ def main():
             kwargs = opt[role_id][1]
             TileDecodeBenchmark(config=config, role=role, **kwargs)
 
-        if siti[0]:
-            # Measure normal SITI
-            TileDecodeBenchmark(config, 'SITI', overwrite=False,
-                                animate_graph=False, save=True)
         if check_files[0]:
             opt = {
                 1: ('CHECK_ORIGINAL', dict(only_error=True, check_video=True,
@@ -62,7 +56,13 @@ def main():
             role = opt[role_id][0]
             kwargs = opt[role_id][1]
             CheckTileDecodeBenchmark(config=config, role=role, **kwargs)
-        if results[0]:
+
+        if siti[0]:
+            # Measure normal SITI
+            TileDecodeBenchmark(config, 'SITI', overwrite=False,
+                                animate_graph=False, save=True)
+
+        if make_graphs[0]:
             # operation = dt.TileDecodeBenchmark(config)
             # operation.run('RESULTS', overwrite=False)
             # dta.HistByPattern(config).run(False)
@@ -71,9 +71,9 @@ def main():
             # dta.HistByPatternFullFrame(config).run(False)
             # dta.BarByPatternFullFrame(config).run(False)
             pass
-        if quality[0]:
-            QualityAssessment(config, 'QUALITY_ALL', overwrite=False)
-            QualityAssessment(config, 'RESULTS', overwrite=False)
+        # if quality[0]:
+        #     QualityAssessment(config, 'QUALITY_ALL', overwrite=False)
+        #     QualityAssessment(config, 'RESULTS', overwrite=False)
 
 
 if __name__ == '__main__':
