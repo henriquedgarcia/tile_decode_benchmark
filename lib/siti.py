@@ -18,8 +18,7 @@ class SiTi:
     def __init__(self, state: VideoContext):
         self.state = state
         self.filename = state.compressed_file
-        self.scale = state.frame.resolution.resolution
-        self.height, self.width = state.frame.resolution.shape
+        self.frame = state.frame
         self.folder = state.siti_folder
 
         self.si = []
