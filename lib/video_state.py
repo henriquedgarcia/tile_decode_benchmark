@@ -312,7 +312,7 @@ class VideoContext:
         return self._tiling
 
     @tiling.setter
-    def tiling(self, tiling: (str, Tiling)):
+    def tiling(self, tiling: Union[str, Tiling]):
         if isinstance(tiling, Tiling):
             self._tiling = tiling
         elif isinstance(tiling, str):

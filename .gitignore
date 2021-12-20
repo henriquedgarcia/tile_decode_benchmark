@@ -1,9 +1,11 @@
 # Project exclude paths
-/original/
-/results/
+original/
+results/
 .idea/
 __pycache__/
 lib/old
 projections/
-.gitignore
+#.gitignore
 *.log
+datasets/
+*.csv

@@ -390,7 +390,7 @@ class CheckTileDecodeBenchmark(BaseTileDecodeBenchmark):
         self.results = AutoDict()
         self.results_dataframe = pd.DataFrame()
         self.config = Config(config)
-        self.state = VideoContext(self.config, self.role)
+        self.state = VideoContext(self.config, self.role.deep)
         self.print_resume()
 
         try:
@@ -602,8 +602,8 @@ class Siti2D(BaseTileDecodeBenchmark):
             self.compress()
 
         siti = SiTi(self.state)
-        siti.calc_siti(animate_graph=animate_graph, overwrite=overwrite,
-                       save=save)
+        siti.run(animate_graph=animate_graph, overwrite=overwrite,
+                 save=save)
 
     def compress(self):
         compressed_file = self.state.compressed_file
