@@ -21,13 +21,14 @@
     "expon"
   ],
   "rate_control": "crf",
+  "original_quality": 0,
   "quality_list": [
     0,
     22,
     28,
     34
   ],
-  "pattern_list": [
+  "tiling_list": [
     "1x1",
     "3x2",
     "6x4"
