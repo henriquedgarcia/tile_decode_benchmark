@@ -135,7 +135,7 @@ def run_command(command: str, log_to_save: Union[str, Path], mode: str = 'w'):
         p = subprocess.run(command, shell=True, stdout=f,
                            stderr=subprocess.STDOUT, encoding='utf-8')
     if not p.returncode == 0:
-        error('run error in {command}. Continuing.')
+        error(f'run error in {command}. Continuing.')
 
 
 def splitx(string: str) -> tuple:

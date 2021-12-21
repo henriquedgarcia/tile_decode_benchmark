@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-from lib.dectime import TileDecodeBenchmark, CheckTileDecodeBenchmark
+from lib.dectime import (TileDecodeBenchmark, CheckTileDecodeBenchmark,
+                         QualityTileDecodeBenchmark)
 import logging
 
 logging.basicConfig(level=logging.ERROR)
@@ -8,16 +9,16 @@ logging.basicConfig(level=logging.ERROR)
 def main():
     config_list = []
     # config_list += [f'config/config_nas_cmp.json']
-    config_list += [f'config/config_nas_erp.json']
-    # config_list += [f'config/config_test.json']
+    # config_list += [f'config/config_nas_erp.json']
+    config_list += [f'config/config_test.json']
     # config_list += [f'config/config_ffmpeg_crf_12videos_60s.json']
 
     x = True
     decode_time = [0, 5]  # 1-pre, 2-com, 3-seg, 4-dec, 5-collect
-    check_files = [x, 7]  # 1-ori, 2-loss, 3-comp, 4-seg, 5-clean, 6-dec, 7-res
+    check_files = [0, 7]  # 1-ori, 2-loss, 3-comp, 4-seg, 5-clean, 6-dec, 7-res
     siti = [0, 2]
     make_graphs = [0, 6]
-    quality = [0, 5]
+    quality = [x, 1]      # 1-all, 2-psnr, 3-wspsnr, 4-spsnr
 
     for config in config_list:
         if decode_time[0]:
@@ -50,7 +51,7 @@ def main():
                                                   '-30 15:54:29.901483.csv'),
                                   )),
                 6: ('CHECK_DECODE', dict(only_error=True, clean=False)),
-                7: ('CHECK_RESULTS', dict(only_error=True, clean=False)),
+                7: ('CHECK_RESULTS', dict(only_error=True)),
             }
             role_id = check_files[1]
             role = opt[role_id][0]
@@ -71,9 +72,21 @@ def main():
             # dta.HistByPatternFullFrame(config).run(False)
             # dta.BarByPatternFullFrame(config).run(False)
             pass
-        # if quality[0]:
-        #     QualityAssessment(config, 'QUALITY_ALL', overwrite=False)
-        #     QualityAssessment(config, 'RESULTS', overwrite=False)
+
+        if quality[0]:
+            opt = {
+                1: ('QUALITY_ALL', dict(only_error=True, check_video=True,
+                                           check_log=True, clean=False)),
+                2: ('PSNR', dict(only_error=True, check_video=True,
+                                           deep_check=True, clean=False)),
+                3: ('WSPSNR', dict(only_error=True, check_log=True,
+                                           check_video=True, check_gop=False,
+                                           clean=False)),
+                4: ('SPSNR', dict(only_error=True, check_video=True,
+                                          deep_check=False, clean=False)),
+            }
+            QualityAssessment(config, 'QUALITY_ALL', overwrite=False)
+            # QualityAssessment(config, 'RESULTS', overwrite=False)
 
 
 if __name__ == '__main__':
