@@ -1,8 +1,9 @@
 import datetime
+import pickle
 import json
 from builtins import PermissionError
-from collections import Counter
-from logging import warning, info, debug
+from collections import Counter, defaultdict
+from logging import warning, info, debug, fatal, error
 from pathlib import Path
 from subprocess import run, DEVNULL
 from typing import Any, Optional, Callable, NamedTuple, Union, Dict
@@ -12,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from lib.siti import SiTi
-from lib.util import AutoDict, run_command, check_video_gop
+from lib.util import AutoDict, run_command, check_video_gop, iter_frame
 from lib.video_state import Config, VideoContext
 
 
@@ -358,7 +359,7 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
     #     self.results_dataframe = pd.DataFrame(results_dataframe)
 
 
-class CheckTileDecodeBenchmark(BaseTileDecodeBenchmark):
+class CheckTiles(BaseTileDecodeBenchmark):
     def __init__(self, config: str, role: str, **kwargs):
         operations = {
             'CHECK_ORIGINAL': Role(name='CHECK_ORIGINAL', deep=1, init=None,
@@ -686,11 +687,20 @@ class Siti2D(BaseTileDecodeBenchmark):
 
 
 
+class QualityMetrics:
+    PIXEL_MAX: int = 255
+    state: VideoContext = None
+    weight_ndarray: Union[np.ndarray, object, None] = None
+    sph_points_img: list = []
+    sph_points: list = []
+    cart_coord: list = []
+    sph_file: Path
 
-class QualityTileDecodeBenchmark(BaseTileDecodeBenchmark):
-    PIXEL_MAX = 255
-    metrics_reg = {'PSNR', 'WS-PSNR', 'S-PSNR'}
-    # Horiziontal coordinate system
+    #### Coordinate system ####
+
+    # Image coordinate system
+    ICSPoint = NamedTuple('ICSPoint', (('x', float), ('y', float)))
+    # Horizontal coordinate system
     HCSPoint = NamedTuple('HCSPoint',
                           (('azimuth', float), ('elevation', float)))
     # Aerospacial coordinate system
@@ -699,30 +709,208 @@ class QualityTileDecodeBenchmark(BaseTileDecodeBenchmark):
     # Cartesian coordinate system
     CCSPoint = NamedTuple('CCSPoint',
                           (('x', float), ('y', float), ('z', float)))
-    # Image coordinate system
-    ICSPoint = NamedTuple('ICSPoint', (('x', float), ('y', float)))
+    #### util ####
+    sph_points_mask: np.ndarray = np.zeros(0)
 
-    def __init__(self, config: str, role: str,
-                 sphere_file = Path('lib/sphere_655362.txt'), **kwargs):
+    def mse2psnr(self, mse: float) -> float:
+        return 10 * np.log10((self.PIXEL_MAX ** 2 / mse))
+
+    #### psnr ####
+
+    def psnr(self, im_ref: np.ndarray, im_deg: np.ndarray,
+             im_sal: np.ndarray = None) -> float:
+        """
+        https://en.wikipedia.org/wiki/Peak_signal-to-noise_ratio
+
+        Images must be only one channel (luminance)
+        (height, width) = im_ref.shape()
+        "float32" = im_ref.dtype()
+
+        :param im_ref:
+        :param im_deg:
+        :param im_sal:
+        :return:
+        """
+        im_sqr_err = (im_ref - im_deg) ** 2
+        if im_sal is not None:
+            im_sqr_err = im_sqr_err * im_sal
+        mse = np.average(im_sqr_err)
+        return self.mse2psnr(mse)
+
+        # # separate the channels to color image
+        # psnr_ = []
+        # if len(im_ref.shape[-1]) > 2:
+        #     for channel in range(im_ref.shape[-1]):
+        #         im_ref_ = im_ref[..., channel]
+        #         im_deg_ = im_deg[..., channel]
+        #         psnr_.append(psnr(im_ref_, im_deg_, im_sal))
+        # else:
+        #     psnr_.append(psnr(im_ref, im_deg, im_sal))
+        #
+        #
+        #     # for channel in
+        #     pass
+        #
+        # return
+
+    #### wspsnr ####
+
+    def prepare_weight_ndarray(self):
+        if self.state.projection == 'equirectangular':
+            height, width = self.state.frame.resolution.shape
+            func = lambda y, x: np.cos((y + 0.5 - height / 2) * np.pi
+                                       / height)
+            self.weight_ndarray = np.fromfunction(func, (height, width),
+                                                  dtype='float32')
+        elif self.state.projection == 'cubemap':
+            # each face must be square (frame aspect ration == 3:2).
+            face = self.state.frame.resolution.shape[0] / 2
+            face_ctr = face / 2
+
+            squared_dist = lambda y, x: (
+                    (x + 0.5 - face_ctr) ** 2 + (y + 0.5 - face_ctr) ** 2
+            )
+
+            func = lambda y, x: (
+                    (1 + squared_dist(y, x) / (face_ctr ** 2)) ** (-3 / 2)
+
+            )
+
+            weighted_face = np.fromfunction(func, (int(face), int(face)),
+                                            dtype='float32')
+            weight_ndarray = np.concatenate((weighted_face,
+                                             weighted_face))
+            self.weight_ndarray = np.concatenate(
+                (weight_ndarray, weight_ndarray, weight_ndarray),
+                axis=1)
+        else:
+            fatal(f'projection {self.state.projection} not supported.')
+            raise FileNotFoundError(
+                f'projection {self.state.projection} not supported.')
+
+    def wspsnr(self, im_ref: np.ndarray, im_deg: np.ndarray,
+               im_sal: np.ndarray = None):
+        """
+        Must be same size
+        :param im_ref:
+        :param im_deg:
+        :param im_sal:
+        :return:
+        """
+
+        if self.state.tile.idx == 0:
+            self.prepare_weight_ndarray()
+
+        x1 = self.state.tile.frame.x
+        x2 = self.state.tile.frame.x + self.state.tile.frame.w
+        y1 = self.state.tile.frame.y
+        y2 = self.state.tile.frame.y + self.state.tile.frame.h
+        weight_ndarray = self.weight_ndarray[y1:y2, x1:x2]
+
+        im_weighted = weight_ndarray * (im_ref - im_deg) ** 2
+
+        if im_sal is not None:
+            im_weighted = im_weighted * im_sal
+        wmse = np.average(im_weighted)
+
+        if wmse == 0:
+            return 1000
+
+        return self.mse2psnr(wmse)
+
+    #### spsnr_nn ####
+    def load_sph_point(self):
+        # Load 655362 sample points (elevation, azimuth). Angles in degree.
+        iter_file = self.sph_file.read_text().splitlines()
+
+        if not self.sph_points:
+            for idx, line in enumerate(iter_file[1:]):
+                point = list(map(float, line.strip().split()))
+                hcs_point = self.HCSPoint(azimuth=np.deg2rad(point[1]),
+                                          elevation=np.deg2rad(point[0]))
+                self.sph_points.append(hcs_point)
+
+                # ccs_point = self.CCSPoint(
+                #       x=np.sin(hcs_point[1]) * np.cos(hcs_point[0]),
+                #       y=np.sin(hcs_point[0]),
+                #       z=-np.cos(hcs_point[1]) * np.cos(hcs_point[0]))
+                # self.cart_coord.append(ccs_point)
+
+        if not self.sph_points_mask.shape == self.state.frame.resolution.shape:
+            height, width = self.state.frame.resolution.shape
+            self.sph_points_mask = np.zeros(self.state.frame.resolution.shape)
+
+            for hcs_point in self.sph_points:
+                x = np.ceil((hcs_point[0] + 180) * width / (2 * 180) - 1)
+                y = np.floor((hcs_point[1] - 90) * height / 180) + height
+                if y >= height: y = height - 1
+                ics_point = self.ICSPoint(x=int(x), y=int(y))
+                self.sph_points_img.append(ics_point)
+                self.sph_points_mask[int(y), int(x)] = 1
+
+    def spsnr_nn(self, im_ref: np.ndarray,
+                 im_deg: np.ndarray,
+                 im_sal: np.ndarray = None):
+        """
+        Calculate of S-PSNR between two images. All arrays must be on the same
+        resolution.
+
+        :param im_ref: The original image
+        :param im_deg: The image degraded
+        :param im_sal: The saliency map
+        :return:
+        """
+        self.load_sph_point()
+
+        x1 = self.state.tile.frame.x
+        x2 = self.state.tile.frame.x + self.state.tile.frame.w
+        y1 = self.state.tile.frame.y
+        y2 = self.state.tile.frame.y + self.state.tile.frame.h
+        mask = self.sph_points_mask[y1:y2, x1:x2]
+
+        im_ref_m = im_ref * mask
+        im_deg_m = im_deg * mask
+
+        sqr_dif:np.ndarray = (im_ref_m - im_deg_m) ** 2
+
+        if im_sal is not None:
+            sqr_dif = sqr_dif * im_sal
+
+        mse = sqr_dif.sum() / mask.sum()
+        return self.mse2psnr(mse)
+
+
+class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
+    def __init__(self, config: str,
+                 role: str,
+                 sph_file = Path('lib/sphere_655362.txt'),
+                 **kwargs):
+        """
+        Load configuration and run the main routine defined on Role Operation.
+
+        :param config: a Config object
+        :param role: The role can be: ALL, PSNR, WSPSNR, SPSNR, RESULTS
+        :param sphere_file: a Path for sphere_655362.txt
+        :param kwargs: passed to main routine
+        """
         operations = {
-            'ALL': Role(name='ALL', deep=5, init=self.all_init,
+            'ALL': Role(name='ALL', deep=4, init=None,
                          operation=self.all, finish=None),
-            # 'PSNR': Role(name='PSNR', deep=4, init=self.all_init,
-            #              operation=self.all, finish=None),
-            # 'WSPSNR': Role(name='WSPSNR', deep=4, init=self.all_init,
-            #              operation=self.all, finish=None),
-            # 'SPSNR': Role(name='SPSNR', deep=4, init=self.all_init,
-            #              operation=self.all, finish=None),
-            'RESULTS': Role(name='RESULTS', deep=4, init=self.all_init,
+            'PSNR': Role(name='PSNR', deep=4, init=None,
+                         operation=self.measure_thread, finish=None),
+            'WSPSNR': Role(name='WSPSNR', deep=4, init=None,
+                         operation=self.measure_thread, finish=None),
+            'SPSNR': Role(name='SPSNR', deep=4, init=None,
+                         operation=self.measure_thread, finish=None),
+            'RESULTS': Role(name='RESULTS', deep=4, init=None,
                          operation=self.all, finish=None),
         }
-        self.sph_points: Optional[list] = None
-        self.cart_coord: Optional[list] = None
-        self.sph_points_img: Optional[list] = None
-        self.weight_ndarray: Optional[np.ndarray] = None
 
-        self.sph_file = sphere_file
-        self.load_sph_point()
+        self.metrics = {'PSNR': self.psnr,
+                        'WS-PSNR': self.wspsnr,
+                        'S-PSNR': self.spsnr_nn}
+        
+        self.sph_file = sph_file
 
         self.results = AutoDict()
         self.results_dataframe = pd.DataFrame()
@@ -734,77 +922,70 @@ class QualityTileDecodeBenchmark(BaseTileDecodeBenchmark):
         self.print_resume()
         self.run(**kwargs)
 
-    def load_sph_point(self):
-        if self.sph_points:
-            return
-
-        height, width = self.state.frame.resolution.shape
-
-        # Load 655362 sample points (elevation, azimuth). Angles in degree.
-        content = self.sph_file.read_text().splitlines()[1:]
-        for line in content:
-            point = list(map(float, line.strip().split()))
-            hcs_point = self.HCSPoint(np.deg2rad(point[0]), np.deg2rad(point[1]))
-            self.sph_points.append(hcs_point)
-
-            ccs_point = self.CCSPoint(np.sin(hcs_point[1]) * np.cos(hcs_point[0]),
-                                      np.sin(hcs_point[0]),
-                                      -np.cos(hcs_point[1]) * np.cos(hcs_point[0]))
-            self.cart_coord.append(ccs_point)
-            ics_point = self.ICSPoint(width * (0.5 + np.atan2(ccs_point[0], ccs_point[2]) / (np.pi * 2)),
-                                      height * (np.acos(ccs_point[1]) / np.pi))
-            self.sph_points_img.append(ics_point)
-
-            # m, n = sph2erp(np.deg2rad(point[1]), np.deg2rad(point[0]), self.state.frame.shape)
-            # self.sph_points_img.append((m, n))
-
-        # Convert spherical coordinate into Cartesian 3D coordinate
-        # cart_coord = []
-        # for phi, theta in self.sph_points:
-        #     cart_coord.append([np.sin(theta) * np.cos(phi),
-        #                        np.sin(phi),
-        #                        -np.cos(theta) * np.cos(phi)])
-        # #Convert Cartesian 3D coordinate into rectangle coordinate
-        # #phi = math.acos(Y), theta = math.atan2(X, Z)
-        # rect_coord = []
-        # for x in cart_coord:
-        #     rect_coord.append([width * (0.5 + np.atan2(x[0], x[2]) / (np.pi *
-        #     2)),
-        #                        height * (np.acos(x[1]) / np.pi)])
-
-    def all_init(self):
-        self.load_sph_point()
-        for metric in self.metrics_reg:
-            method = self.metrics_reg[metric]
-            self.metrics_methods[metric] = eval(f'self.{method}')
-
     def all(self, overwrite=False):
         debug(f'Processing {self.state}')
 
         if self.state.quality == self.state.original_quality:
+            info('Skipping original quality')
+            return 'continue'
+
+        reference_file = self.state.reference_file
+        compressed_file = self.state.compressed_file
+        quality_csv = self.state.quality_csv
+        frames = zip(iter_frame(reference_file),
+                     iter_frame(compressed_file))
+
+        results = defaultdict(list)
+
+        for n, (frame_video1, frame_video2) in enumerate(frames, 1):
+            debug(f'Frame {n}')
+            for metric in self.metrics:
+                metrics_method = self.metrics[metric]
+                metric_value = metrics_method(frame_video1, frame_video2)
+                results[metric].append(metric_value)
+
+        for metric in self.metrics:
+            csv_path = quality_csv.with_stem(
+                f'{quality_csv.stem}_{metric}'
+            )
+
+            if csv_path.exists() and not overwrite:
+                warning(f'The file {csv_path} exist. Skipping.')
+                return 'continue'
+
+            pd.DataFrame(results).to_csv(csv_path,
+                                         encoding='utf-8',
+                                         index_label='frame')
+
+    def measure_thread(self, overwrite=False):
+        debug(f'Processing {self.role.name} for {self.state}')
+
+        if self.state.quality == self.state.original_quality:
+            info('Skipping original quality')
             return 'continue'
 
         compressed_reference = self.state.reference_file
         compressed_file = self.state.compressed_file
-        compressed_quality_csv = self.state.quality_csv
+        quality_csv = self.state.quality_csv
+        csv_path = quality_csv.with_stem(f'{quality_csv.stem}_{self.role.name}')
 
-        if compressed_quality_csv.exists() and not overwrite:
-            warning(f'The file {compressed_quality_csv} exist. Skipping.')
+        if csv_path.exists() and not overwrite:
+            warning(f'The file {csv_path} exist. Skipping.')
             return 'continue'
 
-        frames = zip(get_frame(compressed_reference),
-                     get_frame(compressed_file))
+        frames = zip(iter_frame(compressed_reference),
+                     iter_frame(compressed_file))
 
-        results = defaultdict(list)
-        for n, (frame_video1, frame_video2) in enumerate(frames):
+        results = []
+        for n, (frame_video1, frame_video2) in enumerate(frames, 1):
             debug(f'Frame {n}')
-            for metric in self.metrics_methods:
-                metrics_method = self.metrics_methods[metric]
-                metric_value = metrics_method(frame_video1, frame_video2)
-                results[metric].append(metric_value)
-        pd.DataFrame(results).to_csv(compressed_quality_csv, encoding='utf-8',
+            metrics_method = self.metrics[self.role.name]
+            metric_value = metrics_method(frame_video1, frame_video2)
+            results.append(metric_value)
+
+        pd.DataFrame(results).to_csv(csv_path,
+                                     encoding='utf-8',
                                      index_label='frame')
-        return 'continue'
 
     def init_result(self):
         compressed_quality_result_json = self.state.quality_result_json
@@ -831,7 +1012,7 @@ class QualityTileDecodeBenchmark(BaseTileDecodeBenchmark):
         for factor in self.state.factors_list:
             results = results[factor]
 
-        for metric in self.metrics_reg:
+        for metric in self.metrics:
             if results[metric] != {} and not overwrite:
                 warning(
                     f'The key [{self.state}][{metric}] exist. Skipping.')
@@ -841,113 +1022,13 @@ class QualityTileDecodeBenchmark(BaseTileDecodeBenchmark):
         return 'continue'
 
     def save_result(self):
-        compressed_quality_result_json = self.state.quality_result_json
-        compressed_quality_result_pickle = compressed_quality_result_json.with_suffix(
-            '.pickle')
-        compressed_quality_result_pickle.write_bytes(pickle.dumps(self.results))
-        compressed_quality_result_json.write_text(json.dumps(self.results),
-                                                  encoding='utf-8')
-
-    @staticmethod
-    def psnr(im_ref: np.ndarray, im_deg: np.ndarray,
-             im_sal: np.ndarray = None) -> float:
-        """
-        https://en.wikipedia.org/wiki/Peak_signal-to-noise_ratio
-
-        Images must be only one channel (luminance)
-
-        :param im_ref:
-        :param im_deg:
-        :param im_sal:
-        :return:
-        """
-        im_sqr_err = (im_ref - im_deg) ** 2
-        if im_sal is not None:
-            im_sqr_err = im_sqr_err * im_sal
-        mse = np.average(im_sqr_err)
-        return mse2psnr(mse)
-
-        # # separate the channels to color image
-        # psnr_ = []
-        # if len(im_ref.shape[-1]) > 2:
-        #     for channel in range(im_ref.shape[-1]):
-        #         im_ref_ = im_ref[..., channel]
-        #         im_deg_ = im_deg[..., channel]
-        #         psnr_.append(psnr(im_ref_, im_deg_, im_sal))
-        # else:
-        #     psnr_.append(psnr(im_ref, im_deg, im_sal))
-        #
-        #
-        #     # for channel in
-        #     pass
-        #
-        # return
-
-    def wspsnr(self, im_ref: np.ndarray, im_deg: np.ndarray,
-               im_sal: np.ndarray = None):
-        """
-        Must be same size
-        :param im_ref:
-        :param im_deg:
-        :param im_sal:
-        :return:
-        """
-        if self.weight_ndarray is None:
-            if self.state.projection == 'equirectangular':
-                height, width = self.state.frame.resolution.shape
-                func = lambda y, x: np.cos(
-                    (y + 0.5 - height / 2) * np.pi / height)
-                self.weight_ndarray: Union[
-                    np.ndarray, object] = np.fromfunction(func, (height, width),
-                                                          dtype='float32')
-            elif self.state.projection == 'cubemap':
-                face = self.state.frame.resolution.shape[
-                           0] / 2  # each face must be square (frame aspect ration =3:2).
-                radius = face / 2
-                squared_distance = lambda y, x: (x + 0.5 - radius) ** 2 + (
-                            y + 0.5 - radius) ** 2
-                func = lambda y, x: (1 + squared_distance(y, x) / (
-                            radius ** 2)) ** (-3 / 2)
-                weighted_face = np.fromfunction(func, (int(face),
-                                                       int(face)),
-                                                dtype='float32')
-                weight_ndarray = np.concatenate((weighted_face, weighted_face))
-                self.weight_ndarray = np.concatenate(
-                    (weight_ndarray, weight_ndarray, weight_ndarray), axis=1)
-
-        x1 = self.state.tile.frame.x
-        x2 = self.state.tile.frame.x + self.state.tile.frame.w
-        y1 = self.state.tile.frame.y
-        y2 = self.state.tile.frame.y + self.state.tile.frame.h
-        weight_ndarray = self.weight_ndarray[y1:y2, x1:x2]
-
-        im_weighted = weight_ndarray * (im_ref - im_deg) ** 2
-
-        if im_sal is not None:
-            im_weighted = im_weighted * im_sal
-        wmse = np.average(im_weighted)
-
-        if wmse == 0:
-            return 1000
-
-        return mse2psnr(wmse)
-
-    def spsnr_nn(self, im_ref: np.ndarray, im_deg: np.ndarray,
-                 im_sal: np.ndarray = None):
-        if self.sph_points_img is None:
-            self.sph_points_img = [sph2erp(theta, phi, im_ref.shape) for
-                                   phi, theta in self.sph_points]
-
-        sqr_err_salient = []
-        for m, n in self.sph_points_img:
-            sqr_diff = (im_ref[n - 1, m - 1] - im_deg[n - 1, m - 1]) ** 2
-
-            if im_sal is not None:
-                sqr_diff = im_sal[n - 1, m - 1] * sqr_diff
-
-            sqr_err_salient.append(sqr_diff)
-        mse = np.average(sqr_err_salient)
-        return mse2psnr(mse)
+        json_dumps = json.dumps(self.results)
+        quality_result_json = self.state.quality_result_json
+        quality_result_json.write_text(json_dumps, encoding='utf-8')
+        
+        pickle_dumps = pickle.dumps(self.results)
+        quality_result_pickle = quality_result_json.with_suffix('.pickle')
+        quality_result_pickle.write_bytes(pickle_dumps)
 
     def ffmpeg_psnr(self):
         if self.state.chunk == 1:
@@ -969,5 +1050,3 @@ class QualityTileDecodeBenchmark(BaseTileDecodeBenchmark):
                         'qp_avg': get_qp(line)}
                 break
         return psnr
-
-

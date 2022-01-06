@@ -87,7 +87,7 @@ class Frame:
         iter((self.resolution, self.position))
 
     def __str__(self):
-        return self.resolution
+        return str(self.resolution)
 
     @property
     def x(self):
@@ -417,7 +417,7 @@ class VideoContext:
     @property
     def reference_file(self) -> Path:
         basename = Path(f'{self.name}_'
-                        f'{self.projection}_'
+                        # f'{self.projection}_'
                         f'{self.frame}_'
                         f'{self.fps}_'
                         f'{self.tiling}_'
@@ -431,7 +431,7 @@ class VideoContext:
         folder = self.project / self.quality_folder / self.basename
         folder.mkdir(parents=True, exist_ok=True)
         return (folder
-                / f'tile{self.tile}_psnr.csv')
+                / f'tile{self.tile}.csv')
 
     @property
     def quality_result_json(self) -> Union[Path, None]:

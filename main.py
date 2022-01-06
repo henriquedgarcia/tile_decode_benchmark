@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-from lib.dectime import (TileDecodeBenchmark, CheckTileDecodeBenchmark,
-                         QualityTileDecodeBenchmark)
+from lib.dectime import (TileDecodeBenchmark, CheckTiles,
+                         QualityAssessment)
 import logging
 
 logging.basicConfig(level=logging.ERROR)
@@ -18,7 +18,7 @@ def main():
     check_files = [0, 7]  # 1-ori, 2-loss, 3-comp, 4-seg, 5-clean, 6-dec, 7-res
     siti = [0, 2]
     make_graphs = [0, 6]
-    quality = [x, 1]      # 1-all, 2-psnr, 3-wspsnr, 4-spsnr
+    quality = [x, 1]      # 1-all, 2-psnr, 3-wspsnr, 4-spsnr, 5-results
 
     for config in config_list:
         if decode_time[0]:
@@ -56,7 +56,7 @@ def main():
             role_id = check_files[1]
             role = opt[role_id][0]
             kwargs = opt[role_id][1]
-            CheckTileDecodeBenchmark(config=config, role=role, **kwargs)
+            CheckTiles(config=config, role=role, **kwargs)
 
         if siti[0]:
             # Measure normal SITI
@@ -75,18 +75,17 @@ def main():
 
         if quality[0]:
             opt = {
-                1: ('QUALITY_ALL', dict(only_error=True, check_video=True,
-                                           check_log=True, clean=False)),
-                2: ('PSNR', dict(only_error=True, check_video=True,
-                                           deep_check=True, clean=False)),
-                3: ('WSPSNR', dict(only_error=True, check_log=True,
-                                           check_video=True, check_gop=False,
-                                           clean=False)),
-                4: ('SPSNR', dict(only_error=True, check_video=True,
-                                          deep_check=False, clean=False)),
+                1: ('ALL', dict(overwrite=False)),
+                2: ('PSNR', dict(overwrite=False)),
+                3: ('WSPSNR', dict(overwrite=False)),
+                4: ('SPSNR', dict(overwrite=False)),
+                5: ('RESULTS', dict(overwrite=False)),
             }
-            QualityAssessment(config, 'QUALITY_ALL', overwrite=False)
-            # QualityAssessment(config, 'RESULTS', overwrite=False)
+            role_id = quality[1]
+            role = opt[role_id][0]
+            kwargs = opt[role_id][1]
+            QualityAssessment(config=config, role=role, **kwargs)
+
 
 
 if __name__ == '__main__':

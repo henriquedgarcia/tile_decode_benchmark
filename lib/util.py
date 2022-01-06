@@ -68,7 +68,7 @@ def uv2img(u, v, shape: tuple):
 
 
 # ------------------ Util ------------------
-def get_frame(video_path, gray=True, dtype='float32'):
+def iter_frame(video_path, gray=True, dtype='float32'):
     vreader = skvideo.io.vreader(f'{video_path}', as_grey=gray)
     for frame in vreader:
         if gray:
