@@ -1,6 +1,7 @@
 import datetime
 import pickle
 import json
+import time
 from builtins import PermissionError
 from collections import Counter
 from logging import warning, info, debug, fatal
@@ -926,49 +927,52 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
         self.run(**kwargs)
 
     def all_init(self):
-        quality_pickle = self.state.quality_pickle
-        if quality_pickle.exists():
-            self.results = pickle.load(quality_pickle.open('rb'))
-        else:
-            self.results = AutoDict()
+        pass
+        # quality_pickle = self.state.quality_pickle
+        # if quality_pickle.exists():
+        #     self.results = pickle.load(quality_pickle.open('rb'))
+        # else:
+        #     self.results = AutoDict()
 
     def all(self, overwrite=False):
         if self.state.quality == self.state.original_quality:
             info('Skipping original quality')
             return 'continue'
-        metrics = self.metrics.copy()
-
-        results_val = self.results
-        for key in self.state.factors_list:
-            results_val = results_val[key]
-
-        if results_val != {} and not overwrite:
-            for metric in results_val:
-                warning(f'The metric {metric} exist for {self.state.factors_list}. '
-                        'Skipping this metric')
-                del (metrics[metric])
-            if metrics == {}:
-                warning(f'The metrics for {self.state.factors_list} are OK. '
-                        f'Skipping')
-                return
-
-        results_val.update({metric: [] for metric in self.metrics})
 
         reference_file = self.state.reference_file
         compressed_file = self.state.compressed_file
+        quality_csv = self.state.quality_csv
+
+        metrics = self.metrics.copy()
+
+        if quality_csv.exists() and not overwrite:
+            csv_dataframe = pd.read_csv(quality_csv, encoding='utf-8', index_col=0)
+            for metric in csv_dataframe:
+                info(
+                    f'The metric {metric} exist for {self.state.factors_list}. '
+                    'Skipping this metric')
+                del (metrics[metric])
+            if metrics == {}:
+                warning(f'The metrics for {self.state.factors_list} are '
+                        f'OK. Skipping')
+                return
+        else:
+            csv_dataframe = pd.DataFrame()
+
+        results = {metric: [] for metric in metrics}
 
         frames = zip(iter_frame(reference_file), iter_frame(compressed_file))
-        # start = time.time()
+        start = time.time()
         for n, (frame_video1, frame_video2) in enumerate(frames, 1):
-            for metric in self.metrics:
+            for metric in metrics:
                 metrics_method = self.metrics[metric]
                 metric_value = metrics_method(frame_video1, frame_video2)
-                results_val[metric].append(metric_value)
-            # info(f'Frame {n} - {time.time() - start: 0.3f} s')
-
-        pickle_dumps = pickle.dumps(self.results, pickle.HIGHEST_PROTOCOL)
-        self.state.quality_pickle.write_bytes(pickle_dumps)
-        pickle.dumps(self.results, pickle.HIGHEST_PROTOCOL)
+                results[metric].append(metric_value)
+            print(f'{self.state.factors_list} - Frame {n} - {time.time() - start: 0.3f} s', end='\r')
+        print()
+        for metric in results:
+            csv_dataframe[metric] = results[metric]
+        csv_dataframe.to_csv(quality_csv, encoding='utf-8', index_label='frame')
 
     def only_a_metric(self, **kwargs):
         self.metrics = self.metrics[self.role.name]
