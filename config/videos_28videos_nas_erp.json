@@ -1,6 +1,6 @@
 {
   "videos_list": {
-    "angel_falls_erp_nas": {
+    "angel_falls_nas": {
       "original": "angel_falls_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -8,7 +8,7 @@
       "duration": 60,
       "group": 0
     },
-    "blue_angels_erp_nas": {
+    "blue_angels_nas": {
       "original": "blue_angels_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -16,7 +16,7 @@
       "duration": 60,
       "group": 0
     },
-    "cable_cam_erp_nas": {
+    "cable_cam_nas": {
       "original": "cable_cam_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -24,7 +24,7 @@
       "duration": 60,
       "group": 0
     },
-    "chariot_race_erp_nas": {
+    "chariot_race_nas": {
       "original": "chariot_race_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -32,7 +32,7 @@
       "duration": 60,
       "group": 0
     },
-    "closet_tour_erp_nas": {
+    "closet_tour_nas": {
       "original": "closet_tour_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -40,7 +40,7 @@
       "duration": 60,
       "group": 0
     },
-    "drone_chases_car_erp_nas": {
+    "drone_chases_car_nas": {
       "original": "drone_chases_car_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -48,7 +48,7 @@
       "duration": 60,
       "group": 0
     },
-    "drone_footage_erp_nas": {
+    "drone_footage_nas": {
       "original": "drone_footage_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -56,7 +56,7 @@
       "duration": 60,
       "group": 0
     },
-    "drone_video_erp_nas": {
+    "drone_video_nas": {
       "original": "drone_video_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -64,7 +64,7 @@
       "duration": 60,
       "group": 0
     },
-    "drop_tower_erp_nas": {
+    "drop_tower_nas": {
       "original": "drop_tower_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -72,7 +72,7 @@
       "duration": 60,
       "group": 0
     },
-    "dubstep_dance_erp_nas": {
+    "dubstep_dance_nas": {
       "original": "dubstep_dance_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -80,7 +80,7 @@
       "duration": 60,
       "group": 0
     },
-    "elevator_lift_erp_nas": {
+    "elevator_lift_nas": {
       "original": "elevator_lift_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -88,7 +88,7 @@
       "duration": 49,
       "group": 0
     },
-    "glass_elevator_erp_nas": {
+    "glass_elevator_nas": {
       "original": "glass_elevator_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -96,7 +96,7 @@
       "duration": 60,
       "group": 0
     },
-    "montana_erp_nas": {
+    "montana_nas": {
       "original": "montana_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -104,7 +104,7 @@
       "duration": 60,
       "group": 0
     },
-    "motorsports_park_erp_nas": {
+    "motorsports_park_nas": {
       "original": "motorsports_park_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -112,7 +112,7 @@
       "duration": 60,
       "group": 0
     },
-    "nyc_drive_erp_nas": {
+    "nyc_drive_nas": {
       "original": "nyc_drive_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -120,7 +120,7 @@
       "duration": 60,
       "group": 0
     },
-    "pac_man_erp_nas": {
+    "pac_man_nas": {
       "original": "pac_man_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -128,7 +128,7 @@
       "duration": 60,
       "group": 0
     },
-    "penthouse_erp_nas": {
+    "penthouse_nas": {
       "original": "penthouse_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -136,7 +136,7 @@
       "duration": 60,
       "group": 0
     },
-    "petite_anse_erp_nas": {
+    "petite_anse_nas": {
       "original": "petite_anse_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -144,7 +144,7 @@
       "duration": 60,
       "group": 0
     },
-    "rhinos_erp_nas": {
+    "rhinos_nas": {
       "original": "rhinos_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -152,7 +152,7 @@
       "duration": 60,
       "group": 0
     },
-    "sunset_erp_nas": {
+    "sunset_nas": {
       "original": "sunset_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -160,7 +160,7 @@
       "duration": 60,
       "group": 0
     },
-    "three_peaks_erp_nas": {
+    "three_peaks_nas": {
       "original": "three_peaks_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -168,7 +168,7 @@
       "duration": 60,
       "group": 0
     },
-    "video_19_erp_nas": {
+    "video_19_nas": {
       "original": "19_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -176,7 +176,7 @@
       "duration": 60,
       "group": 0
     },
-    "video_20_erp_nas": {
+    "video_20_nas": {
       "original": "20_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -184,7 +184,7 @@
       "duration": 60,
       "group": 0
     },
-    "video_22_erp_nas": {
+    "video_22_nas": {
       "original": "22_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -192,7 +192,7 @@
       "duration": 60,
       "group": 0
     },
-    "video_23_erp_nas": {
+    "video_23_nas": {
       "original": "23_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -200,7 +200,7 @@
       "duration": 60,
       "group": 0
     },
-    "video_24_erp_nas": {
+    "video_24_nas": {
       "original": "24_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -208,7 +208,7 @@
       "duration": 60,
       "group": 0
     },
-    "video_04_erp_nas": {
+    "video_04_nas": {
       "original": "4_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
@@ -216,7 +216,7 @@
       "duration": 60,
       "group": 0
     },
-    "wingsuit_dubai_erp_nas": {
+    "wingsuit_dubai_nas": {
       "original": "wingsuit_dubai_erp.mp4",
       "scale": "4320x2160",
       "projection": "equirectangular",
