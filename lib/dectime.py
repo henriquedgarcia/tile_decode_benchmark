@@ -2,12 +2,11 @@ import datetime
 import pickle
 import json
 from builtins import PermissionError
-from collections import Counter, defaultdict
-from logging import warning, info, debug, fatal, error
+from collections import Counter
+from logging import warning, info, debug, fatal
 from pathlib import Path
 from subprocess import run, DEVNULL
 from typing import Any, Optional, Callable, NamedTuple, Union, Dict
-import time
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -687,7 +686,6 @@ class Siti2D(BaseTileDecodeBenchmark):
         fig.show()
 
 
-
 class QualityMetrics:
     PIXEL_MAX: int = 255
     state: VideoContext = None
@@ -698,8 +696,7 @@ class QualityMetrics:
     cart_coord: list = []
     sph_file: Path
 
-    #### Coordinate system ####
-
+    # ### Coordinate system ### #
     # Image coordinate system
     ICSPoint = NamedTuple('ICSPoint', (('x', float), ('y', float)))
     # Horizontal coordinate system
@@ -711,13 +708,12 @@ class QualityMetrics:
     # Cartesian coordinate system
     CCSPoint = NamedTuple('CCSPoint',
                           (('x', float), ('y', float), ('z', float)))
-    #### util ####
 
+    # ### util ### #
     def mse2psnr(self, mse: float) -> float:
         return 10 * np.log10((self.PIXEL_MAX ** 2 / mse))
 
-    #### psnr ####
-
+    # ### psnr ### #
     def psnr(self, im_ref: np.ndarray, im_deg: np.ndarray,
              im_sal: np.ndarray = None) -> float:
         """
@@ -754,7 +750,7 @@ class QualityMetrics:
         #
         # return
 
-    #### wspsnr ####
+    # ### wspsnr ### #
     def prepare_weight_ndarray(self):
         if self.state.projection == 'equirectangular':
             height, width = self.state.frame.resolution.shape
@@ -818,7 +814,7 @@ class QualityMetrics:
 
         return self.mse2psnr(wmse)
 
-    #### spsnr_nn ####
+    # ### spsnr_nn ### #
     # def load_sph_point(self):
     #     # todo: Metodo descontinuado. Ver módulo Util
     #     # Load 655362 sample points (elevation, azimuth). Angles in degree.
@@ -864,15 +860,8 @@ class QualityMetrics:
         # sph_file = Path('lib/sphere_655362.txt'),
         shape = self.state.frame.resolution.shape
 
-        pickle_file = self.sph_file.with_suffix('.pickle')
-
         if self.sph_points_mask.shape != shape:
-            if not pickle_file.exists():
-                sph_file = load_sph_file(self.sph_file, shape)
-                pickle_dumps = pickle.dumps(sph_file,pickle.HIGHEST_PROTOCOL)
-                pickle_file.write_bytes(pickle_dumps)
-            else:
-                sph_file = pickle.loads(pickle_file.read_bytes())
+            sph_file = load_sph_file(self.sph_file, shape)
             self.sph_points_mask = sph_file[-1]
 
         x1 = self.state.tile.frame.x
@@ -884,7 +873,7 @@ class QualityMetrics:
         im_ref_m = im_ref * mask
         im_deg_m = im_deg * mask
 
-        sqr_dif:np.ndarray = (im_ref_m - im_deg_m) ** 2
+        sqr_dif: np.ndarray = (im_ref_m - im_deg_m) ** 2
 
         if im_sal is not None:
             sqr_dif = sqr_dif * im_sal
@@ -963,7 +952,7 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
                         f'Skipping')
                 return
 
-        results_val.update({metric:[] for metric in self.metrics})
+        results_val.update({metric: [] for metric in self.metrics})
 
         reference_file = self.state.reference_file
         compressed_file = self.state.compressed_file
@@ -992,53 +981,53 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
             json_content = quality_result_json.read_text(encoding='utf-8')
             self.results = json.loads(json_content, object_hook=AutoDict)
 
-    def result(self, overwrite=False):
-        debug(f'Processing {self.state}')
-        if self.state.quality == self.state.original_quality: return
-
-        quality_csv = self.state.quality_csv  # The compressed quality
-
-        results = self.results
-        for key in self.state.factors_list:
-            results = results[key]
-
-        for metric in self.metrics:
-            csv_path = quality_csv.with_stem(
-                f'{quality_csv.stem}_{metric}')
-
-            if not csv_path.exists():
-                warning(f'The file {csv_path} not exist. Skipping.')
-                continue
-
-            results = results[metric]
-            if results != {} and not overwrite:
-                warning(f'The result key {self.state}-{metric} is not empty.'
-                        f'skipping')
-                continue
-
-            quality = pd.read_csv(csv_path, index_col=0)
-
-            for factor in self.state.factors_list:
-                results = results[factor]
-
-            for metric in self.metrics:
-                if results[metric] != {} and not overwrite:
-                    warning(f'The key [{self.state}][{metric}] exist. '
-                            f'Skipping.')
-                    return 'continue'
-
-                results[metric] = quality[metric].to_list()
-
-        return 'continue'
-
-    def save_result(self):
-        json_dumps = json.dumps(self.results)
-        quality_result_json = self.state.quality_result_json
-        quality_result_json.write_text(json_dumps, encoding='utf-8')
-        
-        pickle_dumps = pickle.dumps(self.results)
-        quality_result_pickle = quality_result_json.with_suffix('.pickle')
-        quality_result_pickle.write_bytes(pickle_dumps)
+    # def result(self, overwrite=False):
+    #     debug(f'Processing {self.state}')
+    #     if self.state.quality == self.state.original_quality: return
+    #
+    #     quality_csv = self.state.quality_csv  # The compressed quality
+    #
+    #     results = self.results
+    #     for key in self.state.factors_list:
+    #         results = results[key]
+    #
+    #     for metric in self.metrics:
+    #         csv_path = quality_csv.with_stem(
+    #             f'{quality_csv.stem}_{metric}')
+    #
+    #         if not csv_path.exists():
+    #             warning(f'The file {csv_path} not exist. Skipping.')
+    #             continue
+    #
+    #         results = results[metric]
+    #         if results != {} and not overwrite:
+    #             warning(f'The result key {self.state}-{metric} is not empty.'
+    #                     f'skipping')
+    #             continue
+    #
+    #         quality = pd.read_csv(csv_path, index_col=0)
+    #
+    #         for factor in self.state.factors_list:
+    #             results = results[factor]
+    #
+    #     for metric in self.metrics:
+    #         if results[metric] != {} and not overwrite:
+    #             warning(f'The key [{self.state}][{metric}] exist. '
+    #                     f'Skipping.')
+    #             return 'continue'
+    #
+    #         results[metric] = quality[metric].to_list()
+    #
+    #     return 'continue'
+    #
+    # def save_result(self):
+    #     json_dumps = json.dumps(self.results)
+    #     quality_result_json = self.state.quality_result_json
+    #     quality_result_json.write_text(json_dumps, encoding='utf-8')
+    #
+    #     pickle_dumps = pickle.dumps(self.results)
+    #     quality_result_pickle = quality_result_json.with_suffix('.pickle')
+    #     quality_result_pickle.write_bytes(pickle_dumps)
 
     def ffmpeg_psnr(self):
         if self.state.chunk == 1:
