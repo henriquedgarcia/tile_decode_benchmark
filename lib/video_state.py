@@ -337,7 +337,20 @@ class VideoContext:
 
     @property
     def state_str(self) -> str:
-        state_str = '_'.join(map(str, self.factors_list))
+        factors = []
+        if self.name is not None:
+            factors.append(self.name)
+        # if self.projection is not None:
+        #     factors.append(self.projection)
+        if self.tiling is not None:
+            factors.append(str(self.tiling))
+        if self.quality is not None:
+            factors.append(f'{self.rate_control}{self.quality}')
+        if self.tile is not None:
+            factors.append(f'tile{self.tile}')
+        if self.chunk is not None:
+            factors.append(f'chunk{self.chunk}')
+        state_str = '_'.join(factors)
         return state_str
 
     def make_name(self, base_name: Union[str, None] = None,
