@@ -439,7 +439,6 @@ class VideoContext:
         folder = self.project / self.compressed_folder / basename
         return folder / f'tile{self.tile}.mp4'
 
-
     @property
     def quality_pickle(self) -> Union[Path, None]:
         folder = self.project / self.quality_folder
