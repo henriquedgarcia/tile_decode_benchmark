@@ -7,13 +7,14 @@ from logging import warning, info, debug, fatal, error
 from pathlib import Path
 from subprocess import run, DEVNULL
 from typing import Any, Optional, Callable, NamedTuple, Union, Dict
+import time
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
 from lib.siti import SiTi
-from lib.util import AutoDict, run_command, check_video_gop, iter_frame
+from lib.util import AutoDict, run_command, check_video_gop, iter_frame, load_sph_file
 from lib.video_state import Config, VideoContext
 
 
@@ -41,7 +42,7 @@ class BaseTileDecodeBenchmark:
         total = len(self.state)
         for n in self.state:
             print(f'{n}/{total}', end='\r')
-            info(f'\n{self.state}')
+            info(f'\n{self.state.factors_list}')
             action = self.role.operation(**kwargs)
 
             if action in (None, 'continue', 'skip'):
@@ -690,7 +691,8 @@ class Siti2D(BaseTileDecodeBenchmark):
 class QualityMetrics:
     PIXEL_MAX: int = 255
     state: VideoContext = None
-    weight_ndarray: Union[np.ndarray, object, None] = None
+    weight_ndarray: Union[np.ndarray, object] = np.zeros(0)
+    sph_points_mask: np.ndarray = np.zeros(0)
     sph_points_img: list = []
     sph_points: list = []
     cart_coord: list = []
@@ -710,7 +712,6 @@ class QualityMetrics:
     CCSPoint = NamedTuple('CCSPoint',
                           (('x', float), ('y', float), ('z', float)))
     #### util ####
-    sph_points_mask: np.ndarray = np.zeros(0)
 
     def mse2psnr(self, mse: float) -> float:
         return 10 * np.log10((self.PIXEL_MAX ** 2 / mse))
@@ -754,7 +755,6 @@ class QualityMetrics:
         # return
 
     #### wspsnr ####
-
     def prepare_weight_ndarray(self):
         if self.state.projection == 'equirectangular':
             height, width = self.state.frame.resolution.shape
@@ -798,20 +798,20 @@ class QualityMetrics:
         :return:
         """
 
-        if self.state.tile.idx == 0:
+        if self.state.frame.resolution.shape != self.weight_ndarray.shape:
             self.prepare_weight_ndarray()
 
         x1 = self.state.tile.frame.x
         x2 = self.state.tile.frame.x + self.state.tile.frame.w
         y1 = self.state.tile.frame.y
         y2 = self.state.tile.frame.y + self.state.tile.frame.h
-        weight_ndarray = self.weight_ndarray[y1:y2, x1:x2]
+        weight_tile = self.weight_ndarray[y1:y2, x1:x2]
 
-        im_weighted = weight_ndarray * (im_ref - im_deg) ** 2
+        tile_weighted = weight_tile * (im_ref - im_deg) ** 2
 
         if im_sal is not None:
-            im_weighted = im_weighted * im_sal
-        wmse = np.average(im_weighted)
+            tile_weighted = tile_weighted * im_sal
+        wmse = np.average(tile_weighted)
 
         if wmse == 0:
             return 1000
@@ -819,34 +819,35 @@ class QualityMetrics:
         return self.mse2psnr(wmse)
 
     #### spsnr_nn ####
-    def load_sph_point(self):
-        # Load 655362 sample points (elevation, azimuth). Angles in degree.
-        iter_file = self.sph_file.read_text().splitlines()
-
-        if not self.sph_points:
-            for idx, line in enumerate(iter_file[1:]):
-                point = list(map(float, line.strip().split()))
-                hcs_point = self.HCSPoint(azimuth=np.deg2rad(point[1]),
-                                          elevation=np.deg2rad(point[0]))
-                self.sph_points.append(hcs_point)
-
-                # ccs_point = self.CCSPoint(
-                #       x=np.sin(hcs_point[1]) * np.cos(hcs_point[0]),
-                #       y=np.sin(hcs_point[0]),
-                #       z=-np.cos(hcs_point[1]) * np.cos(hcs_point[0]))
-                # self.cart_coord.append(ccs_point)
-
-        if not self.sph_points_mask.shape == self.state.frame.resolution.shape:
-            height, width = self.state.frame.resolution.shape
-            self.sph_points_mask = np.zeros(self.state.frame.resolution.shape)
-
-            for hcs_point in self.sph_points:
-                x = np.ceil((hcs_point[0] + 180) * width / (2 * 180) - 1)
-                y = np.floor((hcs_point[1] - 90) * height / 180) + height
-                if y >= height: y = height - 1
-                ics_point = self.ICSPoint(x=int(x), y=int(y))
-                self.sph_points_img.append(ics_point)
-                self.sph_points_mask[int(y), int(x)] = 1
+    # def load_sph_point(self):
+    #     # todo: Metodo descontinuado. Ver módulo Util
+    #     # Load 655362 sample points (elevation, azimuth). Angles in degree.
+    #
+    #     if not self.sph_points:
+    #         iter_file = self.sph_file.read_text().splitlines()
+    #         for idx, line in enumerate(iter_file[1:]):
+    #             point = list(map(float, line.strip().split()))
+    #             hcs_point = self.HCSPoint(azimuth=np.deg2rad(point[1]),
+    #                                       elevation=np.deg2rad(point[0]))
+    #             self.sph_points.append(hcs_point)
+    #
+    #             ccs_point = self.CCSPoint(
+    #                   x=np.sin(hcs_point[1]) * np.cos(hcs_point[0]),
+    #                   y=np.sin(hcs_point[0]),
+    #                   z=-np.cos(hcs_point[1]) * np.cos(hcs_point[0]))
+    #             self.cart_coord.append(ccs_point)
+    #
+    #     if not self.sph_points_mask.shape == self.state.frame.resolution.shape:
+    #         height, width = self.state.frame.resolution.shape
+    #         self.sph_points_mask = np.zeros((height, width))
+    #
+    #         for hcs_point in self.sph_points:
+    #             x = np.ceil((hcs_point[0] + np.pi) * width / (2 * np.pi) - 1)
+    #             y = np.floor((hcs_point[1] - np.pi/2) * height / np.pi) + height
+    #             if y >= height: y = height - 1
+    #             # ics_point = self.ICSPoint(x=int(x), y=int(y))
+    #             # self.sph_points_img.append(ics_point)
+    #             self.sph_points_mask[int(y), int(x)] = 1
 
     def spsnr_nn(self, im_ref: np.ndarray,
                  im_deg: np.ndarray,
@@ -860,7 +861,19 @@ class QualityMetrics:
         :param im_sal: The saliency map
         :return:
         """
-        self.load_sph_point()
+        # sph_file = Path('lib/sphere_655362.txt'),
+        shape = self.state.frame.resolution.shape
+
+        pickle_file = self.sph_file.with_suffix('.pickle')
+
+        if self.sph_points_mask.shape != shape:
+            if not pickle_file.exists():
+                sph_file = load_sph_file(self.sph_file, shape)
+                pickle_dumps = pickle.dumps(sph_file,pickle.HIGHEST_PROTOCOL)
+                pickle_file.write_bytes(pickle_dumps)
+            else:
+                sph_file = pickle.loads(pickle_file.read_bytes())
+            self.sph_points_mask = sph_file[-1]
 
         x1 = self.state.tile.frame.x
         x2 = self.state.tile.frame.x + self.state.tile.frame.w
@@ -881,9 +894,11 @@ class QualityMetrics:
 
 
 class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
+    results: AutoDict
+
     def __init__(self, config: str,
                  role: str,
-                 sph_file = Path('lib/sphere_655362.txt'),
+                 sph_file=Path('lib/sphere_655362.txt'),
                  **kwargs):
         """
         Load configuration and run the main routine defined on Role Operation.
@@ -894,25 +909,24 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
         :param kwargs: passed to main routine
         """
         operations = {
-            'ALL': Role(name='ALL', deep=4, init=None,
-                         operation=self.all, finish=None),
-            'PSNR': Role(name='PSNR', deep=4, init=None,
-                         operation=self.measure_thread, finish=None),
-            'WSPSNR': Role(name='WSPSNR', deep=4, init=None,
-                         operation=self.measure_thread, finish=None),
-            'SPSNR': Role(name='SPSNR', deep=4, init=None,
-                         operation=self.measure_thread, finish=None),
-            'RESULTS': Role(name='RESULTS', deep=4, init=None,
-                         operation=self.all, finish=None),
+            'ALL': Role(name='ALL', deep=4, init=self.all_init,
+                        operation=self.all, finish=None),
+            'PSNR': Role(name='PSNR', deep=4, init=self.all_init,
+                         operation=self.only_a_metric, finish=None),
+            'WSPSNR': Role(name='WSPSNR', deep=4, init=self.all_init,
+                           operation=self.only_a_metric, finish=None),
+            'SPSNR': Role(name='SPSNR', deep=4, init=self.all_init,
+                          operation=self.only_a_metric, finish=None),
+            'RESULTS': Role(name='RESULTS', deep=4, init=self.all_init,
+                            operation=self.all, finish=None),
         }
 
         self.metrics = {'PSNR': self.psnr,
                         'WS-PSNR': self.wspsnr,
                         'S-PSNR': self.spsnr_nn}
-        
+
         self.sph_file = sph_file
 
-        self.results = AutoDict()
         self.results_dataframe = pd.DataFrame()
 
         self.config = Config(config)
@@ -922,103 +936,99 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
         self.print_resume()
         self.run(**kwargs)
 
-    def all(self, overwrite=False):
-        debug(f'Processing {self.state}')
+    def all_init(self):
+        quality_pickle = self.state.quality_pickle
+        if quality_pickle.exists():
+            self.results = pickle.load(quality_pickle.open('rb'))
+        else:
+            self.results = AutoDict()
 
+    def all(self, overwrite=False):
         if self.state.quality == self.state.original_quality:
             info('Skipping original quality')
             return 'continue'
+        metrics = self.metrics.copy()
+
+        results_val = self.results
+        for key in self.state.factors_list:
+            results_val = results_val[key]
+
+        if results_val != {} and not overwrite:
+            for metric in results_val:
+                warning(f'The metric {metric} exist for {self.state.factors_list}. '
+                        'Skipping this metric')
+                del (metrics[metric])
+            if metrics == {}:
+                warning(f'The metrics for {self.state.factors_list} are OK. '
+                        f'Skipping')
+                return
+
+        results_val.update({metric:[] for metric in self.metrics})
 
         reference_file = self.state.reference_file
         compressed_file = self.state.compressed_file
-        quality_csv = self.state.quality_csv
-        frames = zip(iter_frame(reference_file),
-                     iter_frame(compressed_file))
 
-        results = defaultdict(list)
-
+        frames = zip(iter_frame(reference_file), iter_frame(compressed_file))
+        # start = time.time()
         for n, (frame_video1, frame_video2) in enumerate(frames, 1):
-            debug(f'Frame {n}')
             for metric in self.metrics:
                 metrics_method = self.metrics[metric]
                 metric_value = metrics_method(frame_video1, frame_video2)
-                results[metric].append(metric_value)
+                results_val[metric].append(metric_value)
+            # info(f'Frame {n} - {time.time() - start: 0.3f} s')
+
+        pickle_dumps = pickle.dumps(self.results, pickle.HIGHEST_PROTOCOL)
+        self.state.quality_pickle.write_bytes(pickle_dumps)
+        pickle.dumps(self.results, pickle.HIGHEST_PROTOCOL)
+
+    def only_a_metric(self, **kwargs):
+        self.metrics = self.metrics[self.role.name]
+        self.all(**kwargs)
+
+    def init_result(self):
+        quality_result_json = self.state.quality_result_json
+        if quality_result_json.is_file():
+            warning(f'The file {quality_result_json} exist. Loading.')
+            json_content = quality_result_json.read_text(encoding='utf-8')
+            self.results = json.loads(json_content, object_hook=AutoDict)
+
+    def result(self, overwrite=False):
+        debug(f'Processing {self.state}')
+        if self.state.quality == self.state.original_quality: return
+
+        quality_csv = self.state.quality_csv  # The compressed quality
+
+        results = self.results
+        for key in self.state.factors_list:
+            results = results[key]
 
         for metric in self.metrics:
             csv_path = quality_csv.with_stem(
-                f'{quality_csv.stem}_{metric}'
-            )
+                f'{quality_csv.stem}_{metric}')
 
-            if csv_path.exists() and not overwrite:
-                warning(f'The file {csv_path} exist. Skipping.')
-                return 'continue'
+            if not csv_path.exists():
+                warning(f'The file {csv_path} not exist. Skipping.')
+                continue
 
-            pd.DataFrame(results).to_csv(csv_path,
-                                         encoding='utf-8',
-                                         index_label='frame')
+            results = results[metric]
+            if results != {} and not overwrite:
+                warning(f'The result key {self.state}-{metric} is not empty.'
+                        f'skipping')
+                continue
 
-    def measure_thread(self, overwrite=False):
-        debug(f'Processing {self.role.name} for {self.state}')
+            quality = pd.read_csv(csv_path, index_col=0)
 
-        if self.state.quality == self.state.original_quality:
-            info('Skipping original quality')
-            return 'continue'
+            for factor in self.state.factors_list:
+                results = results[factor]
 
-        compressed_reference = self.state.reference_file
-        compressed_file = self.state.compressed_file
-        quality_csv = self.state.quality_csv
-        csv_path = quality_csv.with_stem(f'{quality_csv.stem}_{self.role.name}')
+            for metric in self.metrics:
+                if results[metric] != {} and not overwrite:
+                    warning(f'The key [{self.state}][{metric}] exist. '
+                            f'Skipping.')
+                    return 'continue'
 
-        if csv_path.exists() and not overwrite:
-            warning(f'The file {csv_path} exist. Skipping.')
-            return 'continue'
+                results[metric] = quality[metric].to_list()
 
-        frames = zip(iter_frame(compressed_reference),
-                     iter_frame(compressed_file))
-
-        results = []
-        for n, (frame_video1, frame_video2) in enumerate(frames, 1):
-            debug(f'Frame {n}')
-            metrics_method = self.metrics[self.role.name]
-            metric_value = metrics_method(frame_video1, frame_video2)
-            results.append(metric_value)
-
-        pd.DataFrame(results).to_csv(csv_path,
-                                     encoding='utf-8',
-                                     index_label='frame')
-
-    def init_result(self):
-        compressed_quality_result_json = self.state.quality_result_json
-        if compressed_quality_result_json.is_file():
-            warning(f'The file {compressed_quality_result_json} exist. '
-                    f'Loading.')
-            self.results = json.loads(
-                compressed_quality_result_json.read_text(encoding='utf-8'))
-
-    def result(self, overwrite=False):
-        if self.state.quality == self.state.original_quality:
-            return 'continue'
-
-        debug(f'Processing {self.state}')
-        compressed_quality_csv = self.state.quality_csv
-
-        if not compressed_quality_csv.is_file():
-            warning(f'The file {compressed_quality_csv} not exist. Skipping.')
-            return 'continue'
-
-        quality = pd.read_csv(compressed_quality_csv, index_col=0)
-
-        results = self.results
-        for factor in self.state.factors_list:
-            results = results[factor]
-
-        for metric in self.metrics:
-            if results[metric] != {} and not overwrite:
-                warning(
-                    f'The key [{self.state}][{metric}] exist. Skipping.')
-                return 'continue'
-
-            results[metric] = quality[metric].to_list()
         return 'continue'
 
     def save_result(self):
