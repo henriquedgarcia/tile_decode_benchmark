@@ -18,6 +18,43 @@ class AutoDict(dict):
         return self[key]
 
 
+
+def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
+    # Load 655362 sample points (elevation, azimuth). Angles in degree.
+
+    iter_file = sph_file.read_text().splitlines()
+
+    sph_points = []
+    cart_coord = []
+    sph_points_img = []
+    sph_points_mask = np.zeros(0)
+
+    if shape is not None:
+        sph_points_mask = np.zeros(shape)
+
+
+    for idx, line in enumerate(iter_file[1:]):
+        point = list(map(float, line.strip().split()))
+        hcs_point = dict(azimuth=np.deg2rad(point[1]),
+                         elevation=np.deg2rad(point[0]))
+        sph_points.append(hcs_point)
+
+        ccs_point = dict(x=np.sin(hcs_point['elevation']) * np.cos(hcs_point['azimuth']),
+                         y=np.sin(hcs_point['azimuth']),
+                         z=-np.cos(hcs_point['elevation']) * np.cos(hcs_point['azimuth']))
+        cart_coord.append(ccs_point)
+
+        if shape is not None:
+            height, width = shape
+            x = np.ceil((hcs_point['azimuth'] + np.pi) * width / (2 * np.pi) - 1)
+            y = np.floor((hcs_point['elevation'] - np.pi/2) * height / np.pi) + height
+            if y >= height: y = height - 1
+            ics_point = dict(x=int(x), y=int(y))
+            sph_points_img.append(ics_point)
+            sph_points_mask[int(y), int(x)] = 1
+
+    return sph_points, cart_coord, sph_points_img, sph_points_mask
+
 # ------------------ erp2sph ------------------
 def erp2sph(m, n, shape: tuple) -> tuple[int, int]:
     return uv2sph(*erp2uv(m, n, shape))
