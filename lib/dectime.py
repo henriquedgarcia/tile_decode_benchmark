@@ -907,8 +907,8 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
                            operation=self.only_a_metric, finish=None),
             'SPSNR': Role(name='SPSNR', deep=4, init=self.all_init,
                           operation=self.only_a_metric, finish=None),
-            'RESULTS': Role(name='RESULTS', deep=4, init=self.all_init,
-                            operation=self.all, finish=None),
+            'RESULTS': Role(name='RESULTS', deep=4, init=self.init_result,
+                            operation=self.result, finish=self.save_result),
         }
 
         self.metrics = {'PSNR': self.psnr,
@@ -935,6 +935,7 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
         #     self.results = AutoDict()
 
     def all(self, overwrite=False):
+        debug(f'Processing {self.state}')
         if self.state.quality == self.state.original_quality:
             info('Skipping original quality')
             return 'continue'
@@ -980,58 +981,62 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
 
     def init_result(self):
         quality_result_json = self.state.quality_result_json
-        if quality_result_json.is_file():
+
+        if quality_result_json.exists():
             warning(f'The file {quality_result_json} exist. Loading.')
             json_content = quality_result_json.read_text(encoding='utf-8')
             self.results = json.loads(json_content, object_hook=AutoDict)
+        else:
+            self.results = AutoDict()
 
-    # def result(self, overwrite=False):
-    #     debug(f'Processing {self.state}')
-    #     if self.state.quality == self.state.original_quality: return
-    #
-    #     quality_csv = self.state.quality_csv  # The compressed quality
-    #
-    #     results = self.results
-    #     for key in self.state.factors_list:
-    #         results = results[key]
-    #
-    #     for metric in self.metrics:
-    #         csv_path = quality_csv.with_stem(
-    #             f'{quality_csv.stem}_{metric}')
-    #
-    #         if not csv_path.exists():
-    #             warning(f'The file {csv_path} not exist. Skipping.')
-    #             continue
-    #
-    #         results = results[metric]
-    #         if results != {} and not overwrite:
-    #             warning(f'The result key {self.state}-{metric} is not empty.'
-    #                     f'skipping')
-    #             continue
-    #
-    #         quality = pd.read_csv(csv_path, index_col=0)
-    #
-    #         for factor in self.state.factors_list:
-    #             results = results[factor]
-    #
-    #     for metric in self.metrics:
-    #         if results[metric] != {} and not overwrite:
-    #             warning(f'The key [{self.state}][{metric}] exist. '
-    #                     f'Skipping.')
-    #             return 'continue'
-    #
-    #         results[metric] = quality[metric].to_list()
-    #
-    #     return 'continue'
-    #
-    # def save_result(self):
-    #     json_dumps = json.dumps(self.results)
-    #     quality_result_json = self.state.quality_result_json
-    #     quality_result_json.write_text(json_dumps, encoding='utf-8')
-    #
-    #     pickle_dumps = pickle.dumps(self.results)
-    #     quality_result_pickle = quality_result_json.with_suffix('.pickle')
-    #     quality_result_pickle.write_bytes(pickle_dumps)
+        # quality_result_pickle = quality_result_json.with_suffix('.pickle')
+        # if quality_result_pickle.exists():
+        #     warning(f'The file {quality_result_json} exist. Loading.')
+        #     pickle_content = quality_result_pickle.read_bytes()
+        #     self.results = pickle.loads(pickle_content)
+
+    def result(self, overwrite=False):
+        debug(f'Processing {self.state}')
+        if self.state.quality == self.state.original_quality:
+            info('Skipping original quality')
+            return 'continue'
+
+        results = self.results
+        quality_csv = self.state.quality_csv  # The compressed quality
+
+        if not quality_csv.exists():
+            warning(f'The file {quality_csv} not exist. Skipping.')
+            return 'continue'
+
+        csv_dataframe = pd.read_csv(quality_csv, encoding='utf-8', index_col=0)
+
+        for key in self.state.factors_list:
+            results = results[key]
+
+        for metric in self.metrics:
+            if results[metric] != {} and not overwrite:
+                warning(f'The metric {metric} exist for Result '
+                        f'{self.state.factors_list}. Skipping this metric')
+                return
+
+            try:
+                results[metric] = csv_dataframe[metric].tolist()
+                if len(results[metric]) == 0:
+                    raise KeyError
+            except KeyError:
+                warning(f'The metric {metric} not exist for csv_dataframe'
+                        f'{self.state.factors_list}. Skipping this metric')
+                return
+        return 'continue'
+
+    def save_result(self):
+        json_dumps = json.dumps(self.results)
+        quality_result_json = self.state.quality_result_json
+        quality_result_json.write_text(json_dumps, encoding='utf-8')
+
+        pickle_dumps = pickle.dumps(self.results)
+        quality_result_pickle = quality_result_json.with_suffix('.pickle')
+        quality_result_pickle.write_bytes(pickle_dumps)
 
     def ffmpeg_psnr(self):
         if self.state.chunk == 1:
