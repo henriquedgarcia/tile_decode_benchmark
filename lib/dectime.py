@@ -989,12 +989,6 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
         else:
             self.results = AutoDict()
 
-        # quality_result_pickle = quality_result_json.with_suffix('.pickle')
-        # if quality_result_pickle.exists():
-        #     warning(f'The file {quality_result_json} exist. Loading.')
-        #     pickle_content = quality_result_pickle.read_bytes()
-        #     self.results = pickle.loads(pickle_content)
-
     def result(self, overwrite=False):
         debug(f'Processing {self.state}')
         if self.state.quality == self.state.original_quality:
