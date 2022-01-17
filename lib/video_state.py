@@ -1,164 +1,106 @@
-from itertools import product as prod
-from pathlib import Path
-from typing import Any, Dict, List, Union, NamedTuple, Tuple, Callable, Optional
-from lib.util import splitx
-from logging import debug
 import json
+from dataclasses import dataclass
+from logging import debug
+from pathlib import Path
+from typing import (Any, Dict, List, Union, Optional)
+
+import numpy as np
+
+from assets import Resolution, Position
+from lib.util import splitx
+
+global config
+global state
 
 
-class Position(NamedTuple):
-    x: float
-    y: float
-    z: float = None
+@dataclass
+class Frame:
+    image: Optional[np.ndarray] = None
+    info: Optional[dict] = None
+    resolution: Optional[Resolution] = None
 
-    def __str__(self):
-        string = f'({self.x}, {self.y}'
-        if self.z is not None:
-            string = string + f',{self.z}'
-        string = string + ')'
-        return string
-
-
-class Resolution:
-    w: int
-    h: int
-    _resolution: str
-    shape: Tuple[int]
-
-    def __init__(self, resolution: Union[str, tuple]):
-        if isinstance(resolution, str):
-            self.resolution = resolution
-        elif isinstance(resolution, tuple):
-            self.shape = resolution
-
-    @property
-    def resolution(self) -> str:
-        self._resolution = f'{self.w}x{self.h}'
-        return self._resolution
-
-    @resolution.setter
-    def resolution(self, res: str):
-        self._resolution = res
-        self.w, self.h = tuple(map(int, res.split('x')))
-
-    @property
-    def shape(self) -> tuple:
-        return self.h, self.w
-
-    @shape.setter
-    def shape(self, shape: tuple):
-        self.h, self.w = shape
-
-    def __iter__(self):
-        return iter((self.h, self.w))
-
-    def __str__(self):
-        return self._resolution
 
 class Chunk:
-    duration: int
-    id: int
-
-    def __init__(self, duration, id):
+    def __init__(self, idx, duration: float, n_frames: int,
+                 sequence: List[Frame] = None):
+        """ um conjunto de frames"""
         self.duration = duration
-        self.id = id
+        self.idx = idx
+        self.n_frames = n_frames
+        self.sequence = sequence
 
     def __str__(self):
-        return str(self.id)
-
-    def __repr__(self):
-        return NamedTuple('Chunk', [('id', int), ('duration', str)]
-                          )(self.id, f'{self.duration} s')
-
-
-class Frame:
-    def __init__(self, resolution: Resolution,
-                 position: Position = None):
-        """
-        :param resolution: scale: a string like "1200x600" or a shape numpy-like (y,x)
-        """
-        self.resolution = resolution
-        self.position = position
-
-    def __repr__(self):
-        return f'{self.resolution}@{self.position}'
-
-    def __iter__(self):
-        iter((self.resolution, self.position))
-
-    def __str__(self):
-        return str(self.resolution)
-
-    @property
-    def x(self):
-        return self.position.x
-
-    @property
-    def y(self):
-        return self.position.y
-
-    @property
-    def h(self):
-        return self.resolution.h
-
-    @property
-    def w(self):
-        return self.resolution.w
+        return str(self.idx)
 
 
 class Tile:
-    # todo: implementar a seguinte ideia. Um tile é um objeto que possui um frame e está contido em um frame maior.
-    # todo: O Frame contem informações espaciais da imagem, como dimensão, informação de cor e opcionalmente da projeção
-    # todo: o Tile terá informações temporais e de posição, como idx, posição e Tiling.
-    # todo: O Tiling terá informações sobre o frame da projeção, total de tiles, segmentação MxN, e uma referência pra cada tile. (lista de tiles)
+    def __init__(self, idx: int,
+                 resolution: Resolution,
+                 position: Position,
+                 chunk_list: List[Chunk] = None):
+        """
+        Um tile contem uma ID, uma resolução, uma posição e conjunto de chunks.
 
-    def __init__(self, idx: int, frame: Frame):
-        self.frame = frame
+        :param idx:
+        :param resolution:
+        :param position:
+        :param chunk_list:
+        """
         self.idx = idx
+        self.resolution = resolution
+        self.position = position
+        self.chunk_list = chunk_list
 
     def __str__(self):
         return str(self.idx)
 
 
 class Tiling:
-    _pattern_list: List[str]
     _pattern: str
-    tile_frame: Frame
-    total_tiles: int
-    _tiles_list: List[Tile] = None
+    n_tiles: int
+    m: int
     n: int
+    _tiles_list: Optional[List[Tile]]
 
-    def __init__(self, pattern: str, frame: Frame):
+    def __init__(self, pattern: str, proj_res: Resolution):
+        """
+        A tiling contain a tile pattern, tile resolution and tiling list
+        :param pattern:
+        :param proj_res:
+        """
         self.pattern = pattern
-        self.frame = frame
+        self.proj_res = proj_res
+        self.tile_res = proj_res / self.shape
+
+        idx = 0
+        self.tiles_list = []
+        for y in range(0, self.proj_res.h, self.tile_res.h):
+            for x in range(0, self.proj_res.w, self.tile_res.w):
+                pos = Position(x, y)
+                self.tiles_list.append(Tile(idx, self.tile_res, pos))
+                idx += 1
 
     @property
     def tiles_list(self):
-        if self._tiles_list is not None:
-            return self._tiles_list
+        return self._tiles_list
 
-        resolution = Resolution((self.frame.h // self.n,
-                                 self.frame.w // self.m))
-
-        pos_iterator = prod(range(0, self.frame.h, resolution.h),
-                            range(0, self.frame.w, resolution.w))
-        tiles_list = []
-        for idx, (y, x) in enumerate(pos_iterator):
-            pos = Position(x, y)
-            tile = Tile(idx, Frame(resolution, pos))
-            tiles_list.append(tile)
-            self._tiles_list = tiles_list
-        return tiles_list
+    @tiles_list.setter
+    def tiles_list(self, tiles_list: List[Tile]):
+        self._tiles_list = tiles_list
 
     @property
-    def pattern(self):
+    def pattern(self) -> str:
         return self._pattern
 
     @pattern.setter
     def pattern(self, pattern: str):
         self._pattern = pattern
-        self.m, self.n = splitx(pattern)
-        self.total_tiles = self.m * self.n
+        self.n, self.m = splitx(pattern)
+        self.n_tiles = self.m * self.n
+
+    @property
+    def shape(self) -> tuple:
+        return self.n, self.m
 
     def __str__(self):
         return self.pattern
@@ -169,22 +111,24 @@ class Config:
 
     def __init__(self, config_file: str):
         debug(f'Loading {config_file}.')
-        
-        self.config_file = Path(config_file)
-        content = self.config_file.read_text(encoding='utf-8')
-        self.config_data = json.loads(content)
 
-        videos_filename = self.config_data['videos_file']
-        videos_file = Path(f'config/{videos_filename}')
-        content = videos_file.read_text()
-        video_list = json.loads(content)
-        video_list = video_list['videos_list']
-        
+        self.config_file = Path(config_file)
+
+        with self.config_file.open('r', encoding='utf-8') as f:
+            self.config_data = json.load(f)
+
+        videos_file_json = self.config_data['videos_file']
+        videos_file_json = Path(f'config/{videos_file_json}')
+
+        with videos_file_json.open('r', encoding='utf-8') as f:
+            video_list = json.load(f)
+            video_list = video_list['videos_list']
+
         for name in video_list:
             fps = self.config_data['fps']
             gop = self.config_data['gop']
             video_list[name].update({"fps": fps, "gop": gop})
-            
+
         self.videos_list: Dict[str, Any] = video_list
 
     def __getitem__(self, key):
@@ -211,34 +155,33 @@ class VideoContext:
     _name: str = None
     projection: str = None
     _tiling: Tiling = None
-    quality: int = None
-    tile: Tile = None
-    chunk: int = None
+    _quality: int = None
+    _tile: Tile = None
+    _chunk: int = None
 
     # Characteristics
     fps: int
     gop: int
-    frame: Frame
+    resolution: Resolution
     original: str
     offset: str
     duration: int
     chunks: range
+    n_chunks: int
+    chunk_dur: float
     group: int
 
     # Lists
-    names_list = []
-    tiling_list = []
-    tiles_list = {}
-    quality_list = []
-    chunk_list = {}
+    _names_list = []
+    _tiling_list = []
+    _tiles_list = []
+    _quality_list = []
+    _chunks_list = []
 
-    def __str__(self):
-        return self.state_str
-
-    def __init__(self, config: Config, deep: int):
-        self.config = config
+    def __init__(self, conf: Config, deep: int):
+        global config
+        config = conf
         self.deep = deep
-
         self.project = Path('results') / config['project']
         self.result_error_metric: str = config['project']
         self.decoding_num: int = config['decoding_num']
@@ -247,6 +190,13 @@ class VideoContext:
         self.distributions: list[str] = config['distributions']
         self.rate_control: str = config['rate_control']
         self.original_quality: str = config['original_quality']
+
+        self.names_list = list(config['videos_list'].keys())
+        self.tiling_list = config['tiling_list']
+        self.quality_list = config['quality_list']
+
+    def __str__(self):
+        return self.state_str
 
     def __len__(self):
         i = 0
@@ -259,34 +209,84 @@ class VideoContext:
         if deep == 0:
             count += 1
             yield count
-            return None
-
-        for self.name in self.config.videos_list:
+            return
+        for self.name in self.names_list:
             if deep == 1:
                 count += 1
                 yield count
                 continue
-            for pattern in self.config['tiling_list']:
-                self.tiling = Tiling(pattern, self.frame)
+            for self.tiling in self.tiling_list:
                 if deep == 2:
                     count += 1
                     yield count
                     continue
-                for self.quality in self.config['quality_list']:
+                for self.quality in self.quality_list:
                     if deep == 3:
                         count += 1
                         yield count
                         continue
-                    for self.tile in self.tiling.tiles_list:
+                    for self.tile in self.tiles_list:
                         if deep == 4:
                             count += 1
                             yield count
                             continue
-                        for self.chunk in self.chunks:
+                        for self.chunk in self.chunks_list:
                             if deep == 5:
                                 count += 1
                                 yield count
                                 continue
+
+    def make_name(self, base_name: Union[str, None] = None,
+                  ext: str = None, other: Any = None,
+                  separator='_') -> str:
+        name = self.state_str.replace('_', separator)
+        if base_name:
+            name = f'{base_name}{separator}{name}'
+        if other:
+            name = f'{name}{separator}{other}'
+        if ext:
+            name = f'{name}.{ext}'
+        return name
+
+    @property
+    def names_list(self) -> list:
+        return self._names_list
+
+    @names_list.setter
+    def names_list(self, videos_list: list[str]):
+        self._videos_list = videos_list
+
+    @property
+    def tiling_list(self) -> List[str, ...]:
+        return self._tiling_list
+
+    @tiling_list.setter
+    def tiling_list(self, tiling_list: List[str]):
+        self._tiling_list = tiling_list
+
+    @property
+    def quality_list(self) -> List[int]:
+        return self._quality_list
+
+    @quality_list.setter
+    def quality_list(self, quality_list: List[int]):
+        self._quality_list = quality_list
+
+    @property
+    def tiles_list(self) -> List[Tile]:
+        return self._tiles_list
+
+    @tiles_list.setter
+    def tiles_list(self, tiles_list: List[Tile]):
+        self._tiles_list = tiles_list
+
+    @property
+    def chunks_list(self) -> List[Chunk]:
+        return self._chunks_list
+
+    @chunks_list.setter
+    def chunks_list(self, chunks_list: (str, Tiling)):
+        self._chunks_list = chunks_list
 
     @property
     def name(self) -> str:
@@ -295,17 +295,22 @@ class VideoContext:
     @name.setter
     def name(self, name: str):
         self._name = name
-        video_info: dict = self.config.videos_list[name]
+        video_info: dict = config.videos_list[name]
 
         self.original: str = video_info['original']
-        self.frame = Frame(Resolution(video_info['scale']), Position(0, 0))
+        self.resolution = Resolution(video_info['scale'])
         self.projection: str = video_info['projection']
         self.offset = str(video_info['offset'])
         self.duration = int(video_info['duration'])
         self.group = int(video_info['group'])
         self.fps = int(video_info['fps'])
         self.gop = int(video_info['gop'])
-        self.chunks = range(1, (int(self.duration / (self.gop / self.fps)) + 1))
+        self.chunk_dur = (self.gop / self.fps)
+        self.n_chunks = int(self.duration / self.chunk_dur)
+        self.chunks_list = [Chunk(idx, self.chunk_dur, self.gop) for idx in
+                            range(1, self.n_chunks + 1)]
+        global state
+        state = self.state
 
     @property
     def tiling(self) -> Tiling:
@@ -316,7 +321,40 @@ class VideoContext:
         if isinstance(tiling, Tiling):
             self._tiling = tiling
         elif isinstance(tiling, str):
-            self._tiling = Tiling(tiling, self.frame)
+            self._tiling = Tiling(tiling, self.resolution)
+        self.tiles_list = self._tiling.tiles_list
+        global state
+        state = self.state
+
+    @property
+    def quality(self) -> int:
+        return self._quality
+
+    @quality.setter
+    def quality(self, quality: int):
+        self._quality = quality
+        global state
+        state = self.state
+
+    @property
+    def tile(self) -> Tile:
+        return self._tile
+
+    @tile.setter
+    def tile(self, tile: Tile):
+        self._tile = tile
+        global state
+        state = self.state
+
+    @property
+    def chunk(self) -> int:
+        return self._chunk
+
+    @chunk.setter
+    def chunk(self, chunk: int):
+        self._chunk = chunk
+        global state
+        state = self.state
 
     @property
     def factors_list(self) -> list:
@@ -324,7 +362,7 @@ class VideoContext:
         if self.name is not None:
             factors.append(self.name)
         # if self.projection is not None:
-        #     factors.append(self.projection)
+        #    factors.append(self.projection)
         if self.tiling is not None:
             factors.append(str(self.tiling))
         if self.quality is not None:
@@ -334,6 +372,10 @@ class VideoContext:
         if self.chunk is not None:
             factors.append(str(self.chunk))
         return factors
+
+    @property
+    def state(self):
+        return self.factors_list
 
     @property
     def state_str(self) -> str:
@@ -353,25 +395,13 @@ class VideoContext:
         state_str = '_'.join(factors)
         return state_str
 
-    def make_name(self, base_name: Union[str, None] = None,
-                  ext: str = None, other: Any = None,
-                  separator='_') -> str:
-        name = self.state_str.replace('_', separator)
-        if base_name:
-            name = f'{base_name}{separator}{name}'
-        if other:
-            name = f'{name}{separator}{other}'
-        if ext:
-            name = f'{name}.{ext}'
-        return name
-
     @property
     def basename(self):
         # todo: remover essa gambiarra na próxima rodada
         name = self.name.replace("cmp_", "")
         name = name.replace("erp_", "")
         return Path(f'{name}_'
-                    f'{self.frame.resolution}_'
+                    f'{self.resolution}_'
                     f'{self.fps}_'
                     f'{self.tiling}_'
                     f'{self.rate_control}{self.quality}')
@@ -384,7 +414,7 @@ class VideoContext:
     def lossless_file(self) -> Path:
         folder = self.project / self.lossless_folder
         folder.mkdir(parents=True, exist_ok=True)
-        return folder / f'{self.name}_{self.frame}_{self.fps}.mp4'
+        return folder / f'{self.name}_{self.resolution}_{self.fps}.mp4'
 
     @property
     def compressed_file(self) -> Path:
@@ -431,7 +461,7 @@ class VideoContext:
     def reference_file(self) -> Path:
         basename = Path(f'{self.name}_'
                         # f'{self.projection}_'
-                        f'{self.frame}_'
+                        f'{self.resolution}_'
                         f'{self.fps}_'
                         f'{self.tiling}_'
                         f'{self.rate_control}{self.original_quality}')
@@ -464,7 +494,6 @@ class VideoContext:
         folder = self.project / self._check_folder
         folder.mkdir(parents=True, exist_ok=True)
         return folder
-
 
 # class VideoBase:
 #     frame: Frame

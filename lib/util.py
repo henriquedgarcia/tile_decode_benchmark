@@ -1,22 +1,18 @@
-import os
-import skvideo.io
+import json
 import math
+import os
 import subprocess
-import sys
 from logging import debug, error, warning
-from numbers import Real
 from pathlib import Path
-from typing import Any, Dict, Hashable, Iterable, NamedTuple, Tuple, Union
 from subprocess import run
+from typing import Any, Dict, Hashable, Iterable, Tuple, Union
+
 import numpy as np
+import skvideo.io
 from scipy import ndimage
 
-
-class AutoDict(dict):
-    def __missing__(self, key):
-        self[key] = type(self)()
-        return self[key]
-
+from assets import (AutoDict, StatsData, Point_bcs, Point_hcs, Point2d,
+                    Resolution, Point3d)
 
 
 def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
@@ -55,16 +51,27 @@ def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
 
     return sph_points, cart_coord, sph_points_img, sph_points_mask
 
+def cart2sph(x, y, z) -> tuple[float, float]:
+    """
+    Convert from cartesian system to horizontal coordinate system in radians
+    :param x: Coordinate from X axis
+    :param y: Coordinate from Y axis
+    :param z: Coordinate from Z axis
+    :return: (azimuth, elevation)
+    """
+    azimuth = np.arctan2(y, x)
+    elevation = np.arctan2(z, np.sqrt(x ** 2 + y ** 2))
+    # r = np.sqrt(x ** 2 + y ** 2 + z ** 2)
+    return azimuth, elevation
+
 # ------------------ erp2sph ------------------
 def erp2sph(m, n, shape: tuple) -> tuple[int, int]:
     return uv2sph(*erp2uv(m, n, shape))
-
 
 def uv2sph(u, v):
     theta = (u - 0.5) * 2 * np.pi
     phi = -(v - 0.5) * np.pi
     return phi, theta
-
 
 def erp2uv(m, n, shape: tuple):
     u = (m + 0.5) / shape[1]
@@ -75,7 +82,6 @@ def erp2uv(m, n, shape: tuple):
 # ------------------ sph2erp ------------------
 def sph2erp(theta, phi, shape: tuple) -> tuple[int, int]:
     return uv2img(*sph2uv(theta, phi), shape)
-
 
 def sph2uv(theta, phi):
     PI = np.pi
@@ -113,16 +119,15 @@ def iter_frame(video_path, gray=True, dtype='float32'):
             frame = frame.reshape((height, width)).astype(dtype)
         yield frame
 
-
-def check_video_gop(video_file) -> (int, list):
+def check_video_gop(video_file: Path) -> (int, list):
     command = (f'ffprobe -hide_banner -loglevel 0 '
                f'-of default=nk=1:nw=1 '
                f'-show_entries frame=pict_type '
                f'"{video_file}"')
     process = run(command, shell=True, capture_output=True, encoding='utf-8')
     if process.returncode != 0:
-        warning(
-            f'FFPROBE ERROR: Return {process.returncode} to video {video_file}')
+        warning(f'FFPROBE ERROR: Return {process.returncode} to video '
+                f'{video_file}')
         return 0, []
 
     output = process.stdout
@@ -141,7 +146,6 @@ def check_video_gop(video_file) -> (int, list):
             gop.append(line)
     return max_gop, gop
 
-
 def check_file_size(video_file) -> int:
     debug(f'Checking size of {video_file}')
     if not os.path.isfile(video_file):
@@ -152,10 +156,8 @@ def check_file_size(video_file) -> int:
     debug(f'The size is {filesize}')
     return filesize
 
-
 def mse2psnr(mse: float, pixel_max=255) -> float:
     return 10 * np.log10((pixel_max ** 2 / mse))
-
 
 def run_command(command: str, log_to_save: Union[str, Path], mode: str = 'w'):
     """
@@ -175,9 +177,90 @@ def run_command(command: str, log_to_save: Union[str, Path], mode: str = 'w'):
         error(f'run error in {command}. Continuing.')
 
 
-def splitx(string: str) -> tuple:
+def save_json(data: dict,
+              filename: Union[str, Path],
+              separators=(',', ':'),
+              indent=None):
+
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(data, f, separators=separators, indent=indent)
+
+def load_json(filename, object_hook=AutoDict):
+    with open(filename, 'r', encoding='utf-8') as f:
+        results = json.load(f, object_hook=object_hook)
+    return results
+
+
+def splitx(string: str) -> tuple[int, ...]:
+    """
+    Receive a string like "5x6x7" (no spaces) and return a tuple of ints, in
+    this case, (5, 6, 7).
+    :param string: A string of numbers separated with "x".
+    :return: Return a list of int
+    """
     return tuple(map(int, string.split('x')))
 
+def rot_matrix(new_position: Point_bcs):
+    """
+    Create rotation matrix using Tait–Bryan angles in Z-Y-X order.
+    See Wikipedia.
+    :param new_position: A new position using the Body Coordinate System.
+    :return:
+    """
+    yaw = np.deg2rad(new_position.yaw)
+    pitch = np.deg2rad(-new_position.pitch)
+    roll = np.deg2rad(-new_position.roll)
+
+    cp = np.cos(pitch)
+    sp = np.sin(pitch)
+    cy = np.cos(yaw)
+    sy = np.sin(yaw)
+    cr = np.cos(roll)
+    sr = np.sin(roll)
+
+    mat = np.array(
+        [[cy * cp, cy * sp * sr - cr * sy, sy * sr + cy * cr * sp],
+         [cp * sy, cy * cr + sy * sp * sr, cr * sy * sp - cy * sr],
+         [-sp, cp * sr, cp * cr]])
+
+    return mat
+
+def proj2sph(point: Point2d, res: Resolution) -> Point3d:
+    """
+    Convert a 2D point of ERP projection coordinates to Horizontal Coordinate
+    System in degree
+    :param point: A point in ERP projection
+    :param res: The resolution of the projection
+    :return: A 3D Point on the sphere
+    """
+    # Only ERP Projection
+    radius = 1
+    azimuth = - 180 + (point.x / res.w) * 360
+    elevation = 90 - (point.y / res.h) * 180
+
+    return Point_hcs(radius, azimuth, elevation)
+
+def hcs2cart(position: Point_hcs):
+    """
+    Horizontal Coordinate system to Cartesian coordinates. Equivalent to sph2cart in Matlab.
+    https://www.mathworks.com/help/matlab/ref/sph2cart.html
+    :param position: The coordinates in Horizontal Coordinate System
+    :return: A Point3d in cartesian coordinates
+    """
+    az = position.azimuth / 180 * math.pi
+    el = position.elevation / 180 * math.pi
+    r = position.r
+
+    cos_az = math.cos(az)
+    cos_el = math.cos(el)
+    sin_az = math.sin(az)
+    sin_el = math.sin(el)
+
+    x = r * cos_el * cos_az
+    y = r * cos_el * sin_az
+    z = r * sin_el
+
+    return Point3d(x, y, z)
 
 def update_dictionary(value, dictionary: AutoDict, key1: Hashable = None,
                       key2: Hashable = None, key3: Hashable = None,
@@ -208,7 +291,6 @@ def update_dictionary(value, dictionary: AutoDict, key1: Hashable = None,
 
     return dictionary
 
-
 def dishevel_dictionary(dictionary: dict, key1: Hashable = None,
                         key2: Hashable = None, key3: Hashable = None,
                         key4: Hashable = None, key5: Hashable = None) -> Any:
@@ -220,7 +302,6 @@ def dishevel_dictionary(dictionary: dict, key1: Hashable = None,
     if key5: disheveled_dictionary = disheveled_dictionary[key5]
     return disheveled_dictionary
 
-
 def make_menu(options_txt: list) -> (list, str):
     options = [str(o) for o in range(len(options_txt))]
     menu_lines = ['Options:']
@@ -230,7 +311,6 @@ def make_menu(options_txt: list) -> (list, str):
     menu_txt = '\n'.join(menu_lines)
     return options, menu_txt
 
-
 def menu(options_txt: list) -> int:
     options, menu_ = make_menu(options_txt)
 
@@ -239,7 +319,6 @@ def menu(options_txt: list) -> int:
         c = input(menu_)
 
     return int(c)
-
 
 def menu2(options_dict: Dict[int, Any]):
     options = []
@@ -254,21 +333,9 @@ def menu2(options_dict: Dict[int, Any]):
         c = input(text)
     return c
 
-
 def rem_file(file) -> None:
     if os.path.isfile(file):
         os.remove(file)
-
-
-class StatsData(NamedTuple):
-    average: float = None
-    std: float = None
-    correlation: float = None
-    min: float = None
-    quartile1: float = None
-    median: float = None
-    quartile3: float = None
-    max: float = None
 
 
 def calc_stats(data1: Iterable, data2: Iterable) \
@@ -302,7 +369,6 @@ def calc_stats(data1: Iterable, data2: Iterable) \
 
     return stats_data1, stats_data2
 
-
 def grouper(iterable, n, fillvalue=None):
     """
     Collect data into fixed-length chunks or blocks.
@@ -317,7 +383,6 @@ def grouper(iterable, n, fillvalue=None):
     args = [iter(iterable)] * n
     return zip_longest(*args, fillvalue=fillvalue)
 
-
 def sobel(frame):
     """
     Apply 1st order 2D Sobel filter
@@ -329,214 +394,3 @@ def sobel(frame):
     sob = np.hypot(sobx, soby)
     return sob
 
-
-class CircularNumber(Real):
-    _value: float
-    ini_value: float
-    end_value: float
-
-    @property
-    def value(self):
-        return self._value
-
-    @value.setter
-    def value(self, v):
-        v, t = self._check_cicle(v)
-        self._value = v
-        self.turn += t
-
-    def __init__(self, v: Union[float, int], turn: int = 0,
-                 value_range=(0., 360.)):
-        self.turn = turn
-        self.ini_value = value_range[0]
-        self.end_value = value_range[1]
-        self.value = v
-
-    def _check_cicle(self, v: Union[float]):
-        turn = 0
-        while True:
-            if v >= self.end_value:
-                v -= self.end_value
-                turn += 1
-            elif v < self.ini_value:
-                v += self.end_value
-                turn -= 1
-            elif v < self.end_value or v >= self.ini_value:
-                break
-        return v, turn
-
-    def __float__(self):
-        return CircularNumber(float(self.value), turn=self.turn)
-
-    def __trunc__(self) -> Any:
-        return CircularNumber(int(self.value), turn=self.turn)
-
-    def __floor__(self) -> Any:
-        return CircularNumber(math.floor(self.value), turn=self.turn)
-
-    def __ceil__(self) -> Any:
-        return CircularNumber(math.ceil(self.value), turn=self.turn)
-
-    def __round__(self, ndigits=0) -> Any:
-        return CircularNumber(round(len(self), ndigits))
-
-    def __len__(self):
-        return self.turn * self.end_value + self.value
-
-    def __lt__(self, other: Any) -> bool:
-        if isinstance(other, CircularNumber):
-            lt = len(self) < len(other)
-        elif isinstance(other, (float, int)):
-            lt = len(self) < other
-        else:
-            raise TypeError(f"unsupported operand type(s) for <: "
-                            f"'{type(self)}' and '{type(other)}'")
-        return lt
-
-    def __le__(self, other: Any) -> bool:
-        if isinstance(other, CircularNumber):
-            lt = len(self) > len(other)
-        elif isinstance(other, (float, int)):
-            lt = len(self) > other
-        else:
-            raise TypeError(f"unsupported operand type(s) for <=: "
-                            f"'{type(self)}' and '{type(other)}'")
-        return lt
-
-    def __eq__(self, other):
-        if isinstance(other, CircularNumber):
-            lt = len(self) == len(other)
-        elif isinstance(other, (float, int)):
-            lt = len(self) == other
-        else:
-            raise TypeError(f"unsupported operand type(s) for <=: "
-                            f"'{type(self)}' and '{type(other)}'")
-        return lt
-
-    def __abs__(self):
-        return len(self)
-
-    def __floordiv__(self, other: Union[int, float]) -> Any:
-        if isinstance(other, CircularNumber):
-            cn = CircularNumber(len(self) // len(other))
-        elif isinstance(other, (float, int)):
-            cn = CircularNumber(len(self) // other)
-        else:
-            raise TypeError(f"unsupported operand type(s) for //: "
-                            f"'{type(self)}' and '{type(other)}'")
-        return cn
-
-    def __rfloordiv__(self, other: Union[int, float]) -> Any:
-        if isinstance(other, CircularNumber):
-            cn = CircularNumber(len(other) // len(self))
-        elif isinstance(other, (float, int)):
-            cn = CircularNumber(other // len(self))
-        else:
-            raise TypeError(f"unsupported operand type(s) for //: "
-                            f"'{type(other)}' and '{type(self)}'")
-        return cn
-
-    def __mod__(self, other: Any) -> Any:
-        if isinstance(other, CircularNumber):
-            cn = CircularNumber(len(self) % len(other))
-        elif isinstance(other, (float, int)):
-            cn = CircularNumber(len(self) % other)
-        else:
-            raise TypeError(f"unsupported operand type(s) for %: "
-                            f"'{type(self)}' and '{type(other)}'")
-        return cn
-
-    def __rmod__(self, other: Any) -> Any:
-        if isinstance(other, CircularNumber):
-            cn = CircularNumber(len(other) % len(self))
-        elif isinstance(other, (float, int)):
-            cn = CircularNumber(other % len(self))
-        else:
-            raise TypeError(f"unsupported operand type(s) for %: "
-                            f"'{type(other)}' and '{type(self)}'")
-        return cn
-
-    def __add__(self, other: Any) -> Any:
-        if isinstance(other, CircularNumber):
-            cn = CircularNumber(len(self) + len(other))
-        elif isinstance(other, (float, int)):
-            cn = CircularNumber(len(self) + other)
-        else:
-            raise TypeError(f"unsupported operand type(s) for +: "
-                            f"'{type(self)}' and '{type(other)}'")
-        return cn
-
-    def __radd__(self, other: Any) -> Any:
-        if isinstance(other, CircularNumber):
-            cn = CircularNumber(len(self) + len(other))
-        elif isinstance(other, (float, int)):
-            cn = CircularNumber(len(self) + other)
-        else:
-            raise TypeError(f"unsupported operand type(s) for +: "
-                            f"'{type(other)}' and '{type(self)}'")
-        return cn
-
-    def __mul__(self, other: Any) -> Any:
-        if isinstance(other, CircularNumber):
-            cn = CircularNumber(len(self) * len(other))
-        elif isinstance(other, (float, int)):
-            cn = CircularNumber(len(self) * other)
-        else:
-            raise TypeError(f"unsupported operand type(s) for *: "
-                            f"'{type(self)}' and '{type(other)}'")
-        return cn
-
-    def __rmul__(self, other: Any) -> Any:
-        if isinstance(other, CircularNumber):
-            cn = CircularNumber(len(self) * len(other))
-        elif isinstance(other, (float, int)):
-            cn = CircularNumber(len(self) * other)
-        else:
-            raise TypeError(f"unsupported operand type(s) for *: "
-                            f"'{type(other)}' and '{type(self)}'")
-        return cn
-
-    if sys.version_info < (3, 0):
-        def __div__(self, other: Any) -> Any:
-            self.__floordiv__(other)
-
-        def __rdiv__(self, other):
-            self.__rfloordiv__(other)
-
-    def __truediv__(self, other: Any) -> Any:
-        if isinstance(other, CircularNumber):
-            cn = CircularNumber(len(self) / len(other))
-        elif isinstance(other, (float, int)):
-            cn = CircularNumber(len(self) / other)
-        else:
-            raise TypeError(f"unsupported operand type(s) for /: "
-                            f"'{type(self)}' and '{type(other)}'")
-        return cn
-
-    def __rtruediv__(self, other: Any) -> Any:
-        if isinstance(other, CircularNumber):
-            cn = CircularNumber(len(other) / len(self))
-        elif isinstance(other, (float, int)):
-            cn = CircularNumber(other / len(self))
-        else:
-            raise TypeError(f"unsupported operand type(s) for /: "
-                            f"'{type(other)}' and '{type(self)}'")
-        return cn
-
-    def __neg__(self) -> Any:
-        return CircularNumber(-len(self))
-
-    def __pos__(self) -> Any:
-        return CircularNumber(len(self))
-
-    def __pow__(self, exponent: Any) -> Any:
-        return CircularNumber(len(self) ** exponent)
-
-    def __rpow__(self, base: Any) -> Any:
-        return CircularNumber(base ** len(self))
-
-    def __hash__(self) -> int:
-        return hash(self)
-
-    def __repr__(self):
-        return f'{str(self.value)} = {self.turn}x{self.end_value} = {len(self)}'

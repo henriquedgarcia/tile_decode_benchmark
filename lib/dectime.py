@@ -7,28 +7,18 @@ from collections import Counter
 from logging import warning, info, debug, fatal
 from pathlib import Path
 from subprocess import run, DEVNULL
-from typing import Any, Optional, Callable, NamedTuple, Union, Dict
+from typing import Any, NamedTuple, Union, Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
 from lib.siti import SiTi
-from lib.util import AutoDict, run_command, check_video_gop, iter_frame, load_sph_file
+from lib.util import (run_command, check_video_gop, iter_frame, load_sph_file,
+                      cart2sph, save_json, load_json)
 from lib.video_state import Config, VideoContext
-
-
-class Role:
-    def __init__(self, name: str, deep: int, init: Optional[Callable],
-                 operation: Optional[Callable], finish: Optional[Callable]):
-        self.name = name.capitalize()
-        self.deep = deep
-        self.init = init if init is not None else self.stub
-        self.operation = operation if callable(operation) else self.stub
-        self.finish = finish if callable(finish) else self.stub
-
-    def stub(self):
-        ...
+from lib.assets import AutoDict, Role
+from lib.viewport import Point_bcs, Tiling
 
 
 class BaseTileDecodeBenchmark:
@@ -153,8 +143,8 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
 
         video = self.state
         fps = self.state.fps
-        frame = self.state.frame
-        dar = frame.w / frame.h
+        resolution = self.state.resolution
+        dar = resolution.w / resolution.h
 
         cmd = f'ffmpeg '
         cmd += f'-hide_banner -y '
@@ -164,7 +154,7 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
         cmd += f'-t {video.duration} '
         cmd += f'-r {fps} '
         cmd += f'-map 0:v '
-        cmd += f'-vf "scale={frame.resolution},setdar={dar}" '
+        cmd += f'-vf "scale={resolution},setdar={dar}" '
         cmd += f'{uncompressed_file}'
 
         run_command(cmd, lossless_log, 'w')
@@ -205,8 +195,8 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
                 f'scenecut=0:'
                 f'info=0"']
         cmd += [f'-vf "crop='
-                f'w={tile.frame.w}:h={tile.frame.h}:'
-                f'x={tile.frame.x}:y={tile.frame.y}"']
+                f'w={tile.resolution.w}:h={tile.resolution.h}:'
+                f'x={tile.position.x}:y={tile.position.y}"']
         cmd += [f'{compressed_file}']
         cmd = ' '.join(cmd)
 
@@ -277,9 +267,7 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
         dectime_json_file = self.state.dectime_json_file
 
         if dectime_json_file.exists():
-            self.results = json.loads(
-                dectime_json_file.read_text(encoding='utf-8'),
-                object_hook=AutoDict)
+            self.results = load_json(dectime_json_file)
 
     def collect_dectime(self, overwrite=False) -> Any:
         """
@@ -322,7 +310,7 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
         try:
             chunk_size = self.state.segment_file.stat().st_size
         except PermissionError:
-            warning(f'unexpected error on reading size of '
+            warning(f'PermissionError error on reading size of '
                     f'{self.state.segment_file}. Skipping.')
             return 'skip'
 
@@ -333,13 +321,10 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
         data = {'bitrate': bitrate, 'dectimes': times}
         results.update(data)
 
-    def save_dectime(self, compact=True):
+    def save_dectime(self):
         filename = self.state.dectime_json_file
         info(f'Saving {filename}')
-        separators, indent = ((',', ':'), None) if compact else (None, 2)
-        json_dumps = json.dumps(self.results, separators=separators,
-                                indent=indent)
-        filename.write_text(json_dumps, encoding='utf-8')
+        save_json(self.results, filename)
         # self.json2pd()
 
     # def json2pd(self):
@@ -514,8 +499,7 @@ class CheckTiles(BaseTileDecodeBenchmark):
 
     def load_results(self):
         dectime_json_file = self.state.dectime_json_file
-        self.results = json.loads(dectime_json_file.read_text(encoding='utf-8'),
-                                  object_hook=AutoDict)
+        self.results = load_json(dectime_json_file)
 
     def check_dectime(self, only_error=True):
         results = self.results
@@ -626,8 +610,8 @@ class Siti2D(BaseTileDecodeBenchmark):
                 f'scenecut=0:'
                 f'info=0"']
         cmd += [f'-vf "crop='
-                f'w={tile.frame.w}:h={tile.frame.h}:'
-                f'x={tile.frame.x}:y={tile.frame.y}"']
+                f'w={tile.resolution.w}:h={tile.resolution.h}:'
+                f'x={tile.position.x}:y={tile.position.y}"']
         cmd += [f'{compressed_file}']
         cmd = ' '.join(cmd)
 
@@ -657,10 +641,7 @@ class Siti2D(BaseTileDecodeBenchmark):
             siti_results_final[f'{name}_si'] = siti_results_df['ti']
 
             """Join stats"""
-            siti_stats = self.state.siti_stats
-            with open(siti_stats, 'r', encoding='utf-8') as f:
-                individual_stats_json = json.load(f)
-                siti_stats_json_final[name] = individual_stats_json
+            siti_stats_json_final[name] = load_json(self.state.siti_stats)
         # siti_results_final.to_csv(f'{self.state.siti_folder /
         # "siti_results_final.csv"}', index_label='frame')
         # pd.DataFrame(siti_stats_json_final).to_csv(f'{self.state.siti_folder
@@ -696,6 +677,7 @@ class QualityMetrics:
     sph_points: list = []
     cart_coord: list = []
     sph_file: Path
+    results: AutoDict
 
     # ### Coordinate system ### #
     # Image coordinate system
@@ -754,14 +736,14 @@ class QualityMetrics:
     # ### wspsnr ### #
     def prepare_weight_ndarray(self):
         if self.state.projection == 'equirectangular':
-            height, width = self.state.frame.resolution.shape
+            height, width = self.state.resolution.shape
             func = lambda y, x: np.cos((y + 0.5 - height / 2) * np.pi
                                        / height)
             self.weight_ndarray = np.fromfunction(func, (height, width),
                                                   dtype='float32')
         elif self.state.projection == 'cubemap':
-            # each face must be square (frame aspect ration == 3:2).
-            face = self.state.frame.resolution.shape[0] / 2
+            # each face must be square (proj. aspect ration == 3:2).
+            face = self.state.resolution.shape[0] / 2
             face_ctr = face / 2
 
             squared_dist = lambda y, x: (
@@ -795,13 +777,13 @@ class QualityMetrics:
         :return:
         """
 
-        if self.state.frame.resolution.shape != self.weight_ndarray.shape:
+        if self.state.resolution.shape != self.weight_ndarray.shape:
             self.prepare_weight_ndarray()
 
-        x1 = self.state.tile.frame.x
-        x2 = self.state.tile.frame.x + self.state.tile.frame.w
-        y1 = self.state.tile.frame.y
-        y2 = self.state.tile.frame.y + self.state.tile.frame.h
+        x1 = self.state.tile.position.x
+        x2 = self.state.tile.position.x + self.state.tile.resolution.w
+        y1 = self.state.tile.position.y
+        y2 = self.state.tile.position.y + self.state.tile.resolution.h
         weight_tile = self.weight_ndarray[y1:y2, x1:x2]
 
         tile_weighted = weight_tile * (im_ref - im_deg) ** 2
@@ -816,36 +798,6 @@ class QualityMetrics:
         return self.mse2psnr(wmse)
 
     # ### spsnr_nn ### #
-    # def load_sph_point(self):
-    #     # todo: Metodo descontinuado. Ver módulo Util
-    #     # Load 655362 sample points (elevation, azimuth). Angles in degree.
-    #
-    #     if not self.sph_points:
-    #         iter_file = self.sph_file.read_text().splitlines()
-    #         for idx, line in enumerate(iter_file[1:]):
-    #             point = list(map(float, line.strip().split()))
-    #             hcs_point = self.HCSPoint(azimuth=np.deg2rad(point[1]),
-    #                                       elevation=np.deg2rad(point[0]))
-    #             self.sph_points.append(hcs_point)
-    #
-    #             ccs_point = self.CCSPoint(
-    #                   x=np.sin(hcs_point[1]) * np.cos(hcs_point[0]),
-    #                   y=np.sin(hcs_point[0]),
-    #                   z=-np.cos(hcs_point[1]) * np.cos(hcs_point[0]))
-    #             self.cart_coord.append(ccs_point)
-    #
-    #     if not self.sph_points_mask.shape == self.state.frame.resolution.shape:
-    #         height, width = self.state.frame.resolution.shape
-    #         self.sph_points_mask = np.zeros((height, width))
-    #
-    #         for hcs_point in self.sph_points:
-    #             x = np.ceil((hcs_point[0] + np.pi) * width / (2 * np.pi) - 1)
-    #             y = np.floor((hcs_point[1] - np.pi/2) * height / np.pi) + height
-    #             if y >= height: y = height - 1
-    #             # ics_point = self.ICSPoint(x=int(x), y=int(y))
-    #             # self.sph_points_img.append(ics_point)
-    #             self.sph_points_mask[int(y), int(x)] = 1
-
     def spsnr_nn(self, im_ref: np.ndarray,
                  im_deg: np.ndarray,
                  im_sal: np.ndarray = None):
@@ -859,16 +811,16 @@ class QualityMetrics:
         :return:
         """
         # sph_file = Path('lib/sphere_655362.txt'),
-        shape = self.state.frame.resolution.shape
+        shape = self.state.resolution.shape
 
         if self.sph_points_mask.shape != shape:
             sph_file = load_sph_file(self.sph_file, shape)
             self.sph_points_mask = sph_file[-1]
 
-        x1 = self.state.tile.frame.x
-        x2 = self.state.tile.frame.x + self.state.tile.frame.w
-        y1 = self.state.tile.frame.y
-        y2 = self.state.tile.frame.y + self.state.tile.frame.h
+        x1 = self.state.tile.position.x
+        x2 = self.state.tile.position.x + self.state.tile.resolution.w
+        y1 = self.state.tile.position.y
+        y2 = self.state.tile.position.y + self.state.tile.resolution.h
         mask = self.sph_points_mask[y1:y2, x1:x2]
 
         im_ref_m = im_ref * mask
@@ -881,6 +833,27 @@ class QualityMetrics:
 
         mse = sqr_dif.sum() / mask.sum()
         return self.mse2psnr(mse)
+
+    def ffmpeg_psnr(self):
+        if self.state.chunk == 1:
+            name, pattern, quality, tile, chunk = self.state.factors_list
+            results = self.results[name][pattern][quality][tile]
+            results.update(self._collect_ffmpeg_psnr())
+
+    def _collect_ffmpeg_psnr(self) -> Dict[str, float]:
+        get_psnr = lambda l: float(l.strip().split(',')[3].split(':')[1])
+        get_qp = lambda l: float(l.strip().split(',')[2].split(':')[1])
+        psnr = None
+        compressed_log = self.state.compressed_file.with_suffix('.log')
+        content = compressed_log.read_text(encoding='utf-8')
+        content = content.splitlines()
+
+        for line in content:
+            if 'Global PSNR' in line:
+                psnr = {'psnr': get_psnr(line),
+                        'qp_avg': get_qp(line)}
+                break
+        return psnr
 
 
 class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
@@ -985,7 +958,7 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
         if quality_result_json.exists():
             warning(f'The file {quality_result_json} exist. Loading.')
             json_content = quality_result_json.read_text(encoding='utf-8')
-            self.results = json.loads(json_content, object_hook=AutoDict)
+            self.results = load_json(json_content)
         else:
             self.results = AutoDict()
 
@@ -1030,9 +1003,8 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
         return 'continue'
 
     def save_result(self):
-        json_dumps = json.dumps(self.results)
         quality_result_json = self.state.quality_result_json
-        quality_result_json.write_text(json_dumps, encoding='utf-8')
+        save_json(self.results, quality_result_json)
 
         pickle_dumps = pickle.dumps(self.results)
         quality_result_pickle = quality_result_json.with_suffix('.pickle')
@@ -1058,3 +1030,114 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
                         'qp_avg': get_qp(line)}
                 break
         return psnr
+
+
+class GetTiles(BaseTileDecodeBenchmark):
+    results= AutoDict()
+    database= AutoDict()
+
+    def __init__(self, config: str,
+                 role: str,
+                 **kwargs):
+        """
+        Load configuration and run the main routine defined on Role Operation.
+        todo: Converter o dataset para um formato mais fácil de usar
+        todo: pegar os tiles para cada vídeo e para cada segmentação (deep==2)
+
+        :param config: a Config object
+        :param role: The role can be: ALL, PSNR, WSPSNR, SPSNR, RESULTS
+        :param sphere_file: a Path for sphere_655362.txt
+        :param kwargs: passed to main routine
+        """
+        operations = {
+            'PREPARE': Role(name='PREPARE', deep=0,
+                            init=None,
+                            operation=self.process_nasrabadi,
+                            finish=None),
+            'GET_TILES': Role(name='GET_TILES', deep=2,
+                            init=self.init_get_tiles(),
+                            operation=self.get_tiles(),
+                            finish=None),
+
+        }
+
+        self.database_name = database_name = kwargs['database_name']
+        self.database_folder = Path('datasets')
+        self.database_path = self.database_folder / database_name
+        self.database_json = self.database_path / f'{database_name}.json'
+        self.database_json = self.database_path / f'get_tiles_{database_name}.json'
+
+        self.config = Config(config)
+        self.role = operations[role]
+        self.state = VideoContext(self.config, self.role.deep)
+        self.print_resume()
+        self.run(**kwargs)
+
+    def process_nasrabadi(self, overwrite=False):
+        database_json = self.database_json
+
+        if database_json.exists() and not overwrite:
+            warning(f'The file {database_json} exist. Skipping.')
+            return
+
+        video_id_map_csv = pd.read_csv(f'{self.database_path}/video_id_map.csv')
+        video_id_map = video_id_map_csv['my_id']
+        video_id_map.index = video_id_map_csv['video_id']
+
+        database = AutoDict()
+        user_map = {}
+
+        for file in self.database_path.glob('*/*.csv'):
+            user, video_id = file.stem.split('_')
+            if user not in user_map:
+                user_map[user] = len(user_map)
+
+            user_id = user_map[user]
+            video_name = video_id_map[video_id]
+            head_movement = pd.read_csv(file, names=['timestamp',
+                                                     'Qx', 'Qy', 'Qz', 'Qw',
+                                                     'Vx', 'Vy', 'Vz'])
+
+            theta, phi = [], []
+            for n, line in enumerate(head_movement.itertuples()):
+                print(f'{user_id:02d}-{video_name} - frame {n:04d}', end='\r')
+                x, y, z = line.Vz, line.Vx, line.Vy  # pq no artigo o afshin usou um sistema de coord doido
+                azimuth, elevation = cart2sph(x, y, z)
+                theta.append(azimuth)
+                phi.append(elevation)
+
+            head_movement['azimuth'] = theta
+            head_movement['elevation'] = phi
+            head_movement_dict = head_movement.to_dict('list')
+            database[video_name][user_id].update(head_movement_dict)
+            print()
+
+        save_json(database, database_json)
+
+    def init_get_tiles(self):
+        if not self.database_json.exists():
+            raise FileNotFoundError(f'{self.database_json} not exist.')
+        self.database = load_json(self.database_json)
+
+    def get_tiles(self):
+        name = self.state.name
+        tiling = self.state.tiling
+        database = self.database
+
+        for user in database[name]:
+            head_movement = database[name][user][['azimuth', 'elevation']]
+            # 'timestamp', 'Qx', 'Qy', 'Qz', 'Qw','Vx', 'Vy', 'Vz',
+            # 'azimuth', 'elevation'
+
+            for yaw, pitch in head_movement:
+                position = Point_bcs(yaw, pitch, 0)
+                resolution = self.state.resolution/(4,4)
+
+                tiling = Tiling(f'{tiling}', f'{resolution}', '90x90')
+                vptiles = tiling.get_vptiles(position)
+
+                self.results[name][tiling][user] = vptiles
+
+    def finish_get_tiles(self):
+        save_json(self.results, self.database_path / 'get_tiles_result.json')
+
