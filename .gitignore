@@ -1,9 +1,9 @@
 # Project exclude paths
-/original/
-/results/
+original/
+results/
 .idea/
 __pycache__/
-lib/old
+old/
 projections/
 .gitignore
 *.log
