@@ -17,8 +17,8 @@ from lib.siti import SiTi
 from lib.util import (run_command, check_video_gop, iter_frame, load_sph_file,
                       cart2sph, save_json, load_json)
 from lib.video_state import Config, VideoContext
-from lib.assets import AutoDict, Role
-from lib.viewport import Point_bcs, Tiling
+from lib.assets import AutoDict, Role, Point_bcs
+from viewport import Tiling
 
 
 class BaseTileDecodeBenchmark:
@@ -144,7 +144,7 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
         video = self.state
         fps = self.state.fps
         resolution = self.state.resolution
-        dar = resolution.w / resolution.h
+        dar = resolution.W / resolution.H
 
         cmd = f'ffmpeg '
         cmd += f'-hide_banner -y '
@@ -195,7 +195,7 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
                 f'scenecut=0:'
                 f'info=0"']
         cmd += [f'-vf "crop='
-                f'w={tile.resolution.w}:h={tile.resolution.h}:'
+                f'w={tile.resolution.W}:h={tile.resolution.H}:'
                 f'x={tile.position.x}:y={tile.position.y}"']
         cmd += [f'{compressed_file}']
         cmd = ' '.join(cmd)
@@ -610,7 +610,7 @@ class Siti2D(BaseTileDecodeBenchmark):
                 f'scenecut=0:'
                 f'info=0"']
         cmd += [f'-vf "crop='
-                f'w={tile.resolution.w}:h={tile.resolution.h}:'
+                f'w={tile.resolution.W}:h={tile.resolution.H}:'
                 f'x={tile.position.x}:y={tile.position.y}"']
         cmd += [f'{compressed_file}']
         cmd = ' '.join(cmd)
@@ -781,9 +781,9 @@ class QualityMetrics:
             self.prepare_weight_ndarray()
 
         x1 = self.state.tile.position.x
-        x2 = self.state.tile.position.x + self.state.tile.resolution.w
+        x2 = self.state.tile.position.x + self.state.tile.resolution.W
         y1 = self.state.tile.position.y
-        y2 = self.state.tile.position.y + self.state.tile.resolution.h
+        y2 = self.state.tile.position.y + self.state.tile.resolution.H
         weight_tile = self.weight_ndarray[y1:y2, x1:x2]
 
         tile_weighted = weight_tile * (im_ref - im_deg) ** 2
@@ -818,9 +818,9 @@ class QualityMetrics:
             self.sph_points_mask = sph_file[-1]
 
         x1 = self.state.tile.position.x
-        x2 = self.state.tile.position.x + self.state.tile.resolution.w
+        x2 = self.state.tile.position.x + self.state.tile.resolution.W
         y1 = self.state.tile.position.y
-        y2 = self.state.tile.position.y + self.state.tile.resolution.h
+        y2 = self.state.tile.position.y + self.state.tile.resolution.H
         mask = self.sph_points_mask[y1:y2, x1:x2]
 
         im_ref_m = im_ref * mask
@@ -1049,9 +1049,9 @@ class GetTiles(BaseTileDecodeBenchmark):
                             operation=self.process_nasrabadi,
                             finish=None),
             'GET_TILES': Role(name='GET_TILES', deep=2,
-                            init=self.init_get_tiles(),
-                            operation=self.get_tiles(),
-                            finish=None),
+                              init=self.init_get_tiles,
+                              operation=self.get_tiles,
+                              finish=self.finish_get_tiles),
 
         }
 
@@ -1064,6 +1064,7 @@ class GetTiles(BaseTileDecodeBenchmark):
         self.config = Config(config)
         self.role = operations[role]
         self.state = VideoContext(self.config, self.role.deep)
+
         self.print_resume()
         self.run(**kwargs)
 

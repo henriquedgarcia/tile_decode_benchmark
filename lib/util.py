@@ -235,10 +235,23 @@ def proj2sph(point: Point2d, res: Resolution) -> Point3d:
     """
     # Only ERP Projection
     radius = 1
-    azimuth = - 180 + (point.x / res.w) * 360
-    elevation = 90 - (point.y / res.h) * 180
+    azimuth = - 180 + (point.x / res.W) * 360
+    elevation = 90 - (point.y / res.H) * 180
 
     return Point_hcs(radius, azimuth, elevation)
+
+
+def idx2xy(idx: int, shape: Tuple[int, int]):
+    tile_x = idx % shape[1]
+    tile_y = idx // shape[1]
+    return tile_x, tile_y
+
+
+def xy2idx(coord: Tuple[int, int], shape: Tuple[int, int]):
+    x = coord[1]
+    y = coord[0]
+    idx = x + y * shape[1]
+    return idx
 
 def hcs2cart(position: Point_hcs):
     """

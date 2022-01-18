@@ -72,13 +72,13 @@ class Tiling:
         self.proj_res = proj_res
         self.tile_res = proj_res / self.shape
 
-        idx = 0
         self.tiles_list = []
-        for y in range(0, self.proj_res.h, self.tile_res.h):
-            for x in range(0, self.proj_res.w, self.tile_res.w):
+        for n, y in enumerate(range(0, self.proj_res.H, self.tile_res.H)):
+            for m, x in enumerate(range(0, self.proj_res.W, self.tile_res.W)):
+                N, M = self.shape
+                idx = m + n * M
                 pos = Position(x, y)
                 self.tiles_list.append(Tile(idx, self.tile_res, pos))
-                idx += 1
 
     @property
     def tiles_list(self):
@@ -307,7 +307,7 @@ class VideoContext:
         self.gop = int(video_info['gop'])
         self.chunk_dur = (self.gop / self.fps)
         self.n_chunks = int(self.duration / self.chunk_dur)
-        self.chunks_list = [Chunk(idx, self.chunk_dur, self.gop) for idx in
+        self.chunks_list = [Chunk(idx, self.chunk_dur, n_frames=self.gop) for idx in
                             range(1, self.n_chunks + 1)]
         global state
         state = self.state
