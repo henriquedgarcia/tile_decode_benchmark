@@ -1,14 +1,56 @@
-from typing import NamedTuple, Union, Any, Optional, Callable, Tuple
-from numbers import Real
 import math
 import sys
+from numbers import Real
+from typing import NamedTuple, Union, Any, Optional, Callable, Tuple
 
-Point_bcs = NamedTuple('Point_bcs', [('yaw', float), ('pitch', float), ('roll', float)])  # body coordinate system
-Point_hcs = NamedTuple('Point_hcs', [('r', float), ('azimuth', float), ('elevation', float)])  # horizontal coordinate system
-Point3d = NamedTuple('Point3d', [('x', float), ('y', float), ('z', float)])
-Point2d = NamedTuple('Point2d', [('x', float), ('y', float)])
-Point_uv = NamedTuple('Point_uv', [('u', float), ('v', float)])
-Point_tp = NamedTuple('Point_tp', [('theta', float), ('phi', float)])
+
+class PointBCS(NamedTuple):
+    yaw: float
+    pitch: float
+    roll: float = 0.0
+
+
+class PointHCS(NamedTuple):
+    azimuth: float
+    elevation: float
+
+
+class Pixel(NamedTuple):
+    x: float
+    y: float
+    value: Union[float, int] = 0
+
+
+class Point:
+    def __init__(self, x: Union[float, int], y: Union[float, int],
+                 z: Union[float, int] = None):
+        self.x = x
+        self.y = y
+        self.z = z
+
+    def __repr__(self):
+        if self.z is None:
+            return f'Point(x={self.x}, y={self.y})'
+        else:
+            return f'Point(x={self.x}, y={self.y}, z={self.z})'
+
+    def __str__(self):
+        if self.z is None:
+            return f'({self.x}, {self.y})'
+        else:
+            return f'({self.x}, {self.y}, {self.z})'
+
+    def __iter__(self):
+        if self.z is None:
+            return iter((self.x, self.y))
+        else:
+            return iter((self.x, self.y, self.z))
+
+    def __getitem__(self, key):
+        return getattr(self, key)
+
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
 
 
 class AutoDict(dict):
@@ -61,8 +103,8 @@ class Resolution:
 
     @shape.setter
     def shape(self, shape: tuple):
-        self.H = round(shape[0])
-        self.W = round(shape[0])
+        self.H = round(float(shape[0]))
+        self.W = round(float(shape[1]))
 
     def __iter__(self):
         return iter((self.H, self.W))
@@ -70,12 +112,16 @@ class Resolution:
     def __str__(self):
         return f'{self.W}x{self.H}'
 
+    def __repr__(self):
+        return f'{self.W}x{self.H}'
+
     def __truediv__(self, shape: tuple):
         if isinstance(shape, tuple) and len(shape) == 2:
             return Resolution((self.H / shape[0], self.W / shape[1]))
 
 
-class Fov(Resolution): pass
+class Fov(Resolution):
+    ...
 
 
 class StatsData(NamedTuple):
