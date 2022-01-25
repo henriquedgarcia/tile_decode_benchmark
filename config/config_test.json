@@ -2,7 +2,6 @@
   "project": "test",
   "error_metric": "rmse",
   "decoding_num": 1,
-  "scale": "600x400",
   "projection": "cubemap",
   "codec": "x265",
   "codec_params": "keyint=30:min-keyint=30:open-gop=0:scenecut=0:info=0",

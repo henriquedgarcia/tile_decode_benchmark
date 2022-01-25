@@ -1,6 +1,6 @@
 {
   "project": "nasrabadi_28videos_6q_8p_cmp",
-  "result_error_metric": "rmse",
+  "error_metric": "rmse",
   "decoding_num": 3,
   "scale": "3240x2160",
   "projection": "cubemap",
