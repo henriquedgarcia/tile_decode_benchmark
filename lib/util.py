@@ -1,5 +1,4 @@
 import json
-import math
 import os
 import subprocess
 from logging import debug, error, warning
@@ -11,12 +10,19 @@ import numpy as np
 import skvideo.io
 from scipy import ndimage
 
-from assets import (AutoDict, StatsData, Point_bcs, Point_hcs, Point2d,
-                    Resolution, Point3d)
+from lib.assets import (AutoDict, StatsData, PointBCS, PointHCS,
+                        Resolution, Point, Pixel)
 
 
+################    QUALITY    ################
 def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
-    # Load 655362 sample points (elevation, azimuth). Angles in degree.
+    """
+    Load 655362 sample points (elevation, azimuth). Angles in degree.
+
+    :param sph_file:
+    :param shape:
+    :return:
+    """
 
     iter_file = sph_file.read_text().splitlines()
 
@@ -28,22 +34,25 @@ def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
     if shape is not None:
         sph_points_mask = np.zeros(shape)
 
-
     for idx, line in enumerate(iter_file[1:]):
         point = list(map(float, line.strip().split()))
         hcs_point = dict(azimuth=np.deg2rad(point[1]),
                          elevation=np.deg2rad(point[0]))
         sph_points.append(hcs_point)
 
-        ccs_point = dict(x=np.sin(hcs_point['elevation']) * np.cos(hcs_point['azimuth']),
+        ccs_point = dict(x=np.sin(hcs_point['elevation'])
+                           * np.cos(hcs_point['azimuth']),
                          y=np.sin(hcs_point['azimuth']),
-                         z=-np.cos(hcs_point['elevation']) * np.cos(hcs_point['azimuth']))
+                         z=-np.cos(hcs_point['elevation'])
+                           * np.cos(hcs_point['azimuth']))
         cart_coord.append(ccs_point)
 
         if shape is not None:
             height, width = shape
-            x = np.ceil((hcs_point['azimuth'] + np.pi) * width / (2 * np.pi) - 1)
-            y = np.floor((hcs_point['elevation'] - np.pi/2) * height / np.pi) + height
+            x = np.ceil((hcs_point['azimuth'] + np.pi)
+                        * width / (2 * np.pi) - 1)
+            y = np.floor((hcs_point['elevation'] - np.pi / 2)
+                         * height / np.pi + height)
             if y >= height: y = height - 1
             ics_point = dict(x=int(x), y=int(y))
             sph_points_img.append(ics_point)
@@ -51,7 +60,55 @@ def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
 
     return sph_points, cart_coord, sph_points_img, sph_points_mask
 
-def cart2sph(x, y, z) -> tuple[float, float]:
+
+def mse2psnr(mse: float, pixel_max=255) -> float:
+    return 10 * np.log10((pixel_max ** 2 / mse))
+
+
+################    PROJECTIONS    ################
+# ------------------ erp2sph ------------------
+def erp2hcs(pixel: Pixel, res: Resolution) -> PointHCS:
+    """
+    Convert a 2D point of ERP projection coordinates to Horizontal Coordinate
+    System in rad. Only ERP Projection
+    :param pixel: A point in ERP projection
+    :param res: The resolution of the projection
+    :return: A 3D Point on the sphere
+    """
+    m, n, _ = pixel
+    H, W = res.shape
+
+    u = (m + 0.5) / W
+    v = (n + 0.5) / H
+    azimuth = (u - 0.5) * 2 * np.pi
+    elevation = -(v - 0.5) * np.pi
+
+    return PointHCS(azimuth, elevation)
+
+
+def hcs2xyz(hcs_point: PointHCS) -> Point:
+    """
+    Horizontal Coordinate system to Cartesian coordinates.
+    ISO/IEC JTC1/SC29/WG11/N17197l: Algorithm descriptions of projection format conversion and video quality metrics in 360Lib Version 5
+    :param PointHCS hcs_point: The coordinates in Horizontal Coordinate System
+    :return: A Point3d in cartesian coordinates
+    """
+    azimuth, elevation = hcs_point
+
+    cos_az = np.cos(azimuth)
+    sin_az = np.sin(azimuth)
+    cos_el = np.cos(elevation)
+    sin_el = np.sin(elevation)
+
+    x = cos_az * cos_el
+    y = sin_el
+    z = -cos_el * sin_az
+
+    return Point(x, y, z)
+
+
+# ------------------ sph2erp ------------------
+def xyz2hcs(x, y, z) -> tuple[float, float]:
     """
     Convert from cartesian system to horizontal coordinate system in radians
     :param x: Coordinate from X axis
@@ -59,29 +116,14 @@ def cart2sph(x, y, z) -> tuple[float, float]:
     :param z: Coordinate from Z axis
     :return: (azimuth, elevation)
     """
-    azimuth = np.arctan2(y, x)
-    elevation = np.arctan2(z, np.sqrt(x ** 2 + y ** 2))
-    # r = np.sqrt(x ** 2 + y ** 2 + z ** 2)
-    return azimuth, elevation
-
-# ------------------ erp2sph ------------------
-def erp2sph(m, n, shape: tuple) -> tuple[int, int]:
-    return uv2sph(*erp2uv(m, n, shape))
-
-def uv2sph(u, v):
-    theta = (u - 0.5) * 2 * np.pi
-    phi = -(v - 0.5) * np.pi
-    return phi, theta
-
-def erp2uv(m, n, shape: tuple):
-    u = (m + 0.5) / shape[1]
-    v = (n + 0.5) / shape[0]
-    return u, v
+    azimuth = np.arctan2(-z, x)
+    elevation = np.arctan2(y, np.sqrt(x * x + y * y + z * z))
+    return PointHCS(azimuth, elevation)
 
 
-# ------------------ sph2erp ------------------
 def sph2erp(theta, phi, shape: tuple) -> tuple[int, int]:
     return uv2img(*sph2uv(theta, phi), shape)
+
 
 def sph2uv(theta, phi):
     PI = np.pi
@@ -119,6 +161,7 @@ def iter_frame(video_path, gray=True, dtype='float32'):
             frame = frame.reshape((height, width)).astype(dtype)
         yield frame
 
+
 def check_video_gop(video_file: Path) -> (int, list):
     command = (f'ffprobe -hide_banner -loglevel 0 '
                f'-of default=nk=1:nw=1 '
@@ -146,6 +189,7 @@ def check_video_gop(video_file: Path) -> (int, list):
             gop.append(line)
     return max_gop, gop
 
+
 def check_file_size(video_file) -> int:
     debug(f'Checking size of {video_file}')
     if not os.path.isfile(video_file):
@@ -156,8 +200,6 @@ def check_file_size(video_file) -> int:
     debug(f'The size is {filesize}')
     return filesize
 
-def mse2psnr(mse: float, pixel_max=255) -> float:
-    return 10 * np.log10((pixel_max ** 2 / mse))
 
 def run_command(command: str, log_to_save: Union[str, Path], mode: str = 'w'):
     """
@@ -177,13 +219,11 @@ def run_command(command: str, log_to_save: Union[str, Path], mode: str = 'w'):
         error(f'run error in {command}. Continuing.')
 
 
-def save_json(data: dict,
-              filename: Union[str, Path],
-              separators=(',', ':'),
+def save_json(data: dict, filename: Union[str, Path], separators=(',', ':'),
               indent=None):
-
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(data, f, separators=separators, indent=indent)
+
 
 def load_json(filename, object_hook=AutoDict):
     with open(filename, 'r', encoding='utf-8') as f:
@@ -200,16 +240,17 @@ def splitx(string: str) -> tuple[int, ...]:
     """
     return tuple(map(int, string.split('x')))
 
-def rot_matrix(new_position: Point_bcs):
+
+def rot_matrix(new_position: PointBCS):
     """
     Create rotation matrix using Tait–Bryan angles in Z-Y-X order.
     See Wikipedia.
     :param new_position: A new position using the Body Coordinate System.
     :return:
     """
-    yaw = np.deg2rad(new_position.yaw)
-    pitch = np.deg2rad(-new_position.pitch)
-    roll = np.deg2rad(-new_position.roll)
+    yaw = new_position.yaw
+    pitch = new_position.pitch
+    roll = new_position.roll
 
     cp = np.cos(pitch)
     sp = np.sin(pitch)
@@ -218,32 +259,30 @@ def rot_matrix(new_position: Point_bcs):
     cr = np.cos(roll)
     sr = np.sin(roll)
 
-    mat = np.array(
-        [[cy * cp, cy * sp * sr - cr * sy, sy * sr + cy * cr * sp],
-         [cp * sy, cy * cr + sy * sp * sr, cr * sy * sp - cy * sr],
-         [-sp, cp * sr, cp * cr]])
+    # pitch
+    mat_z = np.array(
+        [[cp, -sp, 0],
+         [sp, cp, 0],
+         [0, 0, 1]])
 
-    return mat
+    # yaw
+    mat_y = np.array(
+        [[cy, 0, sy],
+         [0, 1, 0],
+         [-sy, 0, cy]])
 
-def proj2sph(point: Point2d, res: Resolution) -> Point3d:
-    """
-    Convert a 2D point of ERP projection coordinates to Horizontal Coordinate
-    System in degree
-    :param point: A point in ERP projection
-    :param res: The resolution of the projection
-    :return: A 3D Point on the sphere
-    """
-    # Only ERP Projection
-    radius = 1
-    azimuth = - 180 + (point.x / res.W) * 360
-    elevation = 90 - (point.y / res.H) * 180
+    # roll
+    mat_x = np.array(
+        [[1, 0, 0],
+         [0, cr, -sr],
+         [0, sr, cr]])
 
-    return Point_hcs(radius, azimuth, elevation)
+    return mat_y @ mat_z @ mat_x
 
 
-def idx2xy(idx: int, shape: Tuple[int, int]):
-    tile_x = idx % shape[1]
-    tile_y = idx // shape[1]
+def idx2xy(idx: int, shape: Resolution):
+    tile_x = idx % shape.shape[1]
+    tile_y = idx // shape.shape[1]
     return tile_x, tile_y
 
 
@@ -253,27 +292,6 @@ def xy2idx(coord: Tuple[int, int], shape: Tuple[int, int]):
     idx = x + y * shape[1]
     return idx
 
-def hcs2cart(position: Point_hcs):
-    """
-    Horizontal Coordinate system to Cartesian coordinates. Equivalent to sph2cart in Matlab.
-    https://www.mathworks.com/help/matlab/ref/sph2cart.html
-    :param position: The coordinates in Horizontal Coordinate System
-    :return: A Point3d in cartesian coordinates
-    """
-    az = position.azimuth / 180 * math.pi
-    el = position.elevation / 180 * math.pi
-    r = position.r
-
-    cos_az = math.cos(az)
-    cos_el = math.cos(el)
-    sin_az = math.sin(az)
-    sin_el = math.sin(el)
-
-    x = r * cos_el * cos_az
-    y = r * cos_el * sin_az
-    z = r * sin_el
-
-    return Point3d(x, y, z)
 
 def update_dictionary(value, dictionary: AutoDict, key1: Hashable = None,
                       key2: Hashable = None, key3: Hashable = None,
@@ -301,8 +319,8 @@ def update_dictionary(value, dictionary: AutoDict, key1: Hashable = None,
             dict_[key4] = value
     if key5:
         dict_[key5] = value
-
     return dictionary
+
 
 def dishevel_dictionary(dictionary: dict, key1: Hashable = None,
                         key2: Hashable = None, key3: Hashable = None,
@@ -315,6 +333,7 @@ def dishevel_dictionary(dictionary: dict, key1: Hashable = None,
     if key5: disheveled_dictionary = disheveled_dictionary[key5]
     return disheveled_dictionary
 
+
 def make_menu(options_txt: list) -> (list, str):
     options = [str(o) for o in range(len(options_txt))]
     menu_lines = ['Options:']
@@ -324,6 +343,7 @@ def make_menu(options_txt: list) -> (list, str):
     menu_txt = '\n'.join(menu_lines)
     return options, menu_txt
 
+
 def menu(options_txt: list) -> int:
     options, menu_ = make_menu(options_txt)
 
@@ -332,6 +352,7 @@ def menu(options_txt: list) -> int:
         c = input(menu_)
 
     return int(c)
+
 
 def menu2(options_dict: Dict[int, Any]):
     options = []
@@ -345,6 +366,7 @@ def menu2(options_dict: Dict[int, Any]):
     while c not in options:
         c = input(text)
     return c
+
 
 def rem_file(file) -> None:
     if os.path.isfile(file):
@@ -382,12 +404,13 @@ def calc_stats(data1: Iterable, data2: Iterable) \
 
     return stats_data1, stats_data2
 
+
 def grouper(iterable, n, fillvalue=None):
     """
     Collect data into fixed-length chunks or blocks.
     Usage: grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx
 
-    :param iterable: A iterable. ;-)
+    :param iterable: The iterable. ;-)
     :param n: The length of blocks.
     :param fillvalue: If "len(iterable)" is not multiple of "n", fill with this.
     :return: A tuple with "n" elements of "iterable".
@@ -395,6 +418,7 @@ def grouper(iterable, n, fillvalue=None):
     from itertools import zip_longest
     args = [iter(iterable)] * n
     return zip_longest(*args, fillvalue=fillvalue)
+
 
 def sobel(frame):
     """
@@ -406,4 +430,3 @@ def sobel(frame):
     soby = ndimage.sobel(frame, axis=1)
     sob = np.hypot(sobx, soby)
     return sob
-
