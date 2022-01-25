@@ -1,24 +1,21 @@
 import datetime
-import pickle
 import json
+import pickle
 import time
 from builtins import PermissionError
 from collections import Counter
-from logging import warning, info, debug, fatal
+from logging import warning, debug, fatal, info
 from pathlib import Path
 from subprocess import run, DEVNULL
 from typing import Any, NamedTuple, Union, Dict
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from lib.siti import SiTi
+from lib.assets import AutoDict, Role, PointBCS
 from lib.util import (run_command, check_video_gop, iter_frame, load_sph_file,
-                      cart2sph, save_json, load_json)
-from lib.video_state import Config, VideoContext
-from lib.assets import AutoDict, Role, Point_bcs
-from viewport import Tiling
+                      xyz2hcs, save_json, load_json, Resolution)
+from lib.video_state import Config, VideoContext, Tiling
 
 
 class BaseTileDecodeBenchmark:
@@ -27,6 +24,7 @@ class BaseTileDecodeBenchmark:
     role: Role = None
 
     def run(self, **kwargs):
+        self.print_resume()
         self.role.init()
 
         total = len(self.state)
@@ -83,9 +81,8 @@ class BaseTileDecodeBenchmark:
 
 
 class TileDecodeBenchmark(BaseTileDecodeBenchmark):
-    # todo: fazer as variáveis config, role e state parâmetros que verificam se
-    #  é None. Serão atributos que não podem ser alterados uma vez que são
-    #  definidos.
+    results = AutoDict()
+    results_dataframe = pd.DataFrame()
 
     def __init__(self, config: str = None, role: str = None, **kwargs):
         """
@@ -110,14 +107,10 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
                                     finish=self.save_dectime),
         }
 
-        self.results = AutoDict()
-        self.results_dataframe = pd.DataFrame()
-
         self.config = Config(config)
         self.role = operations[role]
         self.state = VideoContext(self.config, self.role.deep)
 
-        self.print_resume()
         self.run(**kwargs)
 
     # PREPARE
@@ -275,8 +268,8 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
         results[video_name][tile_pattern][quality][idx][chunk_id]
                 ['utime'|'bit rate']['psnr'|'qp_avg']
         [video_name]    : The video name
-        [tile_pattern]  : The tile tiling. eg. "6x4"
-        [quality]       : Quality. A int like in crf or qp.
+        [tile_pattern]  : The tile tiling. e.g. "6x4"
+        [quality]       : Quality. An int like in crf or qp.
         [idx]           : the tile number. ex. max = 6*4
         if [chunk_id]   : A id for chunk. With 1s chunk, 60s video have 60
                           chunks
@@ -284,7 +277,7 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
                           of a chunk.
         if ['psnr']     : the ffmpeg calculated psnr for tile (before
                           segmentation)
-        if ['qp_avg']   : The ffmpeg calculated average QP for a encoding.
+        if ['qp_avg']   : The ffmpeg calculated average QP for an encoding.
         :param overwrite:
         :return:
         """
@@ -376,7 +369,6 @@ class CheckTiles(BaseTileDecodeBenchmark):
         self.results_dataframe = pd.DataFrame()
         self.config = Config(config)
         self.state = VideoContext(self.config, self.role.deep)
-        self.print_resume()
 
         try:
             self.run(**kwargs)
@@ -548,124 +540,124 @@ class CheckTiles(BaseTileDecodeBenchmark):
         print(json.dumps(resume, indent=2))
 
         # Write Resume
-        resume_pd = pd.DataFrame.from_dict(resume, orient='index', columns=('count',))
+        resume_pd = pd.DataFrame.from_dict(resume, orient='index',
+                                           columns=('count',))
         resume_pd_csv = resume_pd.to_csv(index_label='msg')
         resume_filename.write_text(resume_pd_csv, encoding='utf-8')
 
 
-class Siti2D(BaseTileDecodeBenchmark):
-    def __init__(self, config: str = None, role: str = None, **kwargs):
-        """
-
-        :param config:
-        :param role: Someone from Role dict
-        :param kwargs: Role parameters
-        """
-
-        operations = {
-            'SITI': Role(name='PREPARE', deep=4, init=None,
-                         operation=self.siti, finish=self.end_siti),
-        }
-
-        self.config = Config(config)
-        self.config['tiling_list'] = ['1x1']
-        self.role = operations[role]
-        self.state = VideoContext(self.config, self.role.deep)
-        self.config['quality_list'] = [28]
-
-        self.print_resume()
-        self.run(**kwargs)
-
-    # 'CALCULATE SITI'
-    def siti(self, overwrite=False, animate_graph=False, save=True):
-        if not self.state.compressed_file.exists():
-            if not self.state.lossless_file.exists():
-                warning(f'The file {self.state.lossless_file} not exist. '
-                        f'Skipping.')
-                return 'skip'
-            self.compress()
-
-        siti = SiTi(self.state)
-        siti.calc_siti(animate_graph=animate_graph, overwrite=overwrite,
-                       save=save)
-
-    def compress(self):
-        compressed_file = self.state.compressed_file
-        compressed_log = self.state.compressed_file.with_suffix('.log')
-
-        debug(f'==== Processing {compressed_file} ====')
-
-        quality = self.state.quality
-        gop = self.state.gop
-        tile = self.state.tile
-
-        cmd = ['ffmpeg -hide_banner -y -psnr']
-        cmd += [f'-i {self.state.lossless_file}']
-        cmd += [f'-crf {quality} -tune "psnr"']
-        cmd += [f'-c:v libx265']
-        cmd += [f'-x265-params']
-        cmd += [f'"keyint={gop}:'
-                f'min-keyint={gop}:'
-                f'open-gop=0:'
-                f'scenecut=0:'
-                f'info=0"']
-        cmd += [f'-vf "crop='
-                f'w={tile.resolution.W}:h={tile.resolution.H}:'
-                f'x={tile.position.x}:y={tile.position.y}"']
-        cmd += [f'{compressed_file}']
-        cmd = ' '.join(cmd)
-
-        run_command(cmd, compressed_log, 'w')
-
-    def end_siti(self):
-        self._join_siti()
-        self._scatter_plot_siti()
-
-    def _join_siti(self):
-        siti_results_final = pd.DataFrame()
-        siti_stats_json_final = {}
-        num_frames = None
-
-        for name in enumerate(self.state.names_list):
-            """Join siti_results"""
-            siti_results_file = self.state.siti_results
-            siti_results_df = pd.read_csv(siti_results_file)
-            if num_frames is None:
-                num_frames = self.state.duration * self.state.fps
-            elif num_frames < len(siti_results_df['si']):
-                dif = len(siti_results_df['si']) - num_frames
-                for _ in range(dif):
-                    siti_results_df.loc[len(siti_results_df)] = [0, 0]
-
-            siti_results_final[f'{name}_ti'] = siti_results_df['si']
-            siti_results_final[f'{name}_si'] = siti_results_df['ti']
-
-            """Join stats"""
-            siti_stats_json_final[name] = load_json(self.state.siti_stats)
-        # siti_results_final.to_csv(f'{self.state.siti_folder /
-        # "siti_results_final.csv"}', index_label='frame')
-        # pd.DataFrame(siti_stats_json_final).to_csv(f'{self.state.siti_folder
-        # / "siti_stats_final.csv"}')
-
-    def _scatter_plot_siti(self):
-        siti_results_df = pd.read_csv(
-            f'{self.state.siti_folder / "siti_stats_final.csv"}', index_col=0)
-        fig, ax = plt.subplots(1, 1, figsize=(8, 6), dpi=300)
-        fig: plt.Figure
-        ax: plt.Axes
-        for column in siti_results_df:
-            si = siti_results_df[column]['si_2q']
-            ti = siti_results_df[column]['ti_2q']
-            name = column.replace('_nas', '')
-            ax.scatter(si, ti, label=name)
-        ax.set_xlabel("Spatial Information", fontdict={'size': 12})
-        ax.set_ylabel('Temporal Information', fontdict={'size': 12})
-        ax.set_title('Si/Ti', fontdict={'size': 16})
-        ax.legend(loc='upper left', bbox_to_anchor=(1.01, 1.0),
-                  fontsize='small')
-        fig.tight_layout()
-        fig.savefig(self.state.siti_folder / 'scatter.png')
-        fig.show()
+# class Siti2D(BaseTileDecodeBenchmark):
+#     def __init__(self, config: str = None, role: str = None, **kwargs):
+#         """
+#
+#         :param config:
+#         :param role: Someone from Role dict
+#         :param kwargs: Role parameters
+#         """
+#
+#         operations = {
+#             'SITI': Role(name='PREPARE', deep=4, init=None,
+#                          operation=self.siti, finish=self.end_siti),
+#         }
+#
+#         self.config = Config(config)
+#         self.config['tiling_list'] = ['1x1']
+#         self.role = operations[role]
+#         self.state = VideoContext(self.config, self.role.deep)
+#         self.config['quality_list'] = [28]
+#
+#         self.run(**kwargs)
+#
+#     # 'CALCULATE SITI'
+#     def siti(self, overwrite=False, animate_graph=False, save=True):
+#         if not self.state.compressed_file.exists():
+#             if not self.state.lossless_file.exists():
+#                 warning(f'The file {self.state.lossless_file} not exist. '
+#                         f'Skipping.')
+#                 return 'skip'
+#             self.compress()
+#
+#         siti = SiTi(self.state)
+#         siti.calc_siti(animate_graph=animate_graph, overwrite=overwrite,
+#                        save=save)
+#
+#     def compress(self):
+#         compressed_file = self.state.compressed_file
+#         compressed_log = self.state.compressed_file.with_suffix('.log')
+#
+#         debug(f'==== Processing {compressed_file} ====')
+#
+#         quality = self.state.quality
+#         gop = self.state.gop
+#         tile = self.state.tile
+#
+#         cmd = ['ffmpeg -hide_banner -y -psnr']
+#         cmd += [f'-i {self.state.lossless_file}']
+#         cmd += [f'-crf {quality} -tune "psnr"']
+#         cmd += [f'-c:v libx265']
+#         cmd += [f'-x265-params']
+#         cmd += [f'"keyint={gop}:'
+#                 f'min-keyint={gop}:'
+#                 f'open-gop=0:'
+#                 f'scenecut=0:'
+#                 f'info=0"']
+#         cmd += [f'-vf "crop='
+#                 f'w={tile.resolution.W}:h={tile.resolution.H}:'
+#                 f'x={tile.position.x}:y={tile.position.y}"']
+#         cmd += [f'{compressed_file}']
+#         cmd = ' '.join(cmd)
+#
+#         run_command(cmd, compressed_log, 'w')
+#
+#     def end_siti(self):
+#         self._join_siti()
+#         self._scatter_plot_siti()
+#
+#     def _join_siti(self):
+#         siti_results_final = pd.DataFrame()
+#         siti_stats_json_final = {}
+#         num_frames = None
+#
+#         for name in enumerate(self.state.names_list):
+#             """Join siti_results"""
+#             siti_results_file = self.state.siti_results
+#             siti_results_df = pd.read_csv(siti_results_file)
+#             if num_frames is None:
+#                 num_frames = self.state.duration * self.state.fps
+#             elif num_frames < len(siti_results_df['si']):
+#                 dif = len(siti_results_df['si']) - num_frames
+#                 for _ in range(dif):
+#                     siti_results_df.loc[len(siti_results_df)] = [0, 0]
+#
+#             siti_results_final[f'{name}_ti'] = siti_results_df['si']
+#             siti_results_final[f'{name}_si'] = siti_results_df['ti']
+#
+#             """Join stats"""
+#             siti_stats_json_final[name] = load_json(self.state.siti_stats)
+#         # siti_results_final.to_csv(f'{self.state.siti_folder /
+#         # "siti_results_final.csv"}', index_label='frame')
+#         # pd.DataFrame(siti_stats_json_final).to_csv(f'{self.state.siti_folder
+#         # / "siti_stats_final.csv"}')
+#
+#     def _scatter_plot_siti(self):
+#         siti_results_df = pd.read_csv(
+#             f'{self.state.siti_folder / "siti_stats_final.csv"}', index_col=0)
+#         fig, ax = plt.subplots(1, 1, figsize=(8, 6), dpi=300)
+#         fig: plt.Figure
+#         ax: plt.Axes
+#         for column in siti_results_df:
+#             si = siti_results_df[column]['si_2q']
+#             ti = siti_results_df[column]['ti_2q']
+#             name = column.replace('_nas', '')
+#             ax.scatter(si, ti, label=name)
+#         ax.set_xlabel("Spatial Information", fontdict={'size': 12})
+#         ax.set_ylabel('Temporal Information', fontdict={'size': 12})
+#         ax.set_title('Si/Ti', fontdict={'size': 16})
+#         ax.legend(loc='upper left', bbox_to_anchor=(1.01, 1.0),
+#                   fontsize='small')
+#         fig.tight_layout()
+#         fig.savefig(self.state.siti_folder / 'scatter.png')
+#         fig.show()
 
 
 class QualityMetrics:
@@ -896,7 +888,6 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
         self.role = operations[role]
         self.state = VideoContext(self.config, self.role.deep)
 
-        self.print_resume()
         self.run(**kwargs)
 
     def all_init(self):
@@ -920,7 +911,8 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
         metrics = self.metrics.copy()
 
         if quality_csv.exists() and not overwrite:
-            csv_dataframe = pd.read_csv(quality_csv, encoding='utf-8', index_col=0)
+            csv_dataframe = pd.read_csv(quality_csv, encoding='utf-8',
+                                        index_col=0)
             for metric in csv_dataframe:
                 info(
                     f'The metric {metric} exist for {self.state.factors_list}. '
@@ -942,7 +934,9 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
                 metrics_method = self.metrics[metric]
                 metric_value = metrics_method(frame_video1, frame_video2)
                 results[metric].append(metric_value)
-            print(f'{self.state.factors_list} - Frame {n} - {time.time() - start: 0.3f} s', end='\r')
+            print(
+                f'{self.state.factors_list} - Frame {n} - {time.time() - start: 0.3f} s',
+                end='\r')
         print()
         for metric in results:
             csv_dataframe[metric] = results[metric]
@@ -1027,11 +1021,11 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
 
 
 class GetTiles(BaseTileDecodeBenchmark):
-    results= AutoDict()
-    database= AutoDict()
+    results = AutoDict()
+    database = AutoDict()
 
     def __init__(self, config: str,
-                 role: str,
+                 role: str, database_name,
                  **kwargs):
         """
         Load configuration and run the main routine defined on Role Operation.
@@ -1055,17 +1049,16 @@ class GetTiles(BaseTileDecodeBenchmark):
 
         }
 
-        self.database_name = database_name = kwargs['database_name']
+        self.database_name = database_name
         self.database_folder = Path('datasets')
         self.database_path = self.database_folder / database_name
         self.database_json = self.database_path / f'{database_name}.json'
-        self.database_json = self.database_path / f'get_tiles_{database_name}.json'
+        self.get_tiles_json = self.database_path / f'get_tiles_{database_name}.json'
 
         self.config = Config(config)
         self.role = operations[role]
         self.state = VideoContext(self.config, self.role.deep)
 
-        self.print_resume()
         self.run(**kwargs)
 
     def process_nasrabadi(self, overwrite=False):
@@ -1075,64 +1068,118 @@ class GetTiles(BaseTileDecodeBenchmark):
             warning(f'The file {database_json} exist. Skipping.')
             return
 
+        database = AutoDict()
+
         video_id_map_csv = pd.read_csv(f'{self.database_path}/video_id_map.csv')
         video_id_map = video_id_map_csv['my_id']
         video_id_map.index = video_id_map_csv['video_id']
 
-        database = AutoDict()
+        '"Videos 10,17,27,28 were rotated 265, 180,63,81 degrees to right, ' \
+        'respectively, to reorient during playback."'
+        nasrabadi_rotation = {10: np.deg2rad(-265), 17: np.deg2rad(-180),
+                              27: np.deg2rad(-63), 28: np.deg2rad(-81)}
+
         user_map = {}
 
-        for file in self.database_path.glob('*/*.csv'):
-            user, video_id = file.stem.split('_')
-            if user not in user_map:
-                user_map[user] = len(user_map)
-
-            user_id = user_map[user]
+        for csv_database_file in self.database_path.glob('*/*.csv'):
+            info('Preparing Local.')
+            user, video_id = csv_database_file.stem.split('_')
             video_name = video_id_map[video_id]
-            head_movement = pd.read_csv(file, names=['timestamp',
-                                                     'Qx', 'Qy', 'Qz', 'Qw',
-                                                     'Vx', 'Vy', 'Vz'])
+
+            info(f'Renaming users.')
+            if user not in user_map.keys():
+                user_map[user] = len(user_map)
+            user_id = str(user_map[user])
+
+            info(f'Checking if database key was collected.')
+            if database[video_name][user_id] != {} and not overwrite:
+                warning(f'The key [{video_name}][{user_id}] is not empty. '
+                        f'Skipping')
+                continue
+
+            info(f'Loading original database.')
+            head_movement = pd.read_csv(csv_database_file,
+                                        names=['timestamp',
+                                               'Qx', 'Qy', 'Qz', 'Qw',
+                                               'Vx', 'Vy', 'Vz'])
 
             theta, phi = [], []
+            start_time = time.time()
+            rotation = 0
+            if video_id in [10,17,27,28]:
+                info(f'Cheking rotation offset.')
+                rotation = nasrabadi_rotation[video_id]
+
+            info('')
             for n, line in enumerate(head_movement.itertuples()):
-                print(f'{user_id:02d}-{video_name} - frame {n:04d}', end='\r')
+                print('', end='\r')
+                print(f'User {user_id} - {video_name} - frame {n:04d}', end='')
                 x, y, z = line.Vz, line.Vx, line.Vy  # pq no artigo o afshin usou um sistema de coord doido
-                azimuth, elevation = cart2sph(x, y, z)
-                theta.append(azimuth)
+                azimuth, elevation = xyz2hcs(x, y, z)
+                new_azimuth = azimuth + rotation
+                if new_azimuth < -np.pi:
+                    new_azimuth += 2*np.pi
+                theta.append(azimuth + rotation)
                 phi.append(elevation)
+
+            print(f' - {time.time() - start_time:0.3f}', flush=True)
 
             head_movement['azimuth'] = theta
             head_movement['elevation'] = phi
             head_movement_dict = head_movement.to_dict('list')
             database[video_name][user_id].update(head_movement_dict)
-            print()
 
+        print(f'Finish. Saving as {database_json}.')
         save_json(database, database_json)
 
     def init_get_tiles(self):
+        info(f'Search for database {self.database_json}. and results {self.get_tiles_json}')
         if not self.database_json.exists():
             raise FileNotFoundError(f'{self.database_json} not exist.')
         self.database = load_json(self.database_json)
+        # if self.get_tiles_json.exists():
+        #     if self.get_tiles_json.stat().st_size == 0:
+        #         self.get_tiles_json.unlink()
+        #         return
+        #     self.results = load_json(self.get_tiles_json)
 
-    def get_tiles(self):
-        name = self.state.name
-        tiling = self.state.tiling
+        for video_info in self.config.videos_list:
+            self.config.videos_list[video_info]['scale'] = str(Resolution(self.config.videos_list[video_info]['scale']) / (4, 4))
+
+    def get_tiles(self, overwrite=False):
+        vid_name = self.state.name
+        tiling: Tiling = self.state.tiling
+        tiling.fov = '90x90'
+
+        if str(tiling) == '1x1':
+            info(f'skipping tiling 1x1')
+            return
+
         database = self.database
+        start_time = time.time()
 
-        for user in database[name]:
-            head_movement = database[name][user][['azimuth', 'elevation']]
+        for user in database[vid_name]:
+            if self.results[vid_name][tiling][user] != {} and not overwrite:
+                warning(f'\nThe key {self.state.factors_list} is not empty. '
+                        f'Skipping')
+                return 'skip'
+
             # 'timestamp', 'Qx', 'Qy', 'Qz', 'Qw','Vx', 'Vy', 'Vz',
             # 'azimuth', 'elevation'
+            yaw = database[vid_name][user]['azimuth']
+            pitch = database[vid_name][user]['elevation']
+            roll = [0]*len(pitch)
+            positions = list(map(PointBCS, yaw, pitch, roll))
+            tiles_selected = list(map(tiling.get_vptiles, positions))
+            self.results[vid_name][tiling][user] = list(tiles_selected)
+            print(f' - {time.time() - start_time} s = {tiles_selected}', end='', flush=True)
+            # for n, (yaw, pitch) in enumerate(zip(azimuth, elevation)):
+            #     print(f'\r{vid_name} - User {user} - {tiling} - sample {n}', end='')
+            #     position = Point_bcs(yaw, pitch, 0)
+            #     tiles_selected = tiling.get_vptiles(position)
+            #     vptiles.append(tiles_selected)
+            print('')
 
-            for yaw, pitch in head_movement:
-                position = Point_bcs(yaw, pitch, 0)
-                resolution = self.state.resolution/(4,4)
-
-                tiling = Tiling(f'{tiling}', f'{resolution}', '90x90')
-                vptiles = tiling.get_vptiles(position)
-
-                self.results[name][tiling][user] = vptiles
 
     def finish_get_tiles(self):
-        save_json(self.results, self.database_path / 'get_tiles_result.json')
-
+        save_json(self.results, self.get_tiles_json)

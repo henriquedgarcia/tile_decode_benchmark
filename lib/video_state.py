@@ -1,13 +1,15 @@
-import json
+from itertools import product
 from dataclasses import dataclass
 from logging import debug
 from pathlib import Path
-from typing import (Any, Dict, List, Union, Optional)
+from typing import (Any, Dict, List, Union, Optional, Generator)
 
+import matplotlib.pyplot as plt
 import numpy as np
 
-from assets import Resolution, Position
-from lib.util import splitx
+from lib.assets import Resolution, Position, PointBCS, Pixel
+from lib.util import erp2hcs, hcs2xyz, load_json
+from lib.viewport import Viewport
 
 global config
 global state
@@ -34,35 +36,71 @@ class Chunk:
 
 
 class Tile:
-    def __init__(self, idx: int,
+    def __init__(self,
                  resolution: Resolution,
                  position: Position,
-                 chunk_list: List[Chunk] = None):
+                 chunk_list: List[Chunk] = None,
+                 idx: int = 0):
         """
         Um tile contem uma ID, uma resolução, uma posição e conjunto de chunks.
 
         :param idx:
         :param resolution:
-        :param position:
+        :param position: position on the image
         :param chunk_list:
         """
         self.idx = idx
         self.resolution = resolution
+        self.H = resolution.H
+        self.W = resolution.W
         self.position = position
+        self.x = position.x
+        self.y = position.y
         self.chunk_list = chunk_list
 
     def __str__(self):
         return str(self.idx)
 
+    def __repr__(self):
+        return str(f'[{self.idx}]{self.resolution}@{self.position}')
+    
+    def get_border(self) ->  Generator[Pixel, None, None]:
+        position = self.position
+        resolution = self.resolution
+
+        x_i = position.x  # first row
+        x_f = position.x + resolution.W  # last row
+        y_i = position.y  # first line
+        y_f = position.y + resolution.H  # last line
+        
+        xi_xf = range(int(x_i), int(x_f))
+        yi_yf = range(int(y_i), int(y_f))
+
+        for y in [y_i] * (len(xi_xf)):
+            for x in xi_xf:
+                yield Pixel(x, y)
+        for y in yi_yf:
+            for x in [x_f - 1] * len(yi_yf):
+                yield Pixel(x, y)
+        for y in yi_yf:
+            for x in [x_i] * len(yi_yf):
+                yield Pixel(x, y)
+        for y in [y_f - 1] * len(xi_xf):
+            for x in xi_xf:
+                yield Pixel(x, y)
+
 
 class Tiling:
-    _pattern: str
+    _pattern: Resolution
+    _proj_res: Resolution
+    _tile_res: Resolution
     n_tiles: int
-    m: int
-    n: int
-    _tiles_list: Optional[List[Tile]]
+    _tiles_list: Optional[List[Tile]] = []
+    _fov: Resolution
 
-    def __init__(self, pattern: str, proj_res: Resolution):
+    def __init__(self, pattern: Union[str, Resolution], 
+                 proj_res: Union[str, Resolution], 
+                 fov: str = '1x1'):
         """
         A tiling contain a tile pattern, tile resolution and tiling list
         :param pattern:
@@ -70,18 +108,34 @@ class Tiling:
         """
         self.pattern = pattern
         self.proj_res = proj_res
-        self.tile_res = proj_res / self.shape
+        self.tile_res = proj_res / self.pattern.shape
+        self.fov = fov
+        self.fov_y, self.fov_x = self.fov
+        self.viewport = Viewport(f'{fov}')
 
-        self.tiles_list = []
-        for n, y in enumerate(range(0, self.proj_res.H, self.tile_res.H)):
-            for m, x in enumerate(range(0, self.proj_res.W, self.tile_res.W)):
-                N, M = self.shape
-                idx = m + n * M
-                pos = Position(x, y)
-                self.tiles_list.append(Tile(idx, self.tile_res, pos))
+    def __str__(self):
+        return str(self.pattern)
 
     @property
-    def tiles_list(self):
+    def fov(self) -> Resolution:
+        return self._fov
+
+    @fov.setter
+    def fov(self, value: Union[str, Resolution]):
+        if isinstance(value, Resolution):
+            self._fov = value
+        elif isinstance(value, str):
+            self._fov = Resolution(value)
+
+    @property
+    def tiles_list(self) -> List[Tile]:
+        self._tiles_list = []
+        positions = product(
+            range(0, self.proj_res.H, self.tile_res.H),
+            range(0, self.proj_res.W, self.tile_res.W))
+        for idx, (y, x) in enumerate(positions):
+            tile = Tile(self.tile_res, Position(x, y), idx=idx)
+            self._tiles_list.append(tile)
         return self._tiles_list
 
     @tiles_list.setter
@@ -89,22 +143,76 @@ class Tiling:
         self._tiles_list = tiles_list
 
     @property
-    def pattern(self) -> str:
+    def pattern(self) -> Resolution:
         return self._pattern
 
     @pattern.setter
-    def pattern(self, pattern: str):
-        self._pattern = pattern
-        self.n, self.m = splitx(pattern)
-        self.n_tiles = self.m * self.n
+    def pattern(self, pattern: Union[str, Resolution]):
+        if isinstance(pattern, Resolution):
+            self._pattern = pattern
+        elif isinstance(pattern, str):
+            self._pattern = Resolution(pattern)
+
+        self.n_tiles = self._pattern.W * self._pattern.H
+
+    def get_vptiles(self, position: PointBCS):
+        viewport = self.viewport
+        viewport.set_rotation(position)
+
+        tiles = []
+
+        for tile in self.tiles_list:
+            tile.resolution = self.tile_res / (4, 4)
+            for pixel in tile.get_border():
+                sph_point = erp2hcs(pixel, self.proj_res)
+                point_3d = hcs2xyz(sph_point)
+                if viewport.is_viewport(point_3d):
+                    tiles.append(tile.idx)
+                    break
+
+        self.viewport.project(self.proj_res / (4, 4))
+        for tile in self.tiles_list:
+            tile.resolution = self.tile_res / (4, 4)
+            for pixel in tile.get_border():
+                self.viewport.projection[pixel.y, pixel.x] = 100
+        self.viewport.show()
+        return tiles
+
+    def draw_borders(self):
+        img = np.zeros(self.proj_res.shape)
+        for tile in self.tiles_list:
+            for pixel in tile.get_border():
+                img[pixel.y, pixel.x] = 255
+        img = img.astype(np.uint8)
+        plt.imshow(img)
+        plt.show()
+
+    @property
+    def proj_res(self) -> Resolution:
+        return self._proj_res
+
+    @proj_res.setter
+    def proj_res(self, resolution: Union[str, Resolution]):
+        if isinstance(resolution, Resolution):
+            self._proj_res = resolution
+        elif isinstance(resolution, str):
+            self._proj_res = Resolution(resolution)
+
+
+    @property
+    def tile_res(self) -> Resolution:
+        return self._tile_res
+
+    @tile_res.setter
+    def tile_res(self, resolution: Union[str, Resolution]):
+        if isinstance(resolution, Resolution):
+            self._tile_res = resolution
+        elif isinstance(resolution, str):
+            self._tile_res = Resolution(resolution)
 
     @property
     def shape(self) -> tuple:
-        return self.n, self.m
-
-    def __str__(self):
-        return self.pattern
-
+        return self.pattern.shape
 
 class Config:
     config_data: dict = {}
@@ -114,15 +222,13 @@ class Config:
 
         self.config_file = Path(config_file)
 
-        with self.config_file.open('r', encoding='utf-8') as f:
-            self.config_data = json.load(f)
+        self.config_data = load_json(self.config_file)
 
         videos_file_json = self.config_data['videos_file']
         videos_file_json = Path(f'config/{videos_file_json}')
 
-        with videos_file_json.open('r', encoding='utf-8') as f:
-            video_list = json.load(f)
-            video_list = video_list['videos_list']
+        video_list = load_json(videos_file_json)
+        video_list = video_list['videos_list']
 
         for name in video_list:
             fps = self.config_data['fps']
@@ -130,6 +236,7 @@ class Config:
             video_list[name].update({"fps": fps, "gop": gop})
 
         self.videos_list: Dict[str, Any] = video_list
+        self.config_data['videos_list'] = video_list
 
     def __getitem__(self, key):
         return self.config_data[key]
@@ -183,7 +290,7 @@ class VideoContext:
         config = conf
         self.deep = deep
         self.project = Path('results') / config['project']
-        self.result_error_metric: str = config['project']
+        self.result_error_metric: str = config['error_metric']
         self.decoding_num: int = config['decoding_num']
         self.codec: str = config['codec']
         self.codec_params: str = config['codec_params']
@@ -191,7 +298,7 @@ class VideoContext:
         self.rate_control: str = config['rate_control']
         self.original_quality: str = config['original_quality']
 
-        self.names_list = list(config['videos_list'].keys())
+        self.names_list = list(config.videos_list)
         self.tiling_list = config['tiling_list']
         self.quality_list = config['quality_list']
 
@@ -253,11 +360,11 @@ class VideoContext:
         return self._names_list
 
     @names_list.setter
-    def names_list(self, videos_list: list[str]):
-        self._videos_list = videos_list
+    def names_list(self, names_list: list[str]):
+        self._names_list = names_list
 
     @property
-    def tiling_list(self) -> List[str, ...]:
+    def tiling_list(self) -> List[str]:
         return self._tiling_list
 
     @tiling_list.setter
@@ -309,6 +416,7 @@ class VideoContext:
         self.n_chunks = int(self.duration / self.chunk_dur)
         self.chunks_list = [Chunk(idx, self.chunk_dur, n_frames=self.gop) for idx in
                             range(1, self.n_chunks + 1)]
+
         global state
         state = self.state
 
@@ -321,7 +429,7 @@ class VideoContext:
         if isinstance(tiling, Tiling):
             self._tiling = tiling
         elif isinstance(tiling, str):
-            self._tiling = Tiling(tiling, self.resolution)
+            self._tiling = Tiling(tiling, self.resolution, fov='90x90')
         self.tiles_list = self._tiling.tiles_list
         global state
         state = self.state
