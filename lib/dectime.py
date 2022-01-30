@@ -12,10 +12,10 @@ from typing import Any, NamedTuple, Union, Dict
 import numpy as np
 import pandas as pd
 
-from lib.assets import AutoDict, Role, PointBCS
-from lib.util import (run_command, check_video_gop, iter_frame, load_sph_file,
-                      xyz2hcs, save_json, load_json, Resolution)
-from lib.video_state import Config, VideoContext, Tiling
+from .assets import AutoDict, Role
+from .util import (run_command, check_video_gop, iter_frame, load_sph_file,
+                   xyz2hcs, save_json, load_json)
+from .video_state import Config, VideoContext, Tiling
 
 
 class BaseTileDecodeBenchmark:
@@ -29,7 +29,7 @@ class BaseTileDecodeBenchmark:
 
         total = len(self.state)
         for n in self.state:
-            print(f'{n}/{total}', end='\r')
+            print(f'{n}/{total}', end='\r', flush=True)
             info(f'\n{self.state.factors_list}')
             action = self.role.operation(**kwargs)
 
@@ -1049,15 +1049,17 @@ class GetTiles(BaseTileDecodeBenchmark):
 
         }
 
+        self.config = Config(config)
+        self.role = operations[role]
+        self.state = VideoContext(self.config, self.role.deep)
+
         self.database_name = database_name
         self.database_folder = Path('datasets')
         self.database_path = self.database_folder / database_name
         self.database_json = self.database_path / f'{database_name}.json'
-        self.get_tiles_json = self.database_path / f'get_tiles_{database_name}.json'
 
-        self.config = Config(config)
-        self.role = operations[role]
-        self.state = VideoContext(self.config, self.role.deep)
+        self.get_tiles_path = self.state.project / self.state.get_tiles_folder
+        self.get_tiles_path.mkdir(parents=True, exist_ok=True)
 
         self.run(**kwargs)
 
@@ -1074,8 +1076,8 @@ class GetTiles(BaseTileDecodeBenchmark):
         video_id_map = video_id_map_csv['my_id']
         video_id_map.index = video_id_map_csv['video_id']
 
-        '"Videos 10,17,27,28 were rotated 265, 180,63,81 degrees to right, ' \
-        'respectively, to reorient during playback."'
+        # "Videos 10,17,27,28 were rotated 265, 180,63,81 degrees to right,
+        # respectively, to reorient during playback." - Autor
         nasrabadi_rotation = {10: np.deg2rad(-265), 17: np.deg2rad(-180),
                               27: np.deg2rad(-63), 28: np.deg2rad(-81)}
 
@@ -1133,53 +1135,60 @@ class GetTiles(BaseTileDecodeBenchmark):
         save_json(database, database_json)
 
     def init_get_tiles(self):
-        info(f'Search for database {self.database_json}. and results {self.get_tiles_json}')
+        for video in self.config.videos_list:
+            if self.config.videos_list[video]['projection'] == 'equirectangular':
+                self.config.videos_list[video]['scale'] = '144x72'
+            elif self.config.videos_list[video]['projection'] == 'cubemap':
+                # self.config.videos_list[video]['scale'] = '144x96'
+                # self.config.videos_list[video]['scale'] = '288x192'
+                # self.config.videos_list[video]['scale'] = '432x288'
+                self.config.videos_list[video]['scale'] = '576x384'
+
+        info(f'Search for database {self.database_json}.')
         if not self.database_json.exists():
             raise FileNotFoundError(f'{self.database_json} not exist.')
         self.database = load_json(self.database_json)
-        # if self.get_tiles_json.exists():
-        #     if self.get_tiles_json.stat().st_size == 0:
-        #         self.get_tiles_json.unlink()
-        #         return
-        #     self.results = load_json(self.get_tiles_json)
-
-        for video_info in self.config.videos_list:
-            self.config.videos_list[video_info]['scale'] = str(Resolution(self.config.videos_list[video_info]['scale']) / (4, 4))
 
     def get_tiles(self, overwrite=False):
-        vid_name = self.state.name
+        video_name = self.state.name
         tiling: Tiling = self.state.tiling
         tiling.fov = '90x90'
+        dbname = self.database_name
 
         if str(tiling) == '1x1':
             info(f'skipping tiling 1x1')
             return
 
         database = self.database
-        start_time = time.time()
+        filename = f'get_tiles_{dbname}_{video_name}_{self.state.projection}_{tiling}.json'
+        get_tiles_json = self.get_tiles_path / filename
 
-        for user in database[vid_name]:
-            if self.results[vid_name][tiling][user] != {} and not overwrite:
-                warning(f'\nThe key {self.state.factors_list} is not empty. '
-                        f'Skipping')
-                return 'skip'
+        self.results = AutoDict()
+        if get_tiles_json.exists() and not overwrite:
+            warning(f'The file {get_tiles_json} exist. Loading.')
+            self.results = load_json(get_tiles_json)
 
-            # 'timestamp', 'Qx', 'Qy', 'Qz', 'Qw','Vx', 'Vy', 'Vz',
-            # 'azimuth', 'elevation'
-            yaw = database[vid_name][user]['azimuth']
-            pitch = database[vid_name][user]['elevation']
+        print(f'{video_name} - tiling {tiling}')
+
+        for n, user_id in enumerate(database[video_name]):
+            if self.results[user_id] != {} and not overwrite:
+                warning(f'The user [{user_id}] exist. Skipping')
+                continue
+
+            # 'timestamp', 'Qx', 'Qy', 'Qz', 'Qw','Vx', 'Vy', 'Vz', 'azimuth',
+            # 'elevation'
+            yaw = database[video_name][user_id]['azimuth']
+            pitch = database[video_name][user_id]['elevation']
             roll = [0]*len(pitch)
-            positions = list(map(PointBCS, yaw, pitch, roll))
-            tiles_selected = list(map(tiling.get_vptiles, positions))
-            self.results[vid_name][tiling][user] = list(tiles_selected)
-            print(f' - {time.time() - start_time} s = {tiles_selected}', end='', flush=True)
-            # for n, (yaw, pitch) in enumerate(zip(azimuth, elevation)):
-            #     print(f'\r{vid_name} - User {user} - {tiling} - sample {n}', end='')
-            #     position = Point_bcs(yaw, pitch, 0)
-            #     tiles_selected = tiling.get_vptiles(position)
-            #     vptiles.append(tiles_selected)
+
+            tiles_selected = self.results[user_id] = []
+            for frame, position in enumerate(zip(yaw, pitch, roll)):
+                print(f'\rUser {user_id} - sample {frame}', end='')
+                tiles_selected.append(tiling.get_vptiles(position))
             print('')
 
+        save_json(self.results, get_tiles_json)
 
     def finish_get_tiles(self):
-        save_json(self.results, self.get_tiles_json)
+        # save_json(self.results, self.get_tiles_json)
+        pass
