@@ -1,15 +1,15 @@
-from itertools import product
 from dataclasses import dataclass
+from itertools import product
 from logging import debug
 from pathlib import Path
-from typing import (Any, Dict, List, Union, Optional, Generator)
+from typing import (Any, Dict, List, Union, Optional)
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from lib.assets import Resolution, Position, PointBCS, Pixel
-from lib.util import erp2hcs, hcs2xyz, load_json
-from lib.viewport import Viewport
+from lib.assets import Resolution, Position
+from .util import load_json
+from .viewport2 import Viewport
 
 global config
 global state
@@ -64,30 +64,43 @@ class Tile:
     def __repr__(self):
         return str(f'[{self.idx}]{self.resolution}@{self.position}')
     
-    def get_border(self) ->  Generator[Pixel, None, None]:
+    def get_border(self, proj_res: Resolution) -> tuple[tuple, tuple]:
+        """
+
+        :param proj_res:
+        :return:
+        """
+        H, W = proj_res
         position = self.position
         resolution = self.resolution
+        vp = Viewport('1x1')
+        vp.resolution = proj_res
+        convert = vp.pix2cart
 
         x_i = position.x  # first row
         x_f = position.x + resolution.W  # last row
         y_i = position.y  # first line
         y_f = position.y + resolution.H  # last line
-        
+
         xi_xf = range(int(x_i), int(x_f))
         yi_yf = range(int(y_i), int(y_f))
 
-        for y in [y_i] * (len(xi_xf)):
-            for x in xi_xf:
-                yield Pixel(x, y)
+        # def convert(m, n):
+        #     azimuth = ((m + 0.5) / W - 0.5) * 2 * 3.141592653589793
+        #     elevation = -((n + 0.5) / H - 0.5) * 3.141592653589793
+        #     x = np.cos(azimuth) * np.cos(elevation)
+        #     y = np.sin(elevation)
+        #     z = -np.cos(elevation) * np.sin(azimuth)
+        #     return (x, y, z)
+
+        for x in xi_xf:
+            yield (x, y_i), convert(x, y_i)
+        for x in xi_xf:
+            yield (x, y_f - 1), convert(x, y_f - 1)
         for y in yi_yf:
-            for x in [x_f - 1] * len(yi_yf):
-                yield Pixel(x, y)
+            yield (x_i, y), convert(x_i, y)
         for y in yi_yf:
-            for x in [x_i] * len(yi_yf):
-                yield Pixel(x, y)
-        for y in [y_f - 1] * len(xi_xf):
-            for x in xi_xf:
-                yield Pixel(x, y)
+            yield (x_f - 1, y), convert(x_f - 1, y)
 
 
 class Tiling:
@@ -155,34 +168,30 @@ class Tiling:
 
         self.n_tiles = self._pattern.W * self._pattern.H
 
-    def get_vptiles(self, position: PointBCS):
+    def get_vptiles(self, position: tuple):
         viewport = self.viewport
         viewport.set_rotation(position)
 
         tiles = []
 
         for tile in self.tiles_list:
-            tile.resolution = self.tile_res / (4, 4)
-            for pixel in tile.get_border():
-                sph_point = erp2hcs(pixel, self.proj_res)
-                point_3d = hcs2xyz(sph_point)
+            for (pixel, point_3d) in tile.get_border(self.proj_res):
                 if viewport.is_viewport(point_3d):
                     tiles.append(tile.idx)
                     break
 
-        self.viewport.project(self.proj_res / (4, 4))
-        for tile in self.tiles_list:
-            tile.resolution = self.tile_res / (4, 4)
-            for pixel in tile.get_border():
-                self.viewport.projection[pixel.y, pixel.x] = 100
-        self.viewport.show()
+        # self.viewport.project(self.proj_res)
+        # for tile in self.tiles_list:
+        #     for (pixel, point_3d) in tile.get_border(self.proj_res):
+        #         self.viewport.projection[pixel.y, pixel.x] = 100
+        # self.viewport.show()
         return tiles
 
     def draw_borders(self):
         img = np.zeros(self.proj_res.shape)
         for tile in self.tiles_list:
-            for pixel in tile.get_border():
-                img[pixel.y, pixel.x] = 255
+            for pixel, _ in tile.get_border(Resolution('1x1')):
+                img[pixel[1], pixel[0]] = 255
         img = img.astype(np.uint8)
         plt.imshow(img)
         plt.show()
@@ -257,6 +266,7 @@ class VideoContext:
     siti_folder = Path("siti")
     _check_folder = Path('check')
     quality_folder = Path('quality')
+    get_tiles_folder = Path('get_tiles')
 
     # Factors
     _name: str = None
