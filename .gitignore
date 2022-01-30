@@ -8,3 +8,5 @@ projections/
 .gitignore
 *.log
 datasets/
+*.c
+*.pyd
