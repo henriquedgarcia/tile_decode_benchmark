@@ -10,3 +10,4 @@ projections/
 datasets/
 *.c
 *.pyd
+build/
