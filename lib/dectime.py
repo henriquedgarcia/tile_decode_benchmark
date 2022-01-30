@@ -14,7 +14,8 @@ import pandas as pd
 
 from .assets import AutoDict, Role
 from .util import (run_command, check_video_gop, iter_frame, load_sph_file,
-                   xyz2hcs, save_json, load_json, lin_interpol)
+                   xyz2hcs, save_json, load_json, lin_interpol, save_pickle,
+                   load_pickle)
 from .video_state import Config, VideoContext, Tiling
 
 
@@ -1159,8 +1160,9 @@ class GetTiles(BaseTileDecodeBenchmark):
             database[video_name][user_id] = {'azimuth': theta, 'elevation': phi}
             print(f' - {time.time() - start_time:0.3f}')
 
-        print(f'\nFinish. Saving as {database_json}.')
-        save_json(database, database_json)
+        database_pickle = self.database_json.with_suffix('.pickle')
+        print(f'\nFinish. Saving as {database_pickle}.')
+        save_pickle(database, database_pickle)
 
     def init_get_tiles(self):
         for video in self.config.videos_list:
@@ -1175,10 +1177,11 @@ class GetTiles(BaseTileDecodeBenchmark):
                 # self.config.videos_list[video]['scale'] = '432x288'
                 self.config.videos_list[video]['scale'] = '576x384'
 
-        info(f'Search for database {self.database_json}.')
-        if not self.database_json.exists():
-            raise FileNotFoundError(f'{self.database_json} not exist.')
-        self.database = load_json(self.database_json)
+        database = self.database_json.with_suffix('.pickle')
+        info(f'Search for database {database}.')
+        if not database.exists():
+            raise FileNotFoundError(f'{database} not exist.')
+        self.database = load_pickle(database)
 
     def get_tiles(self, overwrite=False):
         video_name = self.state.name
