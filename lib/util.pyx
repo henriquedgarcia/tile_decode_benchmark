@@ -1,3 +1,4 @@
+import pickle
 import json
 import os
 import subprocess
@@ -7,12 +8,11 @@ from subprocess import run
 from typing import Any, Dict, Hashable, Iterable, Tuple, Union
 
 import numpy as np
+import pandas as pd
 import skvideo.io
 from scipy import ndimage
 
-from lib.assets import (AutoDict, StatsData, PointBCS, PointHCS,
-                        Resolution, Point, Pixel)
-
+from lib.assets import AutoDict, StatsData, PointHCS, Resolution, Point, Pixel
 
 ################    QUALITY    ################
 def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
@@ -60,10 +60,8 @@ def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
 
     return sph_points, cart_coord, sph_points_img, sph_points_mask
 
-
 def mse2psnr(mse: float, pixel_max=255) -> float:
     return 10 * np.log10((pixel_max ** 2 / mse))
-
 
 ################    PROJECTIONS    ################
 # ------------------ erp2sph ------------------
@@ -79,7 +77,6 @@ def erp2hcs(pixel: Pixel, res: Resolution) -> PointHCS:
     elevation = -((pixel[1] + 0.5) / res.shape[0] - 0.5) * np.pi
     return PointHCS(azimuth, elevation)
 
-
 def hcs2xyz(hcs_point: PointHCS) -> Point:
     """
     Horizontal Coordinate system to Cartesian coordinates.
@@ -92,7 +89,6 @@ def hcs2xyz(hcs_point: PointHCS) -> Point:
     z = -np.cos(hcs_point[1]) * np.sin(hcs_point[0])
 
     return Point(x, y, z)
-
 
 # ------------------ sph2erp ------------------
 def xyz2hcs(x, y, z) -> tuple[float, float]:
@@ -107,10 +103,8 @@ def xyz2hcs(x, y, z) -> tuple[float, float]:
     elevation = np.arctan2(y, np.sqrt(x * x + y * y + z * z))
     return PointHCS(azimuth, elevation)
 
-
 def sph2erp(theta, phi, shape: tuple) -> tuple[int, int]:
     return uv2img(*sph2uv(theta, phi), shape)
-
 
 def sph2uv(theta, phi):
     PI = np.pi
@@ -132,14 +126,18 @@ def sph2uv(theta, phi):
     v = -phi / PI + 0.5
     return u, v
 
-
 def uv2img(u, v, shape: tuple):
     m = round(u * shape[1] - 0.5)
     n = round(v * shape[0] - 0.5)
     return m, n
 
-
 # ------------------ Util ------------------
+def lin_interpol(t: float, t_f: float, t_i: float, v_f: pd.Serie,
+                 v_i: pd.Serie) -> pd.Serie:
+    m: pd.Serie = (v_f - v_i) / (t_f - t_i)
+    v: pd.Serie = m * (t - t_i) + v_i
+    return v
+
 def iter_frame(video_path, gray=True, dtype='float32'):
     vreader = skvideo.io.vreader(f'{video_path}', as_grey=gray)
     for frame in vreader:
@@ -147,7 +145,6 @@ def iter_frame(video_path, gray=True, dtype='float32'):
             _, height, width, _ = frame.shape
             frame = frame.reshape((height, width)).astype(dtype)
         yield frame
-
 
 def check_video_gop(video_file: Path) -> tuple:
     command = (f'ffprobe -hide_banner -loglevel 0 '
@@ -176,7 +173,6 @@ def check_video_gop(video_file: Path) -> tuple:
             gop.append(line)
     return max_gop, gop
 
-
 def check_file_size(video_file) -> int:
     debug(f'Checking size of {video_file}')
     if not os.path.isfile(video_file):
@@ -186,7 +182,6 @@ def check_file_size(video_file) -> int:
         return 0
     debug(f'The size is {filesize}')
     return filesize
-
 
 def run_command(command: str, log_to_save: Union[str, Path], mode: str = 'w'):
     """
@@ -205,18 +200,25 @@ def run_command(command: str, log_to_save: Union[str, Path], mode: str = 'w'):
     if not p.returncode == 0:
         error(f'run error in {command}. Continuing.')
 
-
-def save_json(data: Union[dict, AutoDict], filename: Union[str, Path], separators=(',', ':'),
+def save_json(data: Union[dict, AutoDict], filename: Union[str, Path],
+              separators=(',', ':'),
               indent=None):
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(data, f, separators=separators, indent=indent)
-
 
 def load_json(filename, object_hook=AutoDict):
     with open(filename, 'r', encoding='utf-8') as f:
         results = json.load(f, object_hook=object_hook)
     return results
 
+def save_pickle(data: object, filename: Union[str, Path]):
+    with open(filename, 'wb') as f:
+        pickle.dump(data, f, protocol=-1)
+
+def load_pickle(filename):
+    with open(filename, 'rb') as f:
+        results = pickle.load(f)
+    return results
 
 def splitx(string: str) -> tuple[int, ...]:
     """
@@ -226,7 +228,6 @@ def splitx(string: str) -> tuple[int, ...]:
     :return: Return a list of int
     """
     return tuple(map(int, string.split('x')))
-
 
 def rot_matrix(new_position: tuple):
     """
@@ -264,19 +265,16 @@ def rot_matrix(new_position: tuple):
 
     return mat_y @ mat_z @ mat_x
 
-
 def idx2xy(idx: int, shape: Resolution):
     tile_x = idx % shape.shape[1]
     tile_y = idx // shape.shape[1]
     return tile_x, tile_y
-
 
 def xy2idx(coord: Tuple[int, int], shape: Tuple[int, int]):
     x = coord[1]
     y = coord[0]
     idx = x + y * shape[1]
     return idx
-
 
 def update_dictionary(value, dictionary: AutoDict, key1: Hashable = None,
                       key2: Hashable = None, key3: Hashable = None,
@@ -306,7 +304,6 @@ def update_dictionary(value, dictionary: AutoDict, key1: Hashable = None,
         dict_[key5] = value
     return dictionary
 
-
 def dishevel_dictionary(dictionary: dict, key1: Hashable = None,
                         key2: Hashable = None, key3: Hashable = None,
                         key4: Hashable = None, key5: Hashable = None) -> Any:
@@ -318,7 +315,6 @@ def dishevel_dictionary(dictionary: dict, key1: Hashable = None,
     if key5: disheveled_dictionary = disheveled_dictionary[key5]
     return disheveled_dictionary
 
-
 def make_menu(options_txt: list) -> tuple:
     options = [str(o) for o in range(len(options_txt))]
     menu_lines = ['Options:']
@@ -328,7 +324,6 @@ def make_menu(options_txt: list) -> tuple:
     menu_txt = '\n'.join(menu_lines)
     return options, menu_txt
 
-
 def menu(options_txt: list) -> int:
     options, menu_ = make_menu(options_txt)
 
@@ -337,7 +332,6 @@ def menu(options_txt: list) -> int:
         c = input(menu_)
 
     return int(c)
-
 
 def menu2(options_dict: Dict[int, Any]):
     options = []
@@ -352,11 +346,9 @@ def menu2(options_dict: Dict[int, Any]):
         c = input(text)
     return c
 
-
 def rem_file(file) -> None:
     if os.path.isfile(file):
         os.remove(file)
-
 
 def calc_stats(data1: Iterable, data2: Iterable) \
         -> Tuple[StatsData, StatsData]:
@@ -389,7 +381,6 @@ def calc_stats(data1: Iterable, data2: Iterable) \
 
     return stats_data1, stats_data2
 
-
 def grouper(iterable, n, fillvalue=None):
     """
     Collect data into fixed-length chunks or blocks.
@@ -403,7 +394,6 @@ def grouper(iterable, n, fillvalue=None):
     from itertools import zip_longest
     args = [iter(iterable)] * n
     return zip_longest(*args, fillvalue=fillvalue)
-
 
 def sobel(frame):
     """
