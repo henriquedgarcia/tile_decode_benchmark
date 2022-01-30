@@ -14,7 +14,7 @@ import pandas as pd
 
 from .assets import AutoDict, Role
 from .util import (run_command, check_video_gop, iter_frame, load_sph_file,
-                   xyz2hcs, save_json, load_json)
+                   xyz2hcs, save_json, load_json, lin_interpol)
 from .video_state import Config, VideoContext, Tiling
 
 
@@ -1137,11 +1137,7 @@ class GetTiles(BaseTileDecodeBenchmark):
                     t_i: float = last_line.timestamp
                     v_f: pd.Serie = line[['Vz', 'Vx', 'Vy']]
                     v_i: pd.Serie = last_line[['Vz', 'Vx', 'Vy']]
-
-                    m: pd.Serie = (v_f - v_i) / (t_f - t_i)
-                    v: pd.Serie = m * (t - t_i) + v_i
-
-                    x, y, z = v[['Vz', 'Vx', 'Vy']]
+                    x, y, z = lin_interpol(t, t_f, t_i, v_f, v_i)
 
                 azimuth, elevation = xyz2hcs(x, y, z)
                 new_azimuth = azimuth + rotation
