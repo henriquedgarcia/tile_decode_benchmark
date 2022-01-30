@@ -1105,39 +1105,74 @@ class GetTiles(BaseTileDecodeBenchmark):
                                                'Qx', 'Qy', 'Qz', 'Qw',
                                                'Vx', 'Vy', 'Vz'])
 
-            theta, phi = [], []
-            start_time = time.time()
             rotation = 0
             if video_id in [10,17,27,28]:
                 info(f'Cheking rotation offset.')
                 rotation = nasrabadi_rotation[video_id]
 
-            info('')
-            for n, line in enumerate(head_movement.itertuples()):
-                print('', end='\r')
-                print(f'User {user_id} - {video_name} - frame {n:04d}', end='')
-                x, y, z = line.Vz, line.Vx, line.Vy  # pq no artigo o afshin usou um sistema de coord doido
+            frame_counter = 0
+            last_line = None
+            theta, phi = [], []
+            start_time = time.time()
+
+            for n, line in enumerate(head_movement.iterrows()):
+                line = line[1]
+                print(f'\rUser {user_id} - {video_name} - sample {n:04d} - frame {frame_counter}', end='')
+
+                # Se o timestamp for menor do que frame_time,
+                # continue. Senão, faça interpolação. frame time = counter / fps
+                frame_time = frame_counter / 30
+                if line.timestamp < frame_time:
+                    last_line = line
+                    continue
+
+                if line.timestamp == frame_time:
+                    # Based on github code of author
+                    x, y, z = line[['Vz', 'Vx', 'Vy']]
+
+                else:
+                    # Linear Interpolation
+                    t: float = frame_time
+                    t_f: float = line.timestamp
+                    t_i: float = last_line.timestamp
+                    v_f: pd.Serie = line[['Vz', 'Vx', 'Vy']]
+                    v_i: pd.Serie = last_line[['Vz', 'Vx', 'Vy']]
+
+                    m: pd.Serie = (v_f - v_i) / (t_f - t_i)
+                    v: pd.Serie = m * (t - t_i) + v_i
+
+                    x, y, z = v[['Vz', 'Vx', 'Vy']]
+
                 azimuth, elevation = xyz2hcs(x, y, z)
                 new_azimuth = azimuth + rotation
                 if new_azimuth < -np.pi:
-                    new_azimuth += 2*np.pi
-                theta.append(azimuth + rotation)
+                    new_azimuth += 2 * np.pi
+                elif new_azimuth >= np.pi:
+                    new_azimuth -= 2 * np.pi
+
+                if elevation < -np.pi / 2:
+                    elevation = - np.pi - elevation
+                elif elevation > np.pi / 2:
+                    elevation = np.pi - elevation
+
+                theta.append(new_azimuth)
                 phi.append(elevation)
+                frame_counter += 1
+                last_line = line
 
-            print(f' - {time.time() - start_time:0.3f}', flush=True)
+            database[video_name][user_id] = {'azimuth': theta, 'elevation': phi}
+            print(f' - {time.time() - start_time:0.3f}')
 
-            head_movement['azimuth'] = theta
-            head_movement['elevation'] = phi
-            head_movement_dict = head_movement.to_dict('list')
-            database[video_name][user_id].update(head_movement_dict)
-
-        print(f'Finish. Saving as {database_json}.')
+        print(f'\nFinish. Saving as {database_json}.')
         save_json(database, database_json)
 
     def init_get_tiles(self):
         for video in self.config.videos_list:
             if self.config.videos_list[video]['projection'] == 'equirectangular':
-                self.config.videos_list[video]['scale'] = '144x72'
+                # self.config.videos_list[video]['scale'] = '144x72'
+                # self.config.videos_list[video]['scale'] = '288x144'
+                # self.config.videos_list[video]['scale'] = '432x216'
+                self.config.videos_list[video]['scale'] = '576x288'
             elif self.config.videos_list[video]['projection'] == 'cubemap':
                 # self.config.videos_list[video]['scale'] = '144x96'
                 # self.config.videos_list[video]['scale'] = '288x192'
