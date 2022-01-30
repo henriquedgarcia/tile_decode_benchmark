@@ -71,18 +71,12 @@ def erp2hcs(pixel: Pixel, res: Resolution) -> PointHCS:
     """
     Convert a 2D point of ERP projection coordinates to Horizontal Coordinate
     System in rad. Only ERP Projection
-    :param pixel: A point in ERP projection
-    :param res: The resolution of the projection
+    :param Pixel pixel: A point in ERP projection
+    :param Resolution res: The resolution of the projection
     :return: A 3D Point on the sphere
     """
-    m, n, _ = pixel
-    H, W = res.shape
-
-    u = (m + 0.5) / W
-    v = (n + 0.5) / H
-    azimuth = (u - 0.5) * 2 * np.pi
-    elevation = -(v - 0.5) * np.pi
-
+    azimuth = ((pixel[0] + 0.5) / res.shape[1] - 0.5) * 2 * np.pi
+    elevation = -((pixel[1] + 0.5) / res.shape[0] - 0.5) * np.pi
     return PointHCS(azimuth, elevation)
 
 
@@ -93,16 +87,9 @@ def hcs2xyz(hcs_point: PointHCS) -> Point:
     :param PointHCS hcs_point: The coordinates in Horizontal Coordinate System
     :return: A Point3d in cartesian coordinates
     """
-    azimuth, elevation = hcs_point
-
-    cos_az = np.cos(azimuth)
-    sin_az = np.sin(azimuth)
-    cos_el = np.cos(elevation)
-    sin_el = np.sin(elevation)
-
-    x = cos_az * cos_el
-    y = sin_el
-    z = -cos_el * sin_az
+    x = np.cos(hcs_point[0]) * np.cos(hcs_point[1])
+    y = np.sin(hcs_point[1])
+    z = -np.cos(hcs_point[1]) * np.sin(hcs_point[0])
 
     return Point(x, y, z)
 
@@ -111,9 +98,9 @@ def hcs2xyz(hcs_point: PointHCS) -> Point:
 def xyz2hcs(x, y, z) -> tuple[float, float]:
     """
     Convert from cartesian system to horizontal coordinate system in radians
-    :param x: Coordinate from X axis
-    :param y: Coordinate from Y axis
-    :param z: Coordinate from Z axis
+    :param float x: Coordinate from X axis
+    :param float y: Coordinate from Y axis
+    :param float z: Coordinate from Z axis
     :return: (azimuth, elevation)
     """
     azimuth = np.arctan2(-z, x)
@@ -162,7 +149,7 @@ def iter_frame(video_path, gray=True, dtype='float32'):
         yield frame
 
 
-def check_video_gop(video_file: Path) -> (int, list):
+def check_video_gop(video_file: Path) -> tuple:
     command = (f'ffprobe -hide_banner -loglevel 0 '
                f'-of default=nk=1:nw=1 '
                f'-show_entries frame=pict_type '
@@ -219,7 +206,7 @@ def run_command(command: str, log_to_save: Union[str, Path], mode: str = 'w'):
         error(f'run error in {command}. Continuing.')
 
 
-def save_json(data: dict, filename: Union[str, Path], separators=(',', ':'),
+def save_json(data: Union[dict, AutoDict], filename: Union[str, Path], separators=(',', ':'),
               indent=None):
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(data, f, separators=separators, indent=indent)
@@ -241,16 +228,14 @@ def splitx(string: str) -> tuple[int, ...]:
     return tuple(map(int, string.split('x')))
 
 
-def rot_matrix(new_position: PointBCS):
+def rot_matrix(new_position: tuple):
     """
     Create rotation matrix using Tait–Bryan angles in Z-Y-X order.
     See Wikipedia.
-    :param new_position: A new position using the Body Coordinate System.
+    :param tuple new_position: A new position (yaw, pitch, roll).
     :return:
     """
-    yaw = new_position.yaw
-    pitch = new_position.pitch
-    roll = new_position.roll
+    yaw, pitch, roll = new_position
 
     cp = np.cos(pitch)
     sp = np.sin(pitch)
@@ -334,7 +319,7 @@ def dishevel_dictionary(dictionary: dict, key1: Hashable = None,
     return disheveled_dictionary
 
 
-def make_menu(options_txt: list) -> (list, str):
+def make_menu(options_txt: list) -> tuple:
     options = [str(o) for o in range(len(options_txt))]
     menu_lines = ['Options:']
     menu_lines.extend([f'{o} - {text}'
