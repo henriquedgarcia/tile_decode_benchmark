@@ -1025,8 +1025,7 @@ class GetTiles(BaseTileDecodeBenchmark):
     results = AutoDict()
     database = AutoDict()
 
-    def __init__(self, config: str,
-                 role: str, database_name,
+    def __init__(self, config: str, role: str,
                  **kwargs):
         """
         Load configuration and run the main routine defined on Role Operation.
@@ -1049,23 +1048,25 @@ class GetTiles(BaseTileDecodeBenchmark):
                               finish=self.finish_get_tiles),
 
         }
+        db_name = kwargs['database_name']
 
         self.config = Config(config)
         self.role = operations[role]
         self.state = VideoContext(self.config, self.role.deep)
 
-        self.database_name = database_name
+        self.database_name = db_name
         self.database_folder = Path('datasets')
-        self.database_path = self.database_folder / database_name
-        self.database_json = self.database_path / f'{database_name}.json'
-        self.database_pickle = self.database_path / f'{database_name}.pickle'
+        self.database_path = self.database_folder / db_name
+        self.database_json = self.database_path / f'{db_name}.json'
+        self.database_pickle = self.database_path / f'{db_name}.pickle'
 
         self.get_tiles_path = self.state.project / self.state.get_tiles_folder
         self.get_tiles_path.mkdir(parents=True, exist_ok=True)
 
         self.run(**kwargs)
 
-    def process_nasrabadi(self, overwrite=False):
+    def process_nasrabadi(self, **kwargs):
+        overwrite = kwargs['overwrite']
         database_pickle = self.database_pickle
 
         if database_pickle.exists() and not overwrite:
@@ -1181,7 +1182,9 @@ class GetTiles(BaseTileDecodeBenchmark):
         info(f'Loading database {database_pickle}.')
         self.database = load_pickle(database_pickle)
 
-    def get_tiles(self, overwrite=False):
+    def get_tiles(self, **kwargs):
+        overwrite = kwargs['overwrite']
+
         tiling = self.state.tiling
         if str(tiling) == '1x1':
             info(f'skipping tiling 1x1')
