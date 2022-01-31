@@ -16,7 +16,7 @@ from .assets import AutoDict, Role
 from .util import (run_command, check_video_gop, iter_frame, load_sph_file,
                    xyz2hcs, save_json, load_json, lin_interpol, save_pickle,
                    load_pickle)
-from .video_state import Config, VideoContext, Tiling
+from .video_state import Config, VideoContext
 
 
 class BaseTileDecodeBenchmark:
