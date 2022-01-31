@@ -1220,10 +1220,11 @@ class GetTiles(BaseTileDecodeBenchmark):
             self.results[user_id] = []
 
             for frame, position in enumerate(zip(yaw, pitch, roll)):
-                print(f'\rUser {user_id} - sample {frame}', end='')
+                print(f'\rUser {user_id} - sample {frame:05d}', end='')
                 tiles_selected = tiling.get_vptiles(position)
                 self.results[user_id].append(tiles_selected)
 
+        print('')
         save_pickle(self.results, get_tiles_pickle)
 
     def finish_get_tiles(self):
