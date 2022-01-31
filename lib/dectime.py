@@ -1058,6 +1058,7 @@ class GetTiles(BaseTileDecodeBenchmark):
         self.database_folder = Path('datasets')
         self.database_path = self.database_folder / database_name
         self.database_json = self.database_path / f'{database_name}.json'
+        self.database_pickle = self.database_path / f'{database_name}.pickle'
 
         self.get_tiles_path = self.state.project / self.state.get_tiles_folder
         self.get_tiles_path.mkdir(parents=True, exist_ok=True)
@@ -1065,10 +1066,10 @@ class GetTiles(BaseTileDecodeBenchmark):
         self.run(**kwargs)
 
     def process_nasrabadi(self, overwrite=False):
-        database_json = self.database_json
+        database_pickle = self.database_pickle
 
-        if database_json.exists() and not overwrite:
-            warning(f'The file {database_json} exist. Skipping.')
+        if database_pickle.exists() and not overwrite:
+            warning(f'The file {database_pickle} exist. Skipping.')
             return
 
         database = AutoDict()
@@ -1160,7 +1161,6 @@ class GetTiles(BaseTileDecodeBenchmark):
             database[video_name][user_id] = {'azimuth': theta, 'elevation': phi}
             print(f' - {time.time() - start_time:0.3f}')
 
-        database_pickle = self.database_json.with_suffix('.pickle')
         print(f'\nFinish. Saving as {database_pickle}.')
         save_pickle(database, database_pickle)
 
@@ -1177,52 +1177,47 @@ class GetTiles(BaseTileDecodeBenchmark):
                 # self.config.videos_list[video]['scale'] = '432x288'
                 self.config.videos_list[video]['scale'] = '576x384'
 
-        database = self.database_json.with_suffix('.pickle')
-        info(f'Search for database {database}.')
-        if not database.exists():
-            raise FileNotFoundError(f'{database} not exist.')
-        self.database = load_pickle(database)
+        database_pickle = self.database_pickle
+        info(f'Loading database {database_pickle}.')
+        self.database = load_pickle(database_pickle)
 
     def get_tiles(self, overwrite=False):
-        video_name = self.state.name
-        tiling: Tiling = self.state.tiling
-        tiling.fov = '90x90'
-        dbname = self.database_name
-
+        tiling = self.state.tiling
         if str(tiling) == '1x1':
             info(f'skipping tiling 1x1')
             return
 
+        video_name = self.state.name
+        tiling.fov = '90x90'
+        dbname = self.database_name
         database = self.database
-        filename = f'get_tiles_{dbname}_{video_name}_{self.state.projection}_{tiling}.json'
-        get_tiles_json = self.get_tiles_path / filename
-
         self.results = AutoDict()
-        if get_tiles_json.exists() and not overwrite:
-            warning(f'The file {get_tiles_json} exist. Loading.')
-            self.results = load_json(get_tiles_json)
+
+        filename = f'get_tiles_{dbname}_{video_name}_{self.state.projection}_{tiling}.pickle'
+        get_tiles_pickle = self.get_tiles_path / filename
+        info(f'Defined the result filename to {get_tiles_pickle}')
+
+        if get_tiles_pickle.exists() and not overwrite:
+            warning(f'The file {get_tiles_pickle} exist. Skipping.')
+            return
 
         print(f'{video_name} - tiling {tiling}')
 
         for n, user_id in enumerate(database[video_name]):
-            if self.results[user_id] != {} and not overwrite:
-                warning(f'The user [{user_id}] exist. Skipping')
-                continue
-
             # 'timestamp', 'Qx', 'Qy', 'Qz', 'Qw','Vx', 'Vy', 'Vz', 'azimuth',
             # 'elevation'
             yaw = database[video_name][user_id]['azimuth']
             pitch = database[video_name][user_id]['elevation']
             roll = [0]*len(pitch)
 
-            tiles_selected = self.results[user_id] = []
+            self.results[user_id] = []
+
             for frame, position in enumerate(zip(yaw, pitch, roll)):
                 print(f'\rUser {user_id} - sample {frame}', end='')
-                tiles_selected.append(tiling.get_vptiles(position))
-            print('')
+                tiles_selected = tiling.get_vptiles(position)
+                self.results[user_id].append(tiles_selected)
 
-        save_json(self.results, get_tiles_json)
+        save_pickle(self.results, get_tiles_pickle)
 
     def finish_get_tiles(self):
-        # save_json(self.results, self.get_tiles_json)
         pass
