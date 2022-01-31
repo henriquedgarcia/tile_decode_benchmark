@@ -1046,6 +1046,10 @@ class GetTiles(BaseTileDecodeBenchmark):
                               init=self.init_get_tiles,
                               operation=self.get_tiles,
                               finish=self.finish_get_tiles),
+            'JSON2PICKLE': Role(name='JSON2PICKLE', deep=2,
+                              init=None,
+                              operation=self.json2pickle,
+                              finish=None),
 
         }
         db_name = kwargs['database_name']
@@ -1224,3 +1228,15 @@ class GetTiles(BaseTileDecodeBenchmark):
 
     def finish_get_tiles(self):
         pass
+
+    def json2pickle(self, **kwargs):
+        video_name = self.state.name
+        tiling = self.state.tiling
+        dbname = self.database_name
+
+        get_tiles_pickle = self.get_tiles_path / f'get_tiles_{dbname}_{video_name}_{self.state.projection}_{tiling}.pickle'
+        get_tiles_json = self.get_tiles_path / f'get_tiles_{dbname}_{video_name}_{self.state.projection}_{tiling}.json'
+
+        if get_tiles_json.exists() and not get_tiles_pickle.exists():
+            result = load_json(get_tiles_json)
+            save_pickle(result, get_tiles_pickle)
