@@ -89,7 +89,7 @@ class Main:
                                     database_name='nasrabadi_28videos')),
         }
         Main.start(opt, GetTiles, role_ini, role_end)
-    
+
     @staticmethod
     def make_graphs(role_ini, role_end=None):
         opt = {
