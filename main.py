@@ -1,4 +1,5 @@
 #!/usr/bin/env python3.9
+import argparse
 from lib.dectime import (TileDecodeBenchmark, CheckTiles,
                          QualityAssessment, GetTiles)
 import logging
@@ -84,6 +85,8 @@ class Main:
             2: ('GET_TILES', dict(overwrite=False,
                                   database_name='nasrabadi_28videos',
                                   )),
+            3: ('JSON2PICKLE', dict(overwrite=False,
+                                    database_name='nasrabadi_28videos')),
         }
         Main.start(opt, GetTiles, role_ini, role_end)
     
@@ -104,8 +107,6 @@ class Main:
             cls(config=config, role=role, **kwargs)
 
 if __name__ == '__main__':
-    import argparse
-
     parser = argparse.ArgumentParser(description='Dectime Testbed')
     parser.add_argument('-c', '--config', default=config_list, nargs='*',
                         help='The path to config file',
