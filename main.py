@@ -106,6 +106,7 @@ class Main:
             kwargs = opt[role_ini][1]
             cls(config=config, role=role, **kwargs)
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Dectime Testbed')
     parser.add_argument('-c', '--config', default=config_list, nargs='*',
