@@ -1134,7 +1134,7 @@ class GetTiles(BaseTileDecodeBenchmark):
                     continue
 
                 if line.timestamp == frame_time:
-                    # Based on github code of author
+                    # Based on gitHub code of author
                     x, y, z = line[['Vz', 'Vx', 'Vy']]
 
                 else:
