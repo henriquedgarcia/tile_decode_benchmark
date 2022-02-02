@@ -11,3 +11,4 @@ datasets/
 *.c
 *.pyd
 build/
+*.so
