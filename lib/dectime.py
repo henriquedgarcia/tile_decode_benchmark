@@ -1613,7 +1613,7 @@ class GetTiles(BaseTileDecodeBenchmark):
             info(f'skipping tiling 1x1')
             return
 
-        video_name = self.video_context.video.name.replace("_cmp", "")
+        video_name = self.video_context.video.name.replace("_cmp", "").replace("_erp", "")
         tiling.fov = '90x90'
         dbname = self.dataset_name
         database = self.database
