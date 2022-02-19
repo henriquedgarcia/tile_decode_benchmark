@@ -154,7 +154,7 @@ class CircularNumber(Real):
         return self._value
 
     @value.setter
-    def value(self, v):
+    def value(self, v: Union[float, int]):
         v, t = self._check_cicle(v)
         self._value = v
         self.turn += t
@@ -166,7 +166,7 @@ class CircularNumber(Real):
         self.end_value = value_range[1]
         self.value = v
 
-    def _check_cicle(self, v: Union[float]):
+    def _check_cicle(self, v: Union[float, int]):
         turn = 0
         while True:
             if v >= self.end_value:
