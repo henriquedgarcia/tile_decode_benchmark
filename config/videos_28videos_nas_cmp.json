@@ -1,6 +1,6 @@
 {
   "videos_list": {
-    "angel_falls_nas": {
+    "angel_falls_cmp_nas": {
       "original": "angel_falls_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -8,7 +8,7 @@
       "duration": 60,
       "group": 0
     },
-    "blue_angels_nas": {
+    "blue_angels_cmp_nas": {
       "original": "blue_angels_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -16,7 +16,7 @@
       "duration": 60,
       "group": 0
     },
-    "cable_cam_nas": {
+    "cable_cam_cmp_nas": {
       "original": "cable_cam_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -24,7 +24,7 @@
       "duration": 60,
       "group": 0
     },
-    "chariot_race_nas": {
+    "chariot_race_cmp_nas": {
       "original": "chariot_race_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -32,7 +32,7 @@
       "duration": 60,
       "group": 0
     },
-    "closet_tour_nas": {
+    "closet_tour_cmp_nas": {
       "original": "closet_tour_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -40,7 +40,7 @@
       "duration": 60,
       "group": 0
     },
-    "drone_chases_car_nas": {
+    "drone_chases_car_cmp_nas": {
       "original": "drone_chases_car_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -48,7 +48,7 @@
       "duration": 60,
       "group": 0
     },
-    "drone_footage_nas": {
+    "drone_footage_cmp_nas": {
       "original": "drone_footage_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -56,7 +56,7 @@
       "duration": 60,
       "group": 0
     },
-    "drone_video_nas": {
+    "drone_video_cmp_nas": {
       "original": "drone_video_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -64,7 +64,7 @@
       "duration": 60,
       "group": 0
     },
-    "drop_tower_nas": {
+    "drop_tower_cmp_nas": {
       "original": "drop_tower_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -72,7 +72,7 @@
       "duration": 60,
       "group": 0
     },
-    "dubstep_dance_nas": {
+    "dubstep_dance_cmp_nas": {
       "original": "dubstep_dance_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -80,7 +80,7 @@
       "duration": 60,
       "group": 0
     },
-    "elevator_lift_nas": {
+    "elevator_lift_cmp_nas": {
       "original": "elevator_lift_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -88,7 +88,7 @@
       "duration": 49,
       "group": 0
     },
-    "glass_elevator_nas": {
+    "glass_elevator_cmp_nas": {
       "original": "glass_elevator_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -96,7 +96,7 @@
       "duration": 60,
       "group": 0
     },
-    "montana_nas": {
+    "montana_cmp_nas": {
       "original": "montana_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -104,7 +104,7 @@
       "duration": 60,
       "group": 0
     },
-    "motorsports_park_nas": {
+    "motorsports_park_cmp_nas": {
       "original": "motorsports_park_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -112,7 +112,7 @@
       "duration": 60,
       "group": 0
     },
-    "nyc_drive_nas": {
+    "nyc_drive_cmp_nas": {
       "original": "nyc_drive_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -120,7 +120,7 @@
       "duration": 60,
       "group": 0
     },
-    "pac_man_nas": {
+    "pac_man_cmp_nas": {
       "original": "pac_man_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -128,7 +128,7 @@
       "duration": 60,
       "group": 0
     },
-    "penthouse_nas": {
+    "penthouse_cmp_nas": {
       "original": "penthouse_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -136,7 +136,7 @@
       "duration": 60,
       "group": 0
     },
-    "petite_anse_nas": {
+    "petite_anse_cmp_nas": {
       "original": "petite_anse_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -144,7 +144,7 @@
       "duration": 60,
       "group": 0
     },
-    "rhinos_nas": {
+    "rhinos_cmp_nas": {
       "original": "rhinos_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -152,7 +152,7 @@
       "duration": 60,
       "group": 0
     },
-    "sunset_nas": {
+    "sunset_cmp_nas": {
       "original": "sunset_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -160,7 +160,7 @@
       "duration": 60,
       "group": 0
     },
-    "three_peaks_nas": {
+    "three_peaks_cmp_nas": {
       "original": "three_peaks_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -168,7 +168,7 @@
       "duration": 60,
       "group": 0
     },
-    "video_19_nas": {
+    "video_19_cmp_nas": {
       "original": "19_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -176,7 +176,7 @@
       "duration": 60,
       "group": 0
     },
-    "video_20_nas": {
+    "video_20_cmp_nas": {
       "original": "20_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -184,7 +184,7 @@
       "duration": 60,
       "group": 0
     },
-    "video_22_nas": {
+    "video_22_cmp_nas": {
       "original": "22_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -192,7 +192,7 @@
       "duration": 60,
       "group": 0
     },
-    "video_23_nas": {
+    "video_23_cmp_nas": {
       "original": "23_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -200,7 +200,7 @@
       "duration": 60,
       "group": 0
     },
-    "video_24_nas": {
+    "video_24_cmp_nas": {
       "original": "24_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -208,7 +208,7 @@
       "duration": 60,
       "group": 0
     },
-    "video_04_nas": {
+    "video_04_cmp_nas": {
       "original": "4_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",
@@ -216,7 +216,7 @@
       "duration": 60,
       "group": 0
     },
-    "wingsuit_dubai_nas": {
+    "wingsuit_dubai_cmp_nas": {
       "original": "wingsuit_dubai_cmp.mp4",
       "scale": "3240x2160",
       "projection": "cubemap",

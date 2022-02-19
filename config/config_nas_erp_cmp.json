@@ -1,9 +1,10 @@
 {
   "project": "nasrabadi_28videos_6q_8p_erp_cmp",
+  "plot_config": "graphs_nas_erp_cmp.json",
+  "videos_file": "videos_28videos_nas_erp_cmp.json",
   "error_metric": "rmse",
   "decoding_num": 3,
-  "scale": "4320x2160",
-  "projection": "None",
+  "fov": "100x90",
   "codec": "x265",
   "codec_params": "keyint=30:min-keyint=30:open-gop=0:scenecut=0:info=0",
   "fps": 30,
@@ -37,6 +38,5 @@
     "6x4",
     "9x6",
     "12x8"
-  ],
-  "videos_file": "videos_28videos_nas_erp_cmp.json"
+  ]
 }
