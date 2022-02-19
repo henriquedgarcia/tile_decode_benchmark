@@ -2,6 +2,7 @@ import math
 import sys
 from numbers import Real
 from typing import NamedTuple, Union, Any, Optional, Callable, Tuple
+from enum import Enum
 
 
 class PointBCS(NamedTuple):
@@ -60,9 +61,10 @@ class AutoDict(dict):
 
 
 class Role:
-    def __init__(self, name: str, deep: int, init: Optional[Callable],
-                 operation: Optional[Callable], finish: Optional[Callable]):
-        self.name = name.capitalize()
+    def __init__(self, name: str, deep: int, init: Optional[Callable] = None,
+                 operation: Optional[Callable] = None,
+                 finish: Optional[Callable] = None):
+        self.name = name.upper()
         self.deep = deep
         self.init = init if init is not None else self.stub
         self.operation = operation if callable(operation) else self.stub
@@ -133,6 +135,13 @@ class StatsData(NamedTuple):
     median: float = None
     quartile3: float = None
     max: float = None
+
+
+class Dataframes(Enum):
+    STATS_DATAFRAME = 'df_stats'
+    FITTED_DATAFRAME = 'df_dist'
+    PAPER_DATAFRAME = 'df_paper'
+    DATA_DATAFRAME = 'df_data'
 
 
 class CircularNumber(Real):

@@ -1,16 +1,24 @@
+from __future__ import print_function
 import datetime
 import json
 import pickle
 import time
 from builtins import PermissionError
-from collections import Counter
+from collections import Counter, defaultdict
 from logging import warning, debug, fatal, info
 from pathlib import Path
 from subprocess import run, DEVNULL
-from typing import Any, NamedTuple, Union, Dict
+from typing import Any, NamedTuple, Union, Dict, Tuple, List
+from cycler import cycler
+from fitter import Fitter
 
 import numpy as np
 import pandas as pd
+import matplotlib.axes as axes
+import matplotlib.figure as figure
+import matplotlib.lines as mlines
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 
 from .assets import AutoDict, Role
 from .util import (run_command, check_video_gop, iter_frame, load_sph_file,
@@ -21,23 +29,26 @@ from .video_state import Config, VideoContext
 
 class BaseTileDecodeBenchmark:
     config: Config = None
-    state: VideoContext = None
+    video_context: VideoContext = None
     role: Role = None
 
     def run(self, **kwargs):
         self.print_resume()
         self.role.init()
 
-        total = len(self.state)
-        for n in self.state:
+        # total = len(self.video_context)
+        total = 0
+        for n in self.video_context:
             print(f'{n}/{total}', end='\r', flush=True)
-            info(f'\n{self.state.factors_list}')
+            info(f'\n{self.video_context.state}')
             action = self.role.operation(**kwargs)
 
             if action in (None, 'continue', 'skip'):
                 continue
             elif action in ('break',):
                 break
+            elif action in ('exit',):
+                return
 
         self.role.finish()
         print(f'The end of {self.role.name}')
@@ -46,7 +57,7 @@ class BaseTileDecodeBenchmark:
         print('=' * 70)
         print(f'Processing {len(self.config.videos_list)} videos:\n'
               f'  operation: {self.role.name}\n'
-              f'  project: {self.state.project}\n'
+              f'  project: {self.video_context.project_path}\n'
               f'  codec: {self.config["codec"]}\n'
               f'  fps: {self.config["fps"]}\n'
               f'  gop: {self.config["gop"]}\n'
@@ -60,7 +71,7 @@ class BaseTileDecodeBenchmark:
         Count how many times the word "utime" appears in "log_file"
         :return:
         """
-        dectime_log = self.state.dectime_log
+        dectime_log = self.video_context.dectime_log
         try:
             content = dectime_log.read_text(encoding='utf-8').splitlines()
         except UnicodeDecodeError:
@@ -73,8 +84,8 @@ class BaseTileDecodeBenchmark:
 
         return len(['' for line in content if 'utime' in line])
 
-    def get_times(self):
-        content = self.state.dectime_log.read_text(encoding='utf-8')
+    def get_times(self) -> list:
+        content = self.video_context.dectime_log.read_text(encoding='utf-8')
         content_lines = content.splitlines()
         times = [float(line.strip().split(' ')[1].split('=')[1][:-1])
                  for line in content_lines if 'utime' in line]
@@ -85,14 +96,14 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
     results = AutoDict()
     results_dataframe = pd.DataFrame()
 
-    def __init__(self, config: str = None, role: str = None, **kwargs):
+    def __init__(self, config: str = None, role: str = None, stub=False, **kwargs):
         """
 
         :param config:
         :param role: Someone from Role dict
         :param kwargs: Role parameters
         """
-
+        if stub: return
         operations = {
             'PREPARE': Role(name='PREPARE', deep=1, init=None,
                             operation=self.prepare, finish=None),
@@ -102,15 +113,14 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
                             operation=self.segment, finish=None),
             'DECODE': Role(name='DECODE', deep=5, init=None,
                            operation=self.decode, finish=None),
-            'COLLECT_RESULTS': Role(name='COLLECT_RESULTS', deep=5,
-                                    init=self.init_collect_dectime,
+            'COLLECT_RESULTS': Role(name='COLLECT_RESULTS', deep=5, init=None,
                                     operation=self.collect_dectime,
                                     finish=self.save_dectime),
         }
 
         self.config = Config(config)
         self.role = operations[role]
-        self.state = VideoContext(self.config, self.role.deep)
+        self.video_context = VideoContext(self.config, self.role.deep)
 
         self.run(**kwargs)
 
@@ -121,9 +131,9 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
         pixel format.
         :param overwrite: If True, this method overwrite previous files.
         """
-        original = self.state.original_file
-        uncompressed_file = self.state.lossless_file
-        lossless_log = self.state.lossless_file.with_suffix('.log')
+        original = self.video_context.original_file
+        uncompressed_file = self.video_context.lossless_file
+        lossless_log = self.video_context.lossless_file.with_suffix('.log')
 
         debug(f'==== Processing {uncompressed_file} ====')
 
@@ -135,9 +145,8 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
             warning(f'The file {original} not exist. Skipping.')
             return 'skip'
 
-        video = self.state
-        fps = self.state.fps
-        resolution = self.state.resolution
+        video = self.video_context.video
+        resolution = self.video_context.video.resolution
         dar = resolution.W / resolution.H
 
         cmd = f'ffmpeg '
@@ -146,9 +155,9 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
         cmd += f'-i {original} '
         cmd += f'-crf 0 '
         cmd += f'-t {video.duration} '
-        cmd += f'-r {fps} '
+        cmd += f'-r {video.fps} '
         cmd += f'-map 0:v '
-        cmd += f'-vf "scale={resolution},setdar={dar}" '
+        cmd += f'-vf "scale={video.resolution},setdar={dar}" '
         cmd += f'{uncompressed_file}'
 
         run_command(cmd, lossless_log, 'w')
@@ -160,9 +169,9 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
         :param overwrite:
         :return:
         """
-        uncompressed_file = self.state.lossless_file
-        compressed_file = self.state.compressed_file
-        compressed_log = self.state.compressed_file.with_suffix('.log')
+        uncompressed_file = self.video_context.lossless_file
+        compressed_file = self.video_context.compressed_file
+        compressed_log = self.video_context.compressed_file.with_suffix('.log')
 
         debug(f'==== Processing {compressed_file} ====')
 
@@ -174,9 +183,9 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
             warning(f'The file {uncompressed_file} not exist. Skipping.')
             return 'skip'
 
-        quality = self.state.quality
-        gop = self.state.gop
-        tile = self.state.tile
+        quality = self.video_context.quality
+        gop = self.video_context.video.gop
+        tile = self.video_context.tile
 
         cmd = ['ffmpeg -hide_banner -y -psnr']
         cmd += [f'-i {uncompressed_file}']
@@ -198,9 +207,9 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
 
     # SEGMENT
     def segment(self, overwrite=False) -> Any:
-        segment_log = self.state.segment_file.with_suffix('.log')
-        segment_folder = self.state.segment_folder
-        compressed_file = self.state.compressed_file
+        segment_log = self.video_context.segment_file.with_suffix('.log')
+        segment_folder = self.video_context.segment_folder
+        compressed_file = self.video_context.compressed_file
 
         info(f'==== Processing {segment_folder} ====')
 
@@ -228,14 +237,14 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
 
     # DECODE
     def decode(self, overwrite=False) -> Any:
-        segment_file = self.state.segment_file
-        dectime_log = self.state.dectime_log
+        segment_file = self.video_context.segment_file
+        dectime_log = self.video_context.dectime_log
         info(f'==== Processing {dectime_log} ====')
 
-        diff = self.state.decoding_num
-        if self.state.dectime_log.exists():
+        diff = self.video_context.decoding_num
+        if self.video_context.dectime_log.exists():
             count = self.count_decoding()
-            diff = self.state.decoding_num - count
+            diff = self.video_context.decoding_num - count
             if diff <= 0 and not overwrite:
                 warning(f'{segment_file} is decoded enough. Skipping.')
                 return 'skip'
@@ -257,12 +266,6 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
             run_command(*args)
 
     # COLLECT RESULTS
-    def init_collect_dectime(self) -> Any:
-        dectime_json_file = self.state.dectime_json_file
-
-        if dectime_json_file.exists():
-            self.results = load_json(dectime_json_file)
-
     def collect_dectime(self, overwrite=False) -> Any:
         """
         The result dict have a following structure:
@@ -282,61 +285,423 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
         :param overwrite:
         :return:
         """
-        debug(f'Collecting {self.state}')
-
+        debug(f'Collecting {self.video_context}')
+        filename = self.video_context.dectime_json_file
+        if filename.exists() and not overwrite:
+            return 'exit'
         results = self.results
-        for factor in self.state.factors_list:
+        for factor in self.video_context.state:
             results = results[factor]
 
         if not results == {} and not overwrite:
-            warning(f'The result key for {self.state} contain some value. '
+            warning(f'The result key for "{self.video_context.state}" contain some value. '
                     f'Skipping.')
             return 'skip'  # if value exist and not overwrite, then skip
 
-        if not self.state.segment_file.exists():
-            warning(f'The file {self.state.segment_file} not exist. Skipping.')
+        if not self.video_context.segment_file.exists():
+            warning(f'The file {self.video_context.segment_file} not exist. Skipping.')
             return 'skip'
 
-        if not self.state.dectime_log.exists():
-            warning(f'The file {self.state.dectime_log} not exist. Skipping.')
+        if not self.video_context.dectime_log.exists():
+            warning(f'The file {self.video_context.dectime_log} not exist. Skipping.')
             return 'skip'
 
         try:
-            chunk_size = self.state.segment_file.stat().st_size
+            chunk_size = self.video_context.segment_file.stat().st_size
         except PermissionError:
             warning(f'PermissionError error on reading size of '
-                    f'{self.state.segment_file}. Skipping.')
+                    f'{self.video_context.segment_file}. Skipping.')
             return 'skip'
 
-        bitrate = chunk_size * 8 / (self.state.gop / self.state.fps)
+        bitrate = chunk_size * 8 / (self.video_context.video.gop / self.video_context.video.fps)
 
-        times = self.get_times()
+        dectimes: List[float] = self.get_times()
 
-        data = {'bitrate': bitrate, 'dectimes': times}
+        data = {'bitrate': bitrate, 'dectimes': dectimes}
+        print(f'\r{data}', end='')
+
         results.update(data)
 
     def save_dectime(self):
-        filename = self.state.dectime_json_file
+        filename = self.video_context.dectime_json_file
         info(f'Saving {filename}')
         save_json(self.results, filename)
-        # self.json2pd()
+        filename = self.video_context.dectime_json_file.with_suffix('.pickle')
+        save_pickle(self.results, filename)
 
-    # def json2pd(self):
-    #     """
-    #     old function. Maintained for compatibility
-    #     name_scale_fps_pattern_"CRF"quality_tile| chunk1 | chunk2 | ... |
-    #     average | std | median
-    #
-    #     :return:
-    #     """
-    #     results_dataframe = pd.DataFrame(columns=self.state.chunk_list)
-    #     for _ in self.iterate(deep=4):
-    #         name, pattern, quality, tile, *_ = self.state.get_factors()
-    #
-    #         results = self.results[name][pattern][quality][tile]
-    #         chunks_values = [results[chunk] for chunk in self.state.chunk_list]
-    #         results_dataframe.loc[self.state.state] = chunks_values
-    #     self.results_dataframe = pd.DataFrame(results_dataframe)
+
+class DectimeGraphs(BaseTileDecodeBenchmark):
+    # Fitter
+    fit: Fitter
+    fitter = AutoDict()
+    fit_errors = AutoDict()
+
+    stats: pd.DataFrame
+    data = AutoDict()
+    data.__doc__ = '[tiling]["time"|"time_std"|"rate"]'
+
+    name = tiling = quality = tile = chunk = None
+    dectime_filename: Path
+    dectime: AutoDict
+    data_file: Path
+
+    def __init__(self, config: str, role: str, role_folder: str,
+                 figsize: Tuple[float, float] = (6.4, 4.8),
+                 bins: Union[str, int] = 'auto',
+                 **kwargs):
+        """
+
+        :param config:
+        :param role: Someone from Role dict
+        :param kwargs: Role parameters
+        """
+        operations = {
+            'HIST_BY_PATTERN': Role(name='HIST_BY_PATTERN', deep=0,
+                                    init=self.init_hist_by_pattern,
+                                    operation=self.hist_by_pattern,
+                                    finish=None),
+            'HIST_BY_PATTERN_BY_QUALITY': Role(name='HIST_BY_PATTERN_BY_QUALITY', deep=0,
+                                               init=self.init_hist_by_pattern_by_quality,
+                                               operation=self.hist_by_pattern_by_quality,
+                                               finish=None),
+            'BAR_BY_PATTERN_BY_QUALITY': Role(name='BAR_BY_PATTERN_BY_QUALITY', deep=0,
+                                              init=self.init_bar_by_pattern_by_quality,
+                                              operation=self.bar_by_pattern_by_quality,
+                                              finish=None),
+            'HIST_BY_PATTERN_FULL_FRAME': Role(name='HIST_BY_PATTERN_FULL_FRAME', deep=0,
+                                               init=self.init_hist_by_pattern_full_frame,
+                                               operation=self.hist_by_pattern_full_frame,
+                                               finish=None),
+            'BAR_BY_PATTERN_FULL_FRAME': Role(name='BAR_BY_PATTERN_FULL_FRAME', deep=0,
+                                              init=self.init_bar_by_pattern_full_frame,
+                                              operation=self.bar_by_pattern_full_frame,
+                                              finish=None),
+        }
+
+        self.bins = bins
+        self.config = Config(config)
+        self.role = operations[role]
+        self.video_context = VideoContext(self.config, self.role.deep)
+
+        self.workfolder = self.video_context.graphs_folder / role_folder
+        self.workfolder_data = self.workfolder / 'data'
+        self.workfolder_data.mkdir(parents=True, exist_ok=True)
+
+        self.rc_config()
+
+        self.run(**kwargs)
+
+    def rc_config(self):
+        import matplotlib as mpl
+        self.plot_config = self.config.plot_config[self.role.name]
+        rc_param = self.plot_config["rc_param"]
+
+        for group in rc_param:
+            kwargs = eval(rc_param[group])
+            mpl.rc(group, **kwargs)
+
+    def init_hist_by_pattern(self):
+        # Load dectime
+        self.dectime_filename = self.video_context.dectime_json_file
+        self.data_file = self.workfolder_data / 'data.pickle'
+        self.color_list = eval(self.plot_config["color_list"])
+        self.subplot_pos = eval(self.plot_config["subplot_pos"])
+
+        # Start data bucket
+        for tiling in self.config['tiling_list']:
+            self.data[tiling]['time'] = []
+            self.data[tiling]['time_std'] = []
+            self.data[tiling]['rate'] = []
+
+    def hist_by_pattern(self, overwrite):
+        def main():
+            get_data()
+            make_fit()
+            calc_stats()
+            make_dataframe()
+            make_plot()
+
+        def get_data():
+            print('\n\n====== Get Data ======')
+
+            def hist_by_pattern_iter():
+                count = 0
+                for self.video_context.video in self.video_context.videos_list:
+                    self.name = str(self.video_context.video)
+                    for self.video_context.tiling in self.video_context.tiling_list:
+                        self.tiling = str(self.video_context.tiling)
+                        for self.video_context.quality in self.video_context.quality_list:
+                            self.quality = str(self.video_context.quality)
+                            for self.video_context.tile in self.video_context.tiles_list:
+                                self.tile = str(self.video_context.tile)
+                                for self.video_context.chunk in self.video_context.chunks_list:
+                                    self.chunk = str(self.video_context.chunk)
+                                    yield count
+                                    count += 1
+            def len():
+                i = 0
+                for i in hist_by_pattern_iter(): pass
+                return i
+            if self.data_file.exists() and not overwrite:
+                warning(f'  The data file "{self.data_file}" exist. Loading date.')
+                self.data = load_pickle(self.data_file)
+                return
+
+            total = len()
+            dectime = load_json(self.dectime_filename)
+
+            for idx in hist_by_pattern_iter():
+                print(f'\r  {total}/{idx:07d} ', end='')
+                results = dectime[self.name][self.tiling][self.quality]
+                results = results[self.tile][self.chunk]
+
+                if results == {}:
+                    warning(f'\nThe result for chain {self.video_context.state} '
+                            f'is empty. Skipping.')
+                    continue
+
+                bitrate: List[float] = results['bitrate']
+                times: List[Tuple[float, ...]] = results['dectimes']
+
+                # self.data[tiling]["time"|"time_std"|"rate"]: list[float|int]
+                self.data[self.tiling]['time'].append(np.average(times))
+                self.data[self.tiling]['time_std'].append(np.std(times))
+                self.data[self.tiling]['rate'].append(bitrate)
+
+            del(dectime)
+
+            save_pickle(self.data, self.data_file)
+
+        def make_fit():
+            print('\n\n====== Make Fit ======')
+            for tiling in self.config['tiling_list']:
+                print(f'  Fitting - tiling {tiling}... ', end='')
+                data = self.data[tiling]
+                for metric in ['time', 'rate']:
+                    name = f'fitter_{metric}_{tiling}_{self.bins}bins.pickle'
+                    fitter_pickle_file = self.workfolder / 'data' / name
+                    if fitter_pickle_file.exists() and not overwrite:
+                        print(f'Pickle found! ', end='')
+                        fitter = load_pickle(fitter_pickle_file)
+                    else:
+                        fitter = Fitter(data[metric], bins=self.bins,
+                                        distributions=self.config[
+                                            'distributions'])
+                        fitter.fit()
+                    save_pickle(fitter, fitter_pickle_file)
+
+                    self.fitter[tiling][metric] = fitter
+                    print(f'Finished.')
+
+        def calc_stats():
+            print('  Calculating Statistics')
+
+            def find_dist(dist_name, params):
+                if dist_name == 'burr12':
+                    return dict(name='Burr Type XII',
+                                parameters=f'c={params[0]}, d={params[1]}',
+                                loc=params[2],
+                                scale=params[3])
+                elif dist_name == 'fatiguelife':
+                    return dict(name='Birnbaum-Saunders',
+                                parameters=f'c={params[0]}',
+                                loc=params[1],
+                                scale=params[2])
+                elif dist_name == 'gamma':
+                    return dict(name='Gamma',
+                                parameters=f'a={params[0]}',
+                                loc=params[1],
+                                scale=params[2])
+                elif dist_name == 'invgauss':
+                    return dict(name='Inverse Gaussian',
+                                parameters=f'mu={params[0]}',
+                                loc=params[1],
+                                scale=params[2])
+                elif dist_name == 'rayleigh':
+                    return dict(name='Rayleigh',
+                                parameters=f'',
+                                loc=params[0],
+                                scale=params[1])
+                elif dist_name == 'lognorm':
+                    return dict(name='Log Normal',
+                                parameters=f's={params[0]}',
+                                loc=params[1],
+                                scale=params[2])
+                elif dist_name == 'genpareto':
+                    return dict(name='Generalized Pareto',
+                                parameters=f'c={params[0]}',
+                                loc=params[1],
+                                scale=params[2])
+                elif dist_name == 'pareto':
+                    return dict(name='Pareto Distribution',
+                                parameters=f'b={params[0]}',
+                                loc=params[1],
+                                scale=params[2])
+                elif dist_name == 'halfnorm':
+                    return dict(name='Half-Normal',
+                                parameters=f'',
+                                loc=params[0],
+                                scale=params[1])
+                elif dist_name == 'expon':
+                    return dict(name='Exponential',
+                                parameters=f'',
+                                loc=params[0],
+                                scale=params[1])
+                else:
+                    raise ValueError(f'Distribution unknown: {dist_name}')
+
+            stats_file = self.workfolder / 'data' / 'stats.csv'
+            if stats_file.exists() and not overwrite:
+                print(f' File found! Skipping.')
+                self.stats = pd.read_csv(stats_file)
+                return
+
+            stats = defaultdict(list)
+            for tiling in self.config['tiling_list']:
+                # data[tiling]["time"|"time_std"|"rate"]
+                data = self.data[tiling]
+                corr = np.corrcoef((data['time'], data['rate']))[1][0]
+
+                stats[f'tiling'].append(tiling)
+                stats[f'correlation'].append(corr)
+
+                # 1. Stats
+                for metric in ['tile', 'rate']:
+                    percentile = np.percentile(data[metric],
+                                               [0, 25, 50, 75, 100]).T
+                    stats[f'{metric}_average'].append(np.average(data[metric]))
+                    stats[f'{metric}_std'].append(float(np.std(data[metric])))
+                    stats[f'{metric}_min'].append(percentile[0])
+                    stats[f'{metric}_quartile1'].append(percentile[1])
+                    stats[f'{metric}_median'].append(percentile[2])
+                    stats[f'{metric}_quartile3'].append(percentile[3])
+                    stats[f'{metric}_max'].append(percentile[4])
+
+                    # 2. Errors and dists
+                    # rmse: DataFrame[distribution_name, ...] -> float
+                    fitter = self.fitter[tiling][metric]
+                    df_errors = fitter.df_errors
+                    bins = len(fitter.x)
+                    sumsquare_error = df_errors['sumsquare_error']
+                    rmse = np.sqrt(sumsquare_error / bins)
+
+                    for dist in rmse:
+                        params = fitter.fitted_param[dist]
+                        dist_info = find_dist(dist, params)
+                        stats[f'{metric}_rmse_{dist}'].append(rmse[dist])
+                        stats[f'{metric}_param_{dist}'].append(dist_info['parameters'])
+                        stats[f'{metric}_loc_{dist}'].append(dist_info['loc'])
+                        stats[f'{metric}_scale_{dist}'].append(dist_info['scale'])
+
+            pd.DataFrame(stats).to_csv(str(stats_file), index=False)
+
+        def make_dataframe():
+            print('\n====== Make Dataframe ======')
+
+            def main():
+                make_df_data()
+
+            def make_df_data():
+                print('  Making df_data')
+                df_data = {}
+                for tiling in self.config['tiling_list']:
+                    path = self.workfolder / f'df_data{tiling}.pickle'
+                    if path.exists() and not overwrite: return
+
+                    df_data[f'time_{tiling}'] = self.data[tiling]['time']
+                    df_data[f'rate_{tiling}'] = self.data[tiling]['rate']
+                    pd.DataFrame(df_data).to_csv(str(path), index=False)
+
+            main()
+
+        def make_plot():
+            print('\n====== Make Plot ======')
+            n_dist = 3
+            label = 'empirical'
+            name = f'hist_by_pattern_{self.bins}bins.png'
+            path = self.workfolder / name
+            if path.exists() and not overwrite: return
+
+            fig = figure.Figure()
+            subplot_pos = eval(self.config['subplot_pos'])
+
+            for idx, tiling in enumerate(self.config['tiling_list'], 1):
+                index = idx
+                nrows, ncols, index = subplot_pos[index-1]
+
+                ax: axes.Axes = fig.add_subplot(nrows, ncols, index)
+                data = self.data[tiling]
+                ax.hist(data['time'],
+                        bins=self.bins,
+                        histtype='bar',
+                        density=True,
+                        label=label,
+                        color='#3297c9')
+
+                fitter = self.fitter[tiling]['time']
+                dist_error = self.fit_errors[tiling]
+                dists = dist_error.sort_values()[0:n_dist].index
+                for n, dist_name in enumerate(dists):
+                    fitted_pdf = fitter.fitted_pdf[dist_name]
+                    ax.plot(fitter.x, fitted_pdf,
+                            label=f'{dist_name}',
+                            color=self.color_list[n],
+                            lw=1., )
+                ax.set_title(f'{tiling}')
+                ax.set_xlabel('Decoding Time (s)')
+                ax.legend(loc='upper right')
+            # fig.show()
+            print(f'Salvando a figura')
+            fig.savefig(path)
+
+        main()
+
+    def end_hist_by_pattern(self):
+        pass
+
+    def init_hist_by_pattern_by_quality(self): ...
+    def hist_by_pattern_by_quality(self): ...
+
+    def init_bar_by_pattern_by_quality(self): ...
+    def bar_by_pattern_by_quality(self): ...
+
+    def init_hist_by_pattern_full_frame(self): ...
+    def hist_by_pattern_full_frame(self): ...
+
+    def init_bar_by_pattern_full_frame(self): ...
+    def bar_by_pattern_full_frame(self): ...
+
+
+class Dashing(BaseTileDecodeBenchmark):
+    def __init__(self, config: str = None, role: str = None, **kwargs):
+        """
+
+        # :param config:
+        # :param role: Someone from operations dict
+        # :param kwargs: Role parameters
+        # """
+        self.prepare = TileDecodeBenchmark.prepare
+        self.compress = TileDecodeBenchmark.compress
+
+        operations = {
+            'PREPARE': Role(name='PREPARE', deep=1, init=None,
+                            operation=self.prepare, finish=None),
+            'COMPRESS': Role(name='COMPRESS', deep=4, init=None,
+                             operation=self.compress, finish=None),
+            'DASH': Role(name='SEGMENT', deep=4, init=None,
+                            operation=self.dash, finish=None),
+            'MEASURE_CHUNKS': Role(name='DECODE', deep=5, init=None,
+                           operation=self.measure, finish=None),
+        }
+
+        self.config = Config(config)
+        self.role = operations[role]
+        self.video_context = VideoContext(self.config, self.role.deep)
+
+        self.run(**kwargs)
+
+    def dash(self): pass
+    def measure(self): pass
 
 
 class CheckTiles(BaseTileDecodeBenchmark):
@@ -364,12 +729,12 @@ class CheckTiles(BaseTileDecodeBenchmark):
         }
 
         self.role = operations[role]
-        self.check_table = {'file': [], 'msg': []}
+        self.check_table = {'file':[],'msg':[]}
 
         self.results = AutoDict()
         self.results_dataframe = pd.DataFrame()
         self.config = Config(config)
-        self.state = VideoContext(self.config, self.role.deep)
+        self.video_context = VideoContext(self.config, self.role.deep)
 
         try:
             self.run(**kwargs)
@@ -378,7 +743,7 @@ class CheckTiles(BaseTileDecodeBenchmark):
             raise KeyboardInterrupt
 
     def check_original(self, **check_video_kwargs):
-        original_file = self.state.original_file
+        original_file = self.video_context.original_file
         debug(f'==== Checking {original_file} ====')
         msg = self.check_video(original_file, **check_video_kwargs)
 
@@ -386,11 +751,11 @@ class CheckTiles(BaseTileDecodeBenchmark):
         self.check_table['msg'].append(msg)
 
     def check_lossless(self, **check_video_kwargs):
-        lossless_file = self.state.lossless_file
+        lossless_file = self.video_context.lossless_file
         debug(f'Checking the file {lossless_file}')
 
-        duration = self.state.duration
-        fps = self.state.fps
+        duration = self.video_context.video.duration
+        fps = self.video_context.video.fps
         log_pattern = f'frame={duration * fps:5}'
 
         msg = self.check_video(lossless_file, log_pattern, **check_video_kwargs)
@@ -399,11 +764,11 @@ class CheckTiles(BaseTileDecodeBenchmark):
         self.check_table['msg'].append(msg)
 
     def check_compress(self, only_error=True, **check_video_kwargs):
-        video_file = self.state.compressed_file
+        video_file = self.video_context.compressed_file
         debug(f'Checking the file {video_file}')
 
-        duration = self.state.duration
-        fps = self.state.fps
+        duration = self.video_context.video.duration
+        fps = self.video_context.video.fps
         log_pattern = f'encoded {duration * fps} frames'
 
         msg = self.check_video(video_file, log_pattern, **check_video_kwargs)
@@ -413,7 +778,7 @@ class CheckTiles(BaseTileDecodeBenchmark):
             self.check_table['msg'].append(msg)
 
     def check_segment(self, only_error=True, **kwargs):
-        segment_file = self.state.segment_file
+        segment_file = self.video_context.segment_file
         debug(f'Checking the file {segment_file}')
 
         msg = self.check_video(segment_file, **kwargs)
@@ -460,7 +825,7 @@ class CheckTiles(BaseTileDecodeBenchmark):
                         msg[1] = 'video_corrupt'
                 if check_gop:
                     max_gop, gop = check_video_gop(video)
-                    if max_gop != self.state.gop:
+                    if max_gop != self.video_context.video.gop:
                         msg[1] = f'video_wrong_gop_={max_gop}'
 
         not_ok = 'video_ok' not in msg and 'log_ok' not in msg
@@ -473,7 +838,7 @@ class CheckTiles(BaseTileDecodeBenchmark):
         return '-'.join(msg)
 
     def check_decode(self, only_error=True, clean=False):
-        dectime_log = self.state.dectime_log
+        dectime_log = self.video_context.dectime_log
         debug(f'Checking the file {dectime_log}')
 
         if not dectime_log.exists():
@@ -485,18 +850,18 @@ class CheckTiles(BaseTileDecodeBenchmark):
         if count_decode == 0 and clean:
             dectime_log.unlink(missing_ok=True)
 
-        if not (only_error and count_decode >= self.state.decoding_num):
+        if not (only_error and count_decode >= self.video_context.decoding_num):
             msg = f'decoded_{count_decode}x'
             self.check_table['file'].append(dectime_log)
             self.check_table['msg'].append(msg)
 
     def load_results(self):
-        dectime_json_file = self.state.dectime_json_file
+        dectime_json_file = self.video_context.dectime_json_file
         self.results = load_json(dectime_json_file)
 
     def check_dectime(self, only_error=True):
         results = self.results
-        for factor in self.state.factors_list:
+        for factor in self.video_context.state:
             results = results[factor]
 
         if not (results == {}):
@@ -507,18 +872,18 @@ class CheckTiles(BaseTileDecodeBenchmark):
                 msg = 'bitrate==0'
 
             dectimes = results['dectimes']
-            if len(dectimes) >= self.state.decoding_num:
+            if len(dectimes) >= self.video_context.decoding_num:
                 msg += '_dectimes_ok'
             else:
                 msg += '_dectimes==0'
 
         else:
-            warning(f'The result key for {self.state} is empty.')
+            warning(f'The result key for {self.video_context} is empty.')
             msg = 'empty_key'
 
         if not (only_error and msg == 'bitrate_ok_dectimes_ok'):
-            key = self.state.make_name()
-            self.check_table['key'].append(key)
+            key = self.video_context.make_name()
+            self.check_table['file'].append(key)
             self.check_table['msg'].append(msg)
 
     def save(self):
@@ -526,7 +891,7 @@ class CheckTiles(BaseTileDecodeBenchmark):
         date = datetime.datetime.today()
         table_filename = f'{self.role.name}-table-{date}.csv'
         resume_filename = f'{self.role.name}-resume-{date}.csv'
-        check_folder = self.state.check_folder
+        check_folder = self.video_context.check_folder
         table_filename = check_folder / table_filename.replace(':', '-')
         resume_filename = check_folder / resume_filename.replace(':', '-')
 
@@ -564,36 +929,36 @@ class CheckTiles(BaseTileDecodeBenchmark):
 #         self.config = Config(config)
 #         self.config['tiling_list'] = ['1x1']
 #         self.role = operations[role]
-#         self.state = VideoContext(self.config, self.role.deep)
+#         self.video_context = VideoContext(self.config, self.role.deep)
 #         self.config['quality_list'] = [28]
 #
 #         self.run(**kwargs)
 #
 #     # 'CALCULATE SITI'
 #     def siti(self, overwrite=False, animate_graph=False, save=True):
-#         if not self.state.compressed_file.exists():
-#             if not self.state.lossless_file.exists():
-#                 warning(f'The file {self.state.lossless_file} not exist. '
+#         if not self.video_context.compressed_file.exists():
+#             if not self.video_context.lossless_file.exists():
+#                 warning(f'The file {self.video_context.lossless_file} not exist. '
 #                         f'Skipping.')
 #                 return 'skip'
 #             self.compress()
 #
-#         siti = SiTi(self.state)
+#         siti = SiTi(self.video_context)
 #         siti.calc_siti(animate_graph=animate_graph, overwrite=overwrite,
 #                        save=save)
 #
 #     def compress(self):
-#         compressed_file = self.state.compressed_file
-#         compressed_log = self.state.compressed_file.with_suffix('.log')
+#         compressed_file = self.video_context.compressed_file
+#         compressed_log = self.video_context.compressed_file.with_suffix('.log')
 #
 #         debug(f'==== Processing {compressed_file} ====')
 #
-#         quality = self.state.quality
-#         gop = self.state.gop
-#         tile = self.state.tile
+#         quality = self.video_context.quality
+#         gop = self.video_context.gop
+#         tile = self.video_context.tile
 #
 #         cmd = ['ffmpeg -hide_banner -y -psnr']
-#         cmd += [f'-i {self.state.lossless_file}']
+#         cmd += [f'-i {self.video_context.lossless_file}']
 #         cmd += [f'-crf {quality} -tune "psnr"']
 #         cmd += [f'-c:v libx265']
 #         cmd += [f'-x265-params']
@@ -619,12 +984,12 @@ class CheckTiles(BaseTileDecodeBenchmark):
 #         siti_stats_json_final = {}
 #         num_frames = None
 #
-#         for name in enumerate(self.state.names_list):
+#         for name in enumerate(self.video_context.names_list):
 #             """Join siti_results"""
-#             siti_results_file = self.state.siti_results
+#             siti_results_file = self.video_context.siti_results
 #             siti_results_df = pd.read_csv(siti_results_file)
 #             if num_frames is None:
-#                 num_frames = self.state.duration * self.state.fps
+#                 num_frames = self.video_context.duration * self.video_context.fps
 #             elif num_frames < len(siti_results_df['si']):
 #                 dif = len(siti_results_df['si']) - num_frames
 #                 for _ in range(dif):
@@ -634,15 +999,15 @@ class CheckTiles(BaseTileDecodeBenchmark):
 #             siti_results_final[f'{name}_si'] = siti_results_df['ti']
 #
 #             """Join stats"""
-#             siti_stats_json_final[name] = load_json(self.state.siti_stats)
-#         # siti_results_final.to_csv(f'{self.state.siti_folder /
+#             siti_stats_json_final[name] = load_json(self.video_context.siti_stats)
+#         # siti_results_final.to_csv(f'{self.video_context.siti_folder /
 #         # "siti_results_final.csv"}', index_label='frame')
-#         # pd.DataFrame(siti_stats_json_final).to_csv(f'{self.state.siti_folder
+#         # pd.DataFrame(siti_stats_json_final).to_csv(f'{self.video_context.siti_folder
 #         # / "siti_stats_final.csv"}')
 #
 #     def _scatter_plot_siti(self):
 #         siti_results_df = pd.read_csv(
-#             f'{self.state.siti_folder / "siti_stats_final.csv"}', index_col=0)
+#             f'{self.video_context.siti_folder / "siti_stats_final.csv"}', index_col=0)
 #         fig, ax = plt.subplots(1, 1, figsize=(8, 6), dpi=300)
 #         fig: plt.Figure
 #         ax: plt.Axes
@@ -657,13 +1022,13 @@ class CheckTiles(BaseTileDecodeBenchmark):
 #         ax.legend(loc='upper left', bbox_to_anchor=(1.01, 1.0),
 #                   fontsize='small')
 #         fig.tight_layout()
-#         fig.savefig(self.state.siti_folder / 'scatter.png')
+#         fig.savefig(self.video_context.siti_folder / 'scatter.png')
 #         fig.show()
 
 
 class QualityMetrics:
     PIXEL_MAX: int = 255
-    state: VideoContext = None
+    video_context: VideoContext = None
     weight_ndarray: Union[np.ndarray, object] = np.zeros(0)
     sph_points_mask: np.ndarray = np.zeros(0)
     sph_points_img: list = []
@@ -728,15 +1093,15 @@ class QualityMetrics:
 
     # ### wspsnr ### #
     def prepare_weight_ndarray(self):
-        if self.state.projection == 'equirectangular':
-            height, width = self.state.resolution.shape
+        if self.video_context.video.projection == 'equirectangular':
+            height, width = self.video_context.video.resolution.shape
             func = lambda y, x: np.cos((y + 0.5 - height / 2) * np.pi
                                        / height)
             self.weight_ndarray = np.fromfunction(func, (height, width),
                                                   dtype='float32')
-        elif self.state.projection == 'cubemap':
+        elif self.video_context.video.projection == 'cubemap':
             # each face must be square (proj. aspect ration == 3:2).
-            face = self.state.resolution.shape[0] / 2
+            face = self.video_context.video.resolution.shape[0] / 2
             face_ctr = face / 2
 
             squared_dist = lambda y, x: (
@@ -756,9 +1121,9 @@ class QualityMetrics:
                 (weight_ndarray, weight_ndarray, weight_ndarray),
                 axis=1)
         else:
-            fatal(f'projection {self.state.projection} not supported.')
+            fatal(f'projection {self.video_context.video.projection} not supported.')
             raise FileNotFoundError(
-                f'projection {self.state.projection} not supported.')
+                f'projection {self.video_context.video.projection} not supported.')
 
     def wspsnr(self, im_ref: np.ndarray, im_deg: np.ndarray,
                im_sal: np.ndarray = None):
@@ -770,13 +1135,13 @@ class QualityMetrics:
         :return:
         """
 
-        if self.state.resolution.shape != self.weight_ndarray.shape:
+        if self.video_context.video.resolution.shape != self.weight_ndarray.shape:
             self.prepare_weight_ndarray()
 
-        x1 = self.state.tile.position.x
-        x2 = self.state.tile.position.x + self.state.tile.resolution.W
-        y1 = self.state.tile.position.y
-        y2 = self.state.tile.position.y + self.state.tile.resolution.H
+        x1 = self.video_context.tile.position.x
+        x2 = self.video_context.tile.position.x + self.video_context.tile.resolution.W
+        y1 = self.video_context.tile.position.y
+        y2 = self.video_context.tile.position.y + self.video_context.tile.resolution.H
         weight_tile = self.weight_ndarray[y1:y2, x1:x2]
 
         tile_weighted = weight_tile * (im_ref - im_deg) ** 2
@@ -804,16 +1169,16 @@ class QualityMetrics:
         :return:
         """
         # sph_file = Path('lib/sphere_655362.txt'),
-        shape = self.state.resolution.shape
+        shape = self.video_context.video.resolution.shape
 
         if self.sph_points_mask.shape != shape:
             sph_file = load_sph_file(self.sph_file, shape)
             self.sph_points_mask = sph_file[-1]
 
-        x1 = self.state.tile.position.x
-        x2 = self.state.tile.position.x + self.state.tile.resolution.W
-        y1 = self.state.tile.position.y
-        y2 = self.state.tile.position.y + self.state.tile.resolution.H
+        x1 = self.video_context.tile.position.x
+        x2 = self.video_context.tile.position.x + self.video_context.tile.resolution.W
+        y1 = self.video_context.tile.position.y
+        y2 = self.video_context.tile.position.y + self.video_context.tile.resolution.H
         mask = self.sph_points_mask[y1:y2, x1:x2]
 
         im_ref_m = im_ref * mask
@@ -828,8 +1193,8 @@ class QualityMetrics:
         return self.mse2psnr(mse)
 
     def ffmpeg_psnr(self):
-        if self.state.chunk == 1:
-            name, pattern, quality, tile, chunk = self.state.factors_list
+        if self.video_context.chunk == 1:
+            name, pattern, quality, tile, chunk = self.video_context.state
             results = self.results[name][pattern][quality][tile]
             results.update(self._collect_ffmpeg_psnr())
 
@@ -837,7 +1202,7 @@ class QualityMetrics:
         get_psnr = lambda l: float(l.strip().split(',')[3].split(':')[1])
         get_qp = lambda l: float(l.strip().split(',')[2].split(':')[1])
         psnr = None
-        compressed_log = self.state.compressed_file.with_suffix('.log')
+        compressed_log = self.video_context.compressed_file.with_suffix('.log')
         content = compressed_log.read_text(encoding='utf-8')
         content = content.splitlines()
 
@@ -865,16 +1230,12 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
         :param kwargs: passed to main routine
         """
         operations = {
-            'ALL': Role(name='ALL', deep=4, init=self.all_init,
-                        operation=self.all, finish=None),
-            'PSNR': Role(name='PSNR', deep=4, init=self.all_init,
-                         operation=self.only_a_metric, finish=None),
-            'WSPSNR': Role(name='WSPSNR', deep=4, init=self.all_init,
-                           operation=self.only_a_metric, finish=None),
-            'SPSNR': Role(name='SPSNR', deep=4, init=self.all_init,
-                          operation=self.only_a_metric, finish=None),
-            'RESULTS': Role(name='RESULTS', deep=4, init=self.init_result,
-                            operation=self.result, finish=self.save_result),
+            'ALL': Role(name='ALL', deep=4, operation=self.all),
+            'PSNR': Role(name='PSNR', deep=4, operation=self.only_a_metric),
+            'WSPSNR': Role(name='WSPSNR', deep=4, operation=self.only_a_metric),
+            'SPSNR': Role(name='SPSNR', deep=4, operation=self.only_a_metric),
+            'RESULTS': Role(name='RESULTS', deep=4, operation=self.result,
+                            finish=self.save_result),
         }
 
         self.metrics = {'PSNR': self.psnr,
@@ -887,27 +1248,23 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
 
         self.config = Config(config)
         self.role = operations[role]
-        self.state = VideoContext(self.config, self.role.deep)
+        self.video_context = VideoContext(self.config, self.role.deep)
 
         self.run(**kwargs)
 
     def all_init(self):
         pass
-        # quality_pickle = self.state.quality_pickle
-        # if quality_pickle.exists():
-        #     self.results = pickle.load(quality_pickle.open('rb'))
-        # else:
-        #     self.results = AutoDict()
 
     def all(self, overwrite=False):
-        debug(f'Processing {self.state}')
-        if self.state.quality == self.state.original_quality:
+        debug(f'Processing {self.video_context}')
+
+        if self.video_context.quality == self.video_context.original_quality:
             info('Skipping original quality')
             return 'continue'
 
-        reference_file = self.state.reference_file
-        compressed_file = self.state.compressed_file
-        quality_csv = self.state.quality_csv
+        reference_file = self.video_context.reference_file
+        compressed_file = self.video_context.compressed_file
+        quality_csv = self.video_context.quality_video_csv
 
         metrics = self.metrics.copy()
 
@@ -915,18 +1272,18 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
             csv_dataframe = pd.read_csv(quality_csv, encoding='utf-8',
                                         index_col=0)
             for metric in csv_dataframe:
-                info(
-                    f'The metric {metric} exist for {self.state.factors_list}. '
+                debug(
+                    f'The metric {metric} exist for {self.video_context.state}. '
                     'Skipping this metric')
                 del (metrics[metric])
             if metrics == {}:
-                warning(f'The metrics for {self.state.factors_list} are '
-                        f'OK. Skipping')
-                return
+                warning(f'The metrics for {self.video_context.state} are OK. '
+                        f'Skipping')
+                return 'continue'
         else:
             csv_dataframe = pd.DataFrame()
 
-        results = {metric: [] for metric in metrics}
+        results = defaultdict(list)
 
         frames = zip(iter_frame(reference_file), iter_frame(compressed_file))
         start = time.time()
@@ -936,19 +1293,21 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
                 metric_value = metrics_method(frame_video1, frame_video2)
                 results[metric].append(metric_value)
             print(
-                f'{self.state.factors_list} - Frame {n} - {time.time() - start: 0.3f} s',
+                f'{self.video_context.state} - Frame {n} - {time.time() - start: 0.3f} s',
                 end='\r')
-        print()
+
         for metric in results:
             csv_dataframe[metric] = results[metric]
+
         csv_dataframe.to_csv(quality_csv, encoding='utf-8', index_label='frame')
+        print('')
 
     def only_a_metric(self, **kwargs):
         self.metrics = self.metrics[self.role.name]
         self.all(**kwargs)
 
     def init_result(self):
-        quality_result_json = self.state.quality_result_json
+        quality_result_json = self.video_context.quality_result_json
 
         if quality_result_json.exists():
             warning(f'The file {quality_result_json} exist. Loading.')
@@ -958,13 +1317,13 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
             self.results = AutoDict()
 
     def result(self, overwrite=False):
-        debug(f'Processing {self.state}')
-        if self.state.quality == self.state.original_quality:
+        debug(f'Processing {self.video_context}')
+        if self.video_context.quality == self.video_context.original_quality:
             info('Skipping original quality')
             return 'continue'
 
         results = self.results
-        quality_csv = self.state.quality_csv  # The compressed quality
+        quality_csv = self.video_context.quality_video_csv  # The compressed quality
 
         if not quality_csv.exists():
             warning(f'The file {quality_csv} not exist. Skipping.')
@@ -972,13 +1331,13 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
 
         csv_dataframe = pd.read_csv(quality_csv, encoding='utf-8', index_col=0)
 
-        for key in self.state.factors_list:
+        for key in self.video_context.state:
             results = results[key]
 
         for metric in self.metrics:
             if results[metric] != {} and not overwrite:
                 warning(f'The metric {metric} exist for Result '
-                        f'{self.state.factors_list}. Skipping this metric')
+                        f'{self.video_context.state}. Skipping this metric')
                 return
 
             try:
@@ -987,12 +1346,12 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
                     raise KeyError
             except KeyError:
                 warning(f'The metric {metric} not exist for csv_dataframe'
-                        f'{self.state.factors_list}. Skipping this metric')
+                        f'{self.video_context.state}. Skipping this metric')
                 return
         return 'continue'
 
     def save_result(self):
-        quality_result_json = self.state.quality_result_json
+        quality_result_json = self.video_context.quality_result_json
         save_json(self.results, quality_result_json)
 
         pickle_dumps = pickle.dumps(self.results)
@@ -1000,8 +1359,8 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
         quality_result_pickle.write_bytes(pickle_dumps)
 
     def ffmpeg_psnr(self):
-        if self.state.chunk == 1:
-            name, pattern, quality, tile, chunk = self.state.factors_list
+        if self.video_context.chunk == 1:
+            name, pattern, quality, tile, chunk = self.video_context.state
             results = self.results[name][pattern][quality][tile]
             results.update(self._collect_ffmpeg_psnr())
 
@@ -1009,7 +1368,7 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
         get_psnr = lambda l: float(l.strip().split(',')[3].split(':')[1])
         get_qp = lambda l: float(l.strip().split(',')[2].split(':')[1])
         psnr = None
-        compressed_log = self.state.compressed_file.with_suffix('.log')
+        compressed_log = self.video_context.compressed_file.with_suffix('.log')
         content = compressed_log.read_text(encoding='utf-8')
         content = content.splitlines()
 
@@ -1024,13 +1383,17 @@ class QualityAssessment(BaseTileDecodeBenchmark, QualityMetrics):
 class GetTiles(BaseTileDecodeBenchmark):
     results = AutoDict()
     database = AutoDict()
+    old_video = None
+    old_tiling = None
+    old_chunk = None
+    new_database: AutoDict
+    get_tiles: AutoDict
+    name: str
 
     def __init__(self, config: str, role: str,
                  **kwargs):
         """
         Load configuration and run the main routine defined on Role Operation.
-        todo: Converter o dataset para um formato mais fácil de usar
-        todo: pegar os tiles para cada vídeo e para cada segmentação (deep==2)
 
         :param config: a Config object
         :param role: The role can be: ALL, PSNR, WSPSNR, SPSNR, RESULTS
@@ -1047,27 +1410,84 @@ class GetTiles(BaseTileDecodeBenchmark):
                               operation=self.get_tiles,
                               finish=self.finish_get_tiles),
             'JSON2PICKLE': Role(name='JSON2PICKLE', deep=2,
-                              init=None,
-                              operation=self.json2pickle,
-                              finish=None),
-
+                                init=None,
+                                operation=self.json2pickle,
+                                finish=None),
+            'REFACTOR': Role(name='REFACTOR', deep=2, init=self.init_refactor,
+                             operation=self.refactor,
+                             finish=self.end_refactor),
         }
-        db_name = kwargs['database_name']
+        ds_name = kwargs['dataset_name']
 
         self.config = Config(config)
         self.role = operations[role]
-        self.state = VideoContext(self.config, self.role.deep)
+        self.video_context = VideoContext(self.config, self.role.deep)
 
-        self.database_name = db_name
+        self.dataset_name = ds_name
         self.database_folder = Path('datasets')
-        self.database_path = self.database_folder / db_name
-        self.database_json = self.database_path / f'{db_name}.json'
-        self.database_pickle = self.database_path / f'{db_name}.pickle'
+        self.database_path = self.database_folder / ds_name
+        self.database_json = self.database_path / f'{ds_name}.json'
+        self.database_pickle = self.database_path / f'{ds_name}.pickle'
 
-        self.get_tiles_path = self.state.project / self.state.get_tiles_folder
+        self.get_tiles_path = (self.video_context.project_path
+                               / self.video_context.get_tiles_folder)
         self.get_tiles_path.mkdir(parents=True, exist_ok=True)
 
         self.run(**kwargs)
+
+    # Refactor
+    def init_refactor(self):
+        self.video_context.dataset_name = self.dataset_name
+        self.hm_dataset = load_pickle(self.video_context.dataset_pickle)
+        self.dectime = load_json(self.video_context.dectime_json_file)
+        self.tile_quality = load_json(self.video_context.quality_result_json)
+
+    def refactor(self, **kwargs):
+        print(f'{self.video_context.state}')
+        if self.video_context.video != self.old_video:
+            if self.old_video is not None:
+                new_database_pickle = (self.video_context.project_path
+                                       / f'database_{self.name}.pickle')
+                save_pickle(self.new_database, new_database_pickle)
+
+            self.old_video = self.video_context.video
+            self.old_name = f'{self.video_context.video}'
+
+            name = self.old_name.replace('_cmp', '')
+            self.name = name.replace('_erp', '')
+            self.projection = self.video_context.video.projection
+
+            new_database_pickle = (self.video_context.project_path
+                                   / f'database_{self.name}.pickle')
+
+            if new_database_pickle.exists():
+                self.new_database = load_pickle(new_database_pickle)
+            else:
+                self.new_database = AutoDict()
+
+            self.new_database[self.projection]['dectime_rate'] |= self.dectime[self.old_name]
+            self.new_database[self.projection]['tile_quality'] |= self.tile_quality[self.name]
+            self.new_database['hm_dataset'][self.dataset_name] |= self.hm_dataset[self.name]
+
+        ##########################
+        if self.video_context.tiling != self.old_tiling:
+            self.old_tiling = self.video_context.tiling
+            self.tiling = f'{self.video_context.tiling}'
+
+            if self.tiling != '1x1':
+                get_tiles = load_pickle(self.video_context.get_tiles_pickle)
+                for user_id in get_tiles:
+                    self.new_database[self.projection]['get_tiles'][
+                        self.tiling][user_id] = get_tiles[user_id][:1800]
+            else:
+                for user_id in self.hm_dataset[self.name]:
+                    self.new_database[self.projection]['get_tiles'][
+                        self.tiling][user_id] = [[0]]*1800
+
+    def end_refactor(self):
+        new_database_pickle = (self.video_context.project_path
+                               / f'database_{self.name}.pickle')
+        save_pickle(self.new_database, new_database_pickle)
 
     def process_nasrabadi(self, **kwargs):
         overwrite = kwargs['overwrite']
@@ -1123,6 +1543,7 @@ class GetTiles(BaseTileDecodeBenchmark):
             start_time = time.time()
 
             for n, line in enumerate(head_movement.iterrows()):
+                if not len(theta) < 1800: break
                 line = line[1]
                 print(f'\rUser {user_id} - {video_name} - sample {n:04d} - frame {frame_counter}', end='')
 
@@ -1132,11 +1553,9 @@ class GetTiles(BaseTileDecodeBenchmark):
                 if line.timestamp < frame_time:
                     last_line = line
                     continue
-
                 if line.timestamp == frame_time:
                     # Based on gitHub code of author
                     x, y, z = line[['Vz', 'Vx', 'Vy']]
-
                 else:
                     # Linear Interpolation
                     t: float = frame_time
@@ -1189,18 +1608,18 @@ class GetTiles(BaseTileDecodeBenchmark):
     def get_tiles(self, **kwargs):
         overwrite = kwargs['overwrite']
 
-        tiling = self.state.tiling
+        tiling = self.video_context.tiling
         if str(tiling) == '1x1':
             info(f'skipping tiling 1x1')
             return
 
-        video_name = self.state.name
+        video_name = self.video_context.video.name.replace("_cmp", "")
         tiling.fov = '90x90'
-        dbname = self.database_name
+        dbname = self.dataset_name
         database = self.database
         self.results = AutoDict()
 
-        filename = f'get_tiles_{dbname}_{video_name}_{self.state.projection}_{tiling}.pickle'
+        filename = f'get_tiles_{dbname}_{video_name}_{self.video_context.video.projection}_{tiling}.pickle'
         get_tiles_pickle = self.get_tiles_path / filename
         info(f'Defined the result filename to {get_tiles_pickle}')
 
@@ -1230,14 +1649,68 @@ class GetTiles(BaseTileDecodeBenchmark):
     def finish_get_tiles(self):
         pass
 
-    def json2pickle(self, **kwargs):
-        video_name = self.state.name
-        tiling = self.state.tiling
-        dbname = self.database_name
+    def json2pickle(self, overwrite=False):
+        video_name = self.video_context.video.name
+        tiling = self.video_context.tiling
+        dbname = self.dataset_name
 
-        get_tiles_pickle = self.get_tiles_path / f'get_tiles_{dbname}_{video_name}_{self.state.projection}_{tiling}.pickle'
-        get_tiles_json = self.get_tiles_path / f'get_tiles_{dbname}_{video_name}_{self.state.projection}_{tiling}.json'
+        get_tiles_pickle = self.get_tiles_path / f'get_tiles_{dbname}_{video_name}_{self.video_context.video.projection}_{tiling}.pickle'
+        get_tiles_json = self.get_tiles_path / f'get_tiles_{dbname}_{video_name}_{self.video_context.video.projection}_{tiling}.json'
 
-        if get_tiles_json.exists() and not get_tiles_pickle.exists():
+        if get_tiles_json.exists() and not get_tiles_pickle.exists() and not overwrite:
             result = load_json(get_tiles_json)
             save_pickle(result, get_tiles_pickle)
+
+class GetViewportQuality(BaseTileDecodeBenchmark):
+    """
+    Essa classe vai pegar os tiles em que o usuário está vendo e vai extrair o
+    viewport.
+    """
+
+from sys import getsizeof, stderr
+from itertools import chain
+from collections import deque
+try:
+    from reprlib import repr
+except ImportError:
+    pass
+
+def total_size(o, handlers={}, verbose=False):
+    """ Returns the approximate memory footprint an object and all of its contents.
+
+    Automatically finds the contents of the following builtin containers and
+    their subclasses:  tuple, list, deque, dict, set and frozenset.
+    To search other containers, add handlers to iterate over their contents:
+
+        handlers = {SomeContainerClass: iter,
+                    OtherContainerClass: OtherContainerClass.get_elements}
+
+    """
+    dict_handler = lambda d: chain.from_iterable(d.items())
+    all_handlers = {tuple: iter,
+                    list: iter,
+                    deque: iter,
+                    dict: dict_handler,
+                    set: iter,
+                    frozenset: iter,
+                   }
+    all_handlers.update(handlers)     # user handlers take precedence
+    seen = set()                      # track which object id's have already been seen
+    default_size = getsizeof(0)       # estimate sizeof object without __sizeof__
+
+    def sizeof(o):
+        if id(o) in seen:       # do not double count the same object
+            return 0
+        seen.add(id(o))
+        s = getsizeof(o, default_size)
+
+        if verbose:
+            print(s, type(o), repr(o), file=stderr)
+
+        for typ, handler in all_handlers.items():
+            if isinstance(o, typ):
+                s += sum(map(sizeof, handler(o)))
+                break
+        return s
+
+    return sizeof(o)
