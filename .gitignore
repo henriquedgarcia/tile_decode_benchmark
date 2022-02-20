@@ -12,3 +12,5 @@ datasets/
 *.pyd
 build/
 *.so
+.vs
+.vscode
