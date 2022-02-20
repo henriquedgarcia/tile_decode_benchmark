@@ -84,7 +84,13 @@ class BaseTileDecodeBenchmark:
 
         return len(['' for line in content if 'utime' in line])
 
-    def get_times(self) -> list:
+    def get_times(self) -> List[float]:
+        times = []
+        f = self.video_context.dectime_log.open('r')
+        for line in f:
+            time = line.strip().split(' ')[1].split('=')[1][:-1]
+            times.append(float(time))
+        f.close()
         content = self.video_context.dectime_log.read_text(encoding='utf-8')
         content_lines = content.splitlines()
         times = [float(line.strip().split(' ')[1].split('=')[1][:-1])
@@ -286,9 +292,11 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
         :return:
         """
         debug(f'Collecting {self.video_context}')
-        filename = self.video_context.dectime_json_file
-        if filename.exists() and not overwrite:
+        dectime_json_file = self.video_context.dectime_json_file
+        if dectime_json_file.exists() and not overwrite:
+            warning(f'The file {dectime_json_file} exist and not overwrite. Skipping.')
             return 'exit'
+
         results = self.results
         for factor in self.video_context.state:
             results = results[factor]
@@ -308,16 +316,15 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
 
         try:
             chunk_size = self.video_context.segment_file.stat().st_size
+            bitrate = 8 * chunk_size / self.video_context.video.chunk_dur
         except PermissionError:
             warning(f'PermissionError error on reading size of '
                     f'{self.video_context.segment_file}. Skipping.')
             return 'skip'
 
-        bitrate = chunk_size * 8 / (self.video_context.video.gop / self.video_context.video.fps)
-
         dectimes: List[float] = self.get_times()
 
-        data = {'bitrate': bitrate, 'dectimes': dectimes}
+        data = {'dectimes': dectimes, 'bitrate': bitrate}
         print(f'\r{data}', end='')
 
         results.update(data)
@@ -378,7 +385,6 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
                                               finish=None),
         }
 
-        self.bins = bins
         self.config = Config(config)
         self.role = operations[role]
         self.video_context = VideoContext(self.config, self.role.deep)
@@ -389,7 +395,8 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
 
         self.rc_config()
 
-        self.run(**kwargs)
+        for self.bins in bins:
+            self.run(**kwargs)
 
     def rc_config(self):
         import matplotlib as mpl
@@ -399,6 +406,39 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
         for group in rc_param:
             kwargs = eval(rc_param[group])
             mpl.rc(group, **kwargs)
+
+    def iterate(self, deep=1):
+        count = 0
+        for self.video_context.video in self.video_context.videos_list:
+            self.name = str(self.video_context.video)
+            if deep == 1:
+                count += 1
+                yield count
+                continue
+            for self.video_context.tiling in self.video_context.tiling_list:
+                self.tiling = str(self.video_context.tiling)
+                if deep == 2:
+                    count += 1
+                    yield count
+                    continue
+                for self.video_context.quality in self.video_context.quality_list:
+                    self.quality = str(self.video_context.quality)
+                    if deep == 3:
+                        count += 1
+                        yield count
+                        continue
+                    for self.video_context.tile in self.video_context.tiles_list:
+                        self.tile = str(self.video_context.tile)
+                        if deep == 4:
+                            count += 1
+                            yield count
+                            continue
+                        for self.video_context.chunk in self.video_context.chunks_list:
+                            self.chunk = str(self.video_context.chunk)
+                            if deep == 5:
+                                count += 1
+                                yield count
+                                continue
 
     def init_hist_by_pattern(self):
         # Load dectime
@@ -423,34 +463,17 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
 
         def get_data():
             print('\n\n====== Get Data ======')
-
-            def hist_by_pattern_iter():
-                count = 0
-                for self.video_context.video in self.video_context.videos_list:
-                    self.name = str(self.video_context.video)
-                    for self.video_context.tiling in self.video_context.tiling_list:
-                        self.tiling = str(self.video_context.tiling)
-                        for self.video_context.quality in self.video_context.quality_list:
-                            self.quality = str(self.video_context.quality)
-                            for self.video_context.tile in self.video_context.tiles_list:
-                                self.tile = str(self.video_context.tile)
-                                for self.video_context.chunk in self.video_context.chunks_list:
-                                    self.chunk = str(self.video_context.chunk)
-                                    yield count
-                                    count += 1
-            def len():
-                i = 0
-                for i in hist_by_pattern_iter(): pass
-                return i
             if self.data_file.exists() and not overwrite:
                 warning(f'  The data file "{self.data_file}" exist. Loading date.')
                 self.data = load_pickle(self.data_file)
                 return
 
-            total = len()
+            total = 0
             dectime = load_json(self.dectime_filename)
 
-            for idx in hist_by_pattern_iter():
+            for idx in self.iterate(5):
+                if self.quality == '0':
+                    continue
                 print(f'\r  {total}/{idx:07d} ', end='')
                 results = dectime[self.name][self.tiling][self.quality]
                 results = results[self.tile][self.chunk]
@@ -473,7 +496,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
             save_pickle(self.data, self.data_file)
 
         def make_fit():
-            print('\n\n====== Make Fit ======')
+            print('\n\n====== Make Fit - Bins = {self.bins} ======')
             for tiling in self.config['tiling_list']:
                 print(f'  Fitting - tiling {tiling}... ', end='')
                 data = self.data[tiling]
@@ -486,12 +509,12 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
                     else:
                         fitter = Fitter(data[metric], bins=self.bins,
                                         distributions=self.config[
-                                            'distributions'])
+                                            'distributions'], timeout=300)
                         fitter.fit()
                     save_pickle(fitter, fitter_pickle_file)
 
                     self.fitter[tiling][metric] = fitter
-                    print(f'Finished.')
+                    print(f'  Finished.')
 
         def calc_stats():
             print('  Calculating Statistics')
@@ -519,7 +542,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
                                 scale=params[2])
                 elif dist_name == 'rayleigh':
                     return dict(name='Rayleigh',
-                                parameters=f'',
+                                parameters=f' ',
                                 loc=params[0],
                                 scale=params[1])
                 elif dist_name == 'lognorm':
@@ -539,20 +562,20 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
                                 scale=params[2])
                 elif dist_name == 'halfnorm':
                     return dict(name='Half-Normal',
-                                parameters=f'',
+                                parameters=f' ',
                                 loc=params[0],
                                 scale=params[1])
                 elif dist_name == 'expon':
                     return dict(name='Exponential',
-                                parameters=f'',
+                                parameters=f' ',
                                 loc=params[0],
                                 scale=params[1])
                 else:
                     raise ValueError(f'Distribution unknown: {dist_name}')
 
-            stats_file = self.workfolder / 'data' / 'stats.csv'
+            stats_file = self.workfolder / f'stats_{self.bins}bins.csv'
             if stats_file.exists() and not overwrite:
-                print(f' File found! Skipping.')
+                print(f'  stats_file found! Skipping.')
                 self.stats = pd.read_csv(stats_file)
                 return
 
@@ -565,8 +588,8 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
                 stats[f'tiling'].append(tiling)
                 stats[f'correlation'].append(corr)
 
-                # 1. Stats
-                for metric in ['tile', 'rate']:
+                for metric in ['time', 'rate']:
+                    # 1. Stats
                     percentile = np.percentile(data[metric],
                                                [0, 25, 50, 75, 100]).T
                     stats[f'{metric}_average'].append(np.average(data[metric]))
@@ -580,15 +603,18 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
                     # 2. Errors and dists
                     # rmse: DataFrame[distribution_name, ...] -> float
                     fitter = self.fitter[tiling][metric]
-                    df_errors = fitter.df_errors
+                    df_errors: pd.DataFrame = fitter.df_errors
                     bins = len(fitter.x)
-                    sumsquare_error = df_errors['sumsquare_error']
-                    rmse = np.sqrt(sumsquare_error / bins)
+                    sse:pd.Series = df_errors['sumsquare_error']
+                    rmse = np.sqrt(sse / bins)
+                    nrmse = rmse / (sse.max() - sse.min())
 
-                    for dist in rmse:
+                    for dist in sse.keys():
                         params = fitter.fitted_param[dist]
                         dist_info = find_dist(dist, params)
                         stats[f'{metric}_rmse_{dist}'].append(rmse[dist])
+                        stats[f'{metric}_nrmse_{dist}'].append(nrmse[dist])
+                        stats[f'{metric}_sse_{dist}'].append(sse[dist])
                         stats[f'{metric}_param_{dist}'].append(dist_info['parameters'])
                         stats[f'{metric}_loc_{dist}'].append(dist_info['loc'])
                         stats[f'{metric}_scale_{dist}'].append(dist_info['scale'])
@@ -603,19 +629,17 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
 
             def make_df_data():
                 print('  Making df_data')
-                df_data = {}
                 for tiling in self.config['tiling_list']:
-                    path = self.workfolder / f'df_data{tiling}.pickle'
-                    if path.exists() and not overwrite: return
-
-                    df_data[f'time_{tiling}'] = self.data[tiling]['time']
-                    df_data[f'rate_{tiling}'] = self.data[tiling]['rate']
+                    path = self.workfolder / f'df_data{tiling}_{self.bins}bins.csv'
+                    if path.exists() and not overwrite: continue
+                    df_data = {f'time_{tiling}': self.data[tiling]['time'],
+                               f'rate_{tiling}': self.data[tiling]['rate']}
                     pd.DataFrame(df_data).to_csv(str(path), index=False)
 
             main()
 
         def make_plot():
-            print('\n====== Make Plot ======')
+            print('\n====== Make Plot - Bins = {self.bins} ======')
             n_dist = 3
             label = 'empirical'
             name = f'hist_by_pattern_{self.bins}bins.png'
@@ -623,24 +647,23 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
             if path.exists() and not overwrite: return
 
             fig = figure.Figure()
-            subplot_pos = eval(self.config['subplot_pos'])
+            subplot_pos = eval(self.plot_config['subplot_pos'])
 
             for idx, tiling in enumerate(self.config['tiling_list'], 1):
                 index = idx
                 nrows, ncols, index = subplot_pos[index-1]
+                fitter = self.fitter[tiling]['time']
+                fit_errors = fitter.df_errors
+                dists = fit_errors['sumsquare_error'].sort_values()[0:n_dist].index
 
                 ax: axes.Axes = fig.add_subplot(nrows, ncols, index)
-                data = self.data[tiling]
-                ax.hist(data['time'],
+                ax.hist(self.data[tiling]['time'],
                         bins=self.bins,
                         histtype='bar',
                         density=True,
                         label=label,
                         color='#3297c9')
 
-                fitter = self.fitter[tiling]['time']
-                dist_error = self.fit_errors[tiling]
-                dists = dist_error.sort_values()[0:n_dist].index
                 for n, dist_name in enumerate(dists):
                     fitted_pdf = fitter.fitted_pdf[dist_name]
                     ax.plot(fitter.x, fitted_pdf,
@@ -659,9 +682,247 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
     def end_hist_by_pattern(self):
         pass
 
-    def init_hist_by_pattern_by_quality(self): ...
-    def hist_by_pattern_by_quality(self): ...
+    def init_hist_by_pattern_by_quality(self):
+        self.dectime_filename = self.video_context.dectime_json_file
+        self.data_file = self.workfolder_data / 'data.pickle'
+        self.color_list = eval(self.plot_config["color_list"])
+        self.subplot_pos = eval(self.plot_config["subplot_pos"])
 
+    def hist_by_pattern_by_quality(self, overwrite):
+        def main():
+            get_data()
+            make_fit()
+            calc_stats()
+            make_dataframe()
+            make_plot()
+
+        def get_data():
+            print('\n\n====== Get Data ======')
+            if self.data_file.exists() and not overwrite:
+                warning(f'\n  The data file "{self.data_file}" exist. Loading date.')
+                self.data = load_pickle(self.data_file)
+                return
+
+            total = 0
+            dectime = load_json(self.dectime_filename)
+            bitrate, times = [],[]
+
+            for idx in self.iterate(5):
+                if self.quality == '0':
+                    continue
+                print(f'\r  {total}/{idx:07d} ', end='')
+                results = dectime[self.name][self.tiling][self.quality]
+                results = results[self.tile][self.chunk]
+
+                if results == {}:
+                    warning(f'\n  The result for chain {self.video_context.state} '
+                            f'is empty. Skipping.')
+                    continue
+
+                bitrate: List[float] = results['bitrate']
+                times: List[List[float]] = results['dectimes']
+
+                # self.data[tiling][quality]["time"|"time_std"|"rate"]: list[float|int]
+                if self.data[self.tiling][self.quality] == {}:
+                    self.data[self.tiling][self.quality] = defaultdict(list)
+                self.data[self.tiling][self.quality]['time'].append(np.average(times))
+                self.data[self.tiling][self.quality]['time_std'].append(np.std(times))
+                self.data[self.tiling][self.quality]['rate'].append(bitrate)
+
+            del(dectime)
+
+            save_pickle(self.data, self.data_file)
+
+        def make_fit():
+            print('\n\n====== Make Fit - Bins = {self.bins} ======')
+            for tiling in self.config['tiling_list']:
+                for quality in self.config['quality_list']:
+                    print(f'  Fitting - tiling {tiling}/CRF{quality}... ', end='')
+                    data = self.data[tiling][quality]
+                    for metric in ['time', 'rate']:
+                        name = f'fitter_{metric}_{tiling}_crf{quality}_{self.bins}bins.pickle'
+                        fitter_pickle_file = self.workfolder / 'data' / name
+                        if fitter_pickle_file.exists() and not overwrite:
+                            print(f'Pickle found! ', end='')
+                            fitter = load_pickle(fitter_pickle_file)
+                        else:
+                            fitter = Fitter(data[metric], bins=self.bins,
+                                            distributions=self.config[
+                                                'distributions'], timeout=300)
+                            fitter.fit()
+                            save_pickle(fitter, fitter_pickle_file)
+
+                        self.fitter[tiling][quality][metric] = fitter
+                        print(f'  Finished.')
+
+        def calc_stats():
+            print('  Calculating Statistics')
+
+            def find_dist(dist_name, params):
+                if dist_name == 'burr12':
+                    return dict(name='Burr Type XII',
+                                parameters=f'c={params[0]}, d={params[1]}',
+                                loc=params[2],
+                                scale=params[3])
+                elif dist_name == 'fatiguelife':
+                    return dict(name='Birnbaum-Saunders',
+                                parameters=f'c={params[0]}',
+                                loc=params[1],
+                                scale=params[2])
+                elif dist_name == 'gamma':
+                    return dict(name='Gamma',
+                                parameters=f'a={params[0]}',
+                                loc=params[1],
+                                scale=params[2])
+                elif dist_name == 'invgauss':
+                    return dict(name='Inverse Gaussian',
+                                parameters=f'mu={params[0]}',
+                                loc=params[1],
+                                scale=params[2])
+                elif dist_name == 'rayleigh':
+                    return dict(name='Rayleigh',
+                                parameters=f' ',
+                                loc=params[0],
+                                scale=params[1])
+                elif dist_name == 'lognorm':
+                    return dict(name='Log Normal',
+                                parameters=f's={params[0]}',
+                                loc=params[1],
+                                scale=params[2])
+                elif dist_name == 'genpareto':
+                    return dict(name='Generalized Pareto',
+                                parameters=f'c={params[0]}',
+                                loc=params[1],
+                                scale=params[2])
+                elif dist_name == 'pareto':
+                    return dict(name='Pareto Distribution',
+                                parameters=f'b={params[0]}',
+                                loc=params[1],
+                                scale=params[2])
+                elif dist_name == 'halfnorm':
+                    return dict(name='Half-Normal',
+                                parameters=f' ',
+                                loc=params[0],
+                                scale=params[1])
+                elif dist_name == 'expon':
+                    return dict(name='Exponential',
+                                parameters=f' ',
+                                loc=params[0],
+                                scale=params[1])
+                else:
+                    raise ValueError(f'Distribution unknown: {dist_name}')
+
+            stats_file = self.workfolder / 'data' / f'stats_{self.bins}bins.csv'
+            if stats_file.exists() and not overwrite:
+                print(f'  stats_file found! Skipping.')
+                self.stats = pd.read_csv(stats_file)
+                return
+
+            stats = defaultdict(list)
+            for tiling in self.config['tiling_list']:
+                for quality in self.config['quality_list']:
+                    # data[tiling][quality]["time"|"time_std"|"rate"]
+                    data = self.data[tiling][quality]
+                    fitter = self.fitter[tiling][quality]
+                    corr = np.corrcoef((data['time'], data['rate']))[1][0]
+
+                    stats[f'tiling'].append(tiling)
+                    stats[f'quality'].append(quality)
+                    stats[f'correlation'].append(corr)
+
+                    for metric in ['time', 'rate']:
+                        # 1. Stats
+                        percentile = np.percentile(data[metric],
+                                                   [0, 25, 50, 75, 100]).T
+                        stats[f'{metric}_average'].append(np.average(data[metric]))
+                        stats[f'{metric}_std'].append(float(np.std(data[metric])))
+                        stats[f'{metric}_min'].append(percentile[0])
+                        stats[f'{metric}_quartile1'].append(percentile[1])
+                        stats[f'{metric}_median'].append(percentile[2])
+                        stats[f'{metric}_quartile3'].append(percentile[3])
+                        stats[f'{metric}_max'].append(percentile[4])
+
+                        # 2. Errors and dists
+                        # rmse: DataFrame[distribution_name, ...] -> float
+                        df_errors: pd.DataFrame = fitter[metric].df_errors
+                        bins = len(fitter[metric].x)
+                        sse:pd.Series = df_errors['sumsquare_error']
+                        rmse = np.sqrt(sse / bins)
+                        nrmse = rmse / (sse.max() - sse.min())
+
+                        for dist in sse.keys():
+                            params = fitter[metric].fitted_param[dist]
+                            dist_info = find_dist(dist, params)
+                            stats[f'{metric}_rmse_{dist}'].append(rmse[dist])
+                            stats[f'{metric}_nrmse_{dist}'].append(nrmse[dist])
+                            stats[f'{metric}_sse_{dist}'].append(sse[dist])
+                            stats[f'{metric}_param_{dist}'].append(dist_info['parameters'])
+                            stats[f'{metric}_loc_{dist}'].append(dist_info['loc'])
+                            stats[f'{metric}_scale_{dist}'].append(dist_info['scale'])
+
+            pd.DataFrame(stats).to_csv(str(stats_file), index=False)
+
+        def make_dataframe():
+            print('\n====== Make Dataframe ======')
+
+            def main():
+                make_df_data()
+
+            def make_df_data():
+                print('  Making df_data')
+                for tiling in self.config['tiling_list']:
+                    for quality in self.config['quality_list']:
+                        path = self.workfolder / f'df_data{tiling}_CRF{quality}{self.bins}bins.csv'
+                        if path.exists() and not overwrite: continue
+                        df_data = {f'time': self.data[tiling][quality]['time'],
+                                   f'rate': self.data[tiling][quality]['rate']}
+                        pd.DataFrame(df_data).to_csv(str(path), index=False)
+
+            main()
+
+        def make_plot():
+            print('\n====== Make Plot - Bins = {self.bins} ======')
+            n_dist = 3
+            label = 'empirical'
+            subplot_pos = eval(self.plot_config['subplot_pos'])
+
+            for quality in self.config['quality_list']:
+                name = f'hist_by_pattern_CRF{quality}_{self.bins}bins.png'
+                path = self.workfolder / name
+                if path.exists() and not overwrite: return
+
+                fig = figure.Figure()
+
+                for idx, tiling in enumerate(self.config['tiling_list'], 1):
+                    index = idx
+                    nrows, ncols, index = subplot_pos[index-1]
+                    fitter = self.fitter[tiling][quality]['time']
+                    fit_errors = fitter.df_errors
+                    dists = fit_errors['sumsquare_error'].sort_values()[0:n_dist].index
+
+                    ax: axes.Axes = fig.add_subplot(nrows, ncols, index)
+                    ax.hist(self.data[tiling][quality]['time'],
+                            bins=self.bins,
+                            histtype='bar',
+                            density=True,
+                            label=label,
+                            color='#3297c9')
+
+                    for n, dist_name in enumerate(dists):
+                        fitted_pdf = fitter.fitted_pdf[dist_name]
+                        ax.plot(fitter.x, fitted_pdf,
+                                label=f'{dist_name}',
+                                color=self.color_list[n],
+                                lw=1., )
+                    ax.set_title(f'{tiling} - CRF {quality}')
+                    ax.set_xlabel('Decoding Time (s)')
+                    ax.legend(loc='upper right')
+                # fig.show()
+                print(f'Salvando a figura')
+                fig.savefig(path)
+
+        main()
+        
     def init_bar_by_pattern_by_quality(self): ...
     def bar_by_pattern_by_quality(self): ...
 

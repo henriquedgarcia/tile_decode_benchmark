@@ -1,10 +1,8 @@
 {
 	"HIST_BY_PATTERN": {
 		"rc_param": {
-			"figure": "{'figsize':(8.0, 4.8), 'dpi':300, 'autolayout':True}",
+			"figure": "{'figsize':(7.6, 5.6), 'dpi':300, 'autolayout':True}",
 			"lines": "{'linewidth':0.5, 'markersize':3}",
-			"errorbar": "{'capsize':10}",
-			"patch": "{'linewidth': 0.5, 'edgecolor': 'black', 'facecolor': '#3297c9'}",
 			"axes": "{'linewidth': 0.5, 'prop_cycle': cycler(color=[plt.get_cmap('tab20')(i) for i in range(20)])}"
 		},
 		"color_list": "('#000000', '#ff8888', '#687964', '#11cc22', '#0f2080', '#ff9910', '#ffc428', '#990099', '#f5793a', '#c9bd9e', '#85c0f9')",
@@ -14,8 +12,6 @@
 		"rc_param": {
 			"figure": "{'figsize':(6.4, 4.8), 'dpi':300, 'autolayout':True}",
 			"lines": "{'linewidth':0.5, 'markersize':3}",
-			"errorbar": "{'capsize':10}",
-			"patch": "{'linewidth': 0.5, 'edgecolor': 'black', 'facecolor': '#3297c9'}",
 			"axes": "{'linewidth': 0.5, 'prop_cycle': cycler(color=[plt.get_cmap('tab20')(i) for i in range(20)])}"
 		},
 		"color_list": "('#000000', '#ff8888', '#687964', '#11cc22', '#0f2080', '#ff9910', '#ffc428', '#990099', '#f5793a', '#c9bd9e', '#85c0f9')",
