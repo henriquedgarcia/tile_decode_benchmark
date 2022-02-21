@@ -501,6 +501,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
                 print(f'  Fitting - tiling {tiling}... ', end='')
                 data = self.data[tiling]
                 for metric in ['time', 'rate']:
+                    print(f'{metric}... ', end='')
                     name = f'fitter_{metric}_{tiling}_{self.bins}bins.pickle'
                     fitter_pickle_file = self.workfolder / 'data' / name
                     if fitter_pickle_file.exists() and not overwrite:
@@ -514,7 +515,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
                     save_pickle(fitter, fitter_pickle_file)
 
                     self.fitter[tiling][metric] = fitter
-                    print(f'  Finished.')
+                print(f'  Finished.')
 
         def calc_stats():
             print('  Calculating Statistics')
@@ -674,7 +675,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
                 ax.set_xlabel('Decoding Time (s)')
                 ax.legend(loc='upper right')
             # fig.show()
-            print(f'Salvando a figura')
+            print(f'Saving the figure')
             fig.savefig(path)
 
         main()
@@ -689,7 +690,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
         self.subplot_pos = eval(self.plot_config["subplot_pos"])
 
     def hist_by_pattern_by_quality(self, overwrite):
-        def main():
+        def _main():
             get_data()
             make_fit()
             calc_stats()
@@ -734,16 +735,18 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
             save_pickle(self.data, self.data_file)
 
         def make_fit():
-            print('\n\n====== Make Fit - Bins = {self.bins} ======')
+            print(f'\n\n====== Make Fit - Bins = {self.bins} ======')
             for tiling in self.config['tiling_list']:
                 for quality in self.config['quality_list']:
+                    if quality == '0': continue
+
                     print(f'  Fitting - tiling {tiling}/CRF{quality}... ', end='')
                     data = self.data[tiling][quality]
                     for metric in ['time', 'rate']:
                         name = f'fitter_{metric}_{tiling}_crf{quality}_{self.bins}bins.pickle'
                         fitter_pickle_file = self.workfolder / 'data' / name
                         if fitter_pickle_file.exists() and not overwrite:
-                            print(f'Pickle found! ', end='')
+                            print(f'{metric} pickle found! ', end='')
                             fitter = load_pickle(fitter_pickle_file)
                         else:
                             fitter = Fitter(data[metric], bins=self.bins,
@@ -753,7 +756,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
                             save_pickle(fitter, fitter_pickle_file)
 
                         self.fitter[tiling][quality][metric] = fitter
-                        print(f'  Finished.')
+                    print(f'  Finished.')
 
         def calc_stats():
             print('  Calculating Statistics')
@@ -821,6 +824,8 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
             stats = defaultdict(list)
             for tiling in self.config['tiling_list']:
                 for quality in self.config['quality_list']:
+                    if quality == '0': continue
+                    
                     # data[tiling][quality]["time"|"time_std"|"rate"]
                     data = self.data[tiling][quality]
                     fitter = self.fitter[tiling][quality]
@@ -865,20 +870,18 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
         def make_dataframe():
             print('\n====== Make Dataframe ======')
 
-            def main():
-                make_df_data()
-
             def make_df_data():
                 print('  Making df_data')
                 for tiling in self.config['tiling_list']:
                     for quality in self.config['quality_list']:
+                        if quality == '0': continue
                         path = self.workfolder / f'df_data{tiling}_CRF{quality}{self.bins}bins.csv'
                         if path.exists() and not overwrite: continue
                         df_data = {f'time': self.data[tiling][quality]['time'],
                                    f'rate': self.data[tiling][quality]['rate']}
                         pd.DataFrame(df_data).to_csv(str(path), index=False)
 
-            main()
+            make_df_data()
 
         def make_plot():
             print('\n====== Make Plot - Bins = {self.bins} ======')
@@ -887,6 +890,8 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
             subplot_pos = eval(self.plot_config['subplot_pos'])
 
             for quality in self.config['quality_list']:
+                if quality == '0': continue
+
                 name = f'hist_by_pattern_CRF{quality}_{self.bins}bins.png'
                 path = self.workfolder / name
                 if path.exists() and not overwrite: return
@@ -918,11 +923,11 @@ class DectimeGraphs(BaseTileDecodeBenchmark):
                     ax.set_xlabel('Decoding Time (s)')
                     ax.legend(loc='upper right')
                 # fig.show()
-                print(f'Salvando a figura')
+                print(f'  Saving the figure')
                 fig.savefig(path)
 
-        main()
-        
+        _main()
+
     def init_bar_by_pattern_by_quality(self): ...
     def bar_by_pattern_by_quality(self): ...
 
@@ -1456,7 +1461,7 @@ class QualityMetrics:
     def ffmpeg_psnr(self):
         if self.video_context.chunk == 1:
             name, pattern, quality, tile, chunk = self.video_context.state
-            results = self.results[name][pattern][quality][tile]
+            results = self.results[name][pattern][str(quality)][tile]
             results.update(self._collect_ffmpeg_psnr())
 
     def _collect_ffmpeg_psnr(self) -> Dict[str, float]:
@@ -1765,7 +1770,7 @@ class GetTiles(BaseTileDecodeBenchmark):
         video_id_map.index = video_id_map_csv['video_id']
 
         # "Videos 10,17,27,28 were rotated 265, 180,63,81 degrees to right,
-        # respectively, to reorient during playback." - Autor
+        # respectively, to reorient during playback." - Author
         nasrabadi_rotation = {10: np.deg2rad(-265), 17: np.deg2rad(-180),
                               27: np.deg2rad(-63), 28: np.deg2rad(-81)}
 
