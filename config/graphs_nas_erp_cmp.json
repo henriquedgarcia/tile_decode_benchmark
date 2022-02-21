@@ -10,7 +10,7 @@
 	},
 	"HIST_BY_PATTERN_BY_QUALITY": {
 		"rc_param": {
-			"figure": "{'figsize':(6.4, 4.8), 'dpi':300, 'autolayout':True}",
+			"figure": "{'figsize':(7.6, 5.6), 'dpi':300, 'autolayout':True}",
 			"lines": "{'linewidth':0.5, 'markersize':3}",
 			"axes": "{'linewidth': 0.5, 'prop_cycle': cycler(color=[plt.get_cmap('tab20')(i) for i in range(20)])}"
 		},
