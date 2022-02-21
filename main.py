@@ -18,6 +18,7 @@ def main():
     # Main.check_files(7)  # 1-ori, 2-loss, 3-comp, 4-seg, 5-clean, 6-dec, 7-res
     # Main.siti(2)
     Main.dectime_graphs(2)  # "1-PATTERN,2-PAT_QUAL,3-B_PAT_QUAL,4-PAT_F,5-B_PAT_F"
+    Main.dectime_graphs(1)  # "1-PATTERN,2-PAT_QUAL,3-B_PAT_QUAL,4-PAT_F,5-B_PAT_F"
     # Main.quality(5)  # 1-all, 2-psnr, 3-wspsnr, 4-spsnr, 5-results
     # Main.tiles_from_dataset(2)  # 1-prepare, 2-get_tile
     # Main.tiles_from_dataset(2)  # 1-prepare, 2-get_tile
@@ -40,27 +41,28 @@ class Main:
         opt = {
             1: ('HIST_BY_PATTERN', dict(overwrite=False,
                                         role_folder='HistByPattern',
-                                        bins=['rice'],
+                                        # bins=['rice'],
                                         # bins=['auto'],
                                         # bins=['fd', 'rice', 'sturges', 'sqrt', 'doane', 'scott'],
-                                        # bins=['fd', 'rice', 'sturges', 'sqrt', 'doane', 'scott', 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80],
+                                        bins=['fd', 'rice', 'sturges', 'sqrt', 'doane', 'scott', 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80],
                                         # bins=np.linspace(15, 80, 14, dtype=int),
                                         )),
             2: ('HIST_BY_PATTERN_BY_QUALITY', dict(overwrite=False,
-                                              role_folder='HistByPatternByQuality',
-                                              bins='rice')),
+                                                   role_folder='HistByPatternByQuality',
+                                                   bins=['fd', 'rice', 'sturges', 'sqrt', 'doane', 'scott', 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80],
+                                                   )),
             3: ('BAR_BY_PATTERN_BY_QUALITY', dict(overwrite=False,
-                                        role_folder='BarByPatternByQuality',
-                                        figsize=(6.4, 4.8),
-                                        bins='auto')),
+                                                  role_folder='BarByPatternByQuality',
+                                                  bins=['fd', 'rice', 'sturges', 'sqrt', 'doane', 'scott', 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80],
+                                                  )),
             4: ('HIST_BY_PATTERN_FULL_FRAME', dict(overwrite=False,
-                                        role_folder='HistByPattern_full',
-                                        figsize=(6.4, 4.8),
-                                        bins='auto')),
+                                                   role_folder='HistByPattern_full',
+                                                   bins=['fd', 'rice', 'sturges', 'sqrt', 'doane', 'scott', 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80],
+                                                   )),
             5: ('BAR_BY_PATTERN_FULL_FRAME', dict(overwrite=False,
-                                        role_folder='BarByPatternFull',
-                                        figsize=(6.4, 4.8),
-                                        bins='auto')),
+                                                  role_folder='BarByPatternFull',
+                                                  bins=['fd', 'rice', 'sturges', 'sqrt', 'doane', 'scott', 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80],
+                                                  )),
         }
         Main.start(opt, DectimeGraphs, role_ini, role_end)
 
