@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from itertools import product
 from logging import debug
 from pathlib import Path
-from typing import (Any, Dict, List, Union, Optional)
+from typing import (Any, List, Union, Optional)
 
 import matplotlib.pyplot as plt
 import numpy as np
