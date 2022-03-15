@@ -168,6 +168,14 @@
       "duration": 60,
       "group": 0
     },
+    "video_04_erp_nas": {
+      "original": "4_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "equirectangular",
+      "offset": "0",
+      "duration": 60,
+      "group": 0
+    },
     "video_19_erp_nas": {
       "original": "19_erp.mp4",
       "scale": "4320x2160",
@@ -207,15 +215,7 @@
       "offset": "0",
       "duration": 60,
       "group": 0
-    },
-    "video_04_erp_nas": {
-      "original": "4_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
+      },
     "wingsuit_dubai_erp_nas": {
       "original": "wingsuit_dubai_erp.mp4",
       "scale": "4320x2160",
