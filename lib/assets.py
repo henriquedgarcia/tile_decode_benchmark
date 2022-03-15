@@ -94,8 +94,8 @@ class Resolution:
 
     def __init__(self, resolution: Union[str, tuple]):
         if isinstance(resolution, str):
-            w, h = resolution.split('x')
-            self.shape = h, w
+            self.W, self.H = resolution.split('x')
+            self.shape = self.H, self.W
         elif isinstance(resolution, tuple):
             self.shape = resolution
 
