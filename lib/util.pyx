@@ -200,7 +200,7 @@ def run_command(command: str, log_to_save: Union[str, Path], mode: str = 'w'):
     if not p.returncode == 0:
         error(f'run error in {command}. Continuing.')
 
-def save_json(data: Union[dict, AutoDict], filename: Union[str, Path],
+def save_json(data: Union[dict, AutoDict, list], filename: Union[str, Path],
               separators=(',', ':'),
               indent=None):
     with open(filename, 'w', encoding='utf-8') as f:
