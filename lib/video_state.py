@@ -129,7 +129,7 @@ class Tiling:
         """
         self.pattern = pattern
         self.proj_res = proj_res
-        self.tile_res = proj_res / self.pattern.shape
+        self.tile_res = self.proj_res / self.pattern.shape
         self.fov = fov
         self.fov_y, self.fov_x = self.fov
         self.viewport = Viewport(f'{fov}')
@@ -334,6 +334,7 @@ class Factors:
     #########
     @property
     def tiling_list(self) -> List[Tiling]:
+
         self._tiling_list = []
         for pattern in self.config['tiling_list']:
             proj_res = self.video.resolution if self.video else pattern
@@ -473,19 +474,19 @@ class ProjectPaths(Factors):
     @property
     def dectime_json_file(self) -> Path:
         folder = self.project_path / self.dectime_folder
-        return folder / 'dectime.json'
+        return folder / f'dectime_{self.video}.json'
 
     @property
     def siti_results(self) -> Path:
         folder = self.project_path / self.siti_folder
         folder.mkdir(parents=True, exist_ok=True)
-        return folder / f'{self.video.name}_siti_results.csv'
+        return folder / f'{self.video}_siti_results.csv'
 
     @property
     def siti_movie(self) -> Path:
         folder = self.project_path / self.siti_folder
         folder.mkdir(parents=True, exist_ok=True)
-        return folder / f'{self.video.name}_siti_movie.mp4'
+        return folder / f'{self.video}_siti_movie.mp4'
 
     @property
     def siti_stats(self) -> Path:
@@ -511,16 +512,10 @@ class ProjectPaths(Factors):
         return folder / f'tile{self.tile}.csv'
 
     @property
-    def quality_result_pickle(self) -> Union[Path, None]:
-        folder = self.project_path / self.quality_folder
-        folder.mkdir(parents=True, exist_ok=True)
-        return folder / f'Quality_metrics.pickle'
-
-    @property
     def quality_result_json(self) -> Union[Path, None]:
         return (self.project_path
                 / self.quality_folder
-                / 'compressed_quality_result.json')
+                / f'quality_{self.video}.json')
 
     @property
     def check_folder(self) -> Path:
@@ -538,9 +533,7 @@ class ProjectPaths(Factors):
     def get_tiles_pickle(self) -> Path:
         folder = self.project_path / self.get_tiles_folder
         folder.mkdir(parents=True, exist_ok=True)
-        name = str(self.video).replace('_cmp', '')
-        name = str(name).replace('_erp', '')
-        filename = f'get_tiles_{self.dataset_name}_{name}_{self.video.projection}_{self.tiling}.pickle'
+        filename = f'get_tiles_{self.dataset_name}_{self.video}.pickle'
         return folder / filename
 
     @property
