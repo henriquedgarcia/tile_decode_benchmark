@@ -10,7 +10,10 @@ projections/
 datasets/
 *.c
 *.pyd
+*.lnk
+*.png
 build/
 *.so
 .vs
 .vscode
+bin/

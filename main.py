@@ -7,20 +7,26 @@ import logging
 logging.basicConfig(level=logging.WARNING)
 
 config_list = []
-config_list += [f'config/config_nas_cmp.json']
+# config_list += [f'config/config_nas_cmp.json']
 # config_list += [f'config/config_nas_erp.json']
-# config_list += [f'config/config_nas_erp_cmp.json']
+config_list += [f'config/config_nas_erp_cmp.json']
 # config_list += [f'config/config_test.json']
 # config_list += [f'config/config_ffmpeg_crf_12videos_60s.json']
 
 def main():
-    Main.decode_time(5)  # 1-pre, 2-com, 3-seg, 4-dec, 5-collect
-    # Main.check_files(7)  # 1-ori, 2-loss, 3-comp, 4-seg, 5-clean, 6-dec, 7-res
+    # Main.decode_time(5)  # 1-pre, 2-com, 3-seg, 4-dec, 5-collect
+    # Main.check_files(8)  # 1-ori, 2-loss, 3-comp, 4-seg, 5-clean, 6-dec, 7-res
+
+    # DectimeGraphs(config, 'HIST_BY_PATTERN', ['custom'], overwrite=False)
+    # DectimeGraphs(config, 'HIST_BY_PATTERN_BY_QUALITY',  [10, 20, 30, 40, 50, 'custom'], overwrite=False)
+    # DectimeGraphs(config, 'HIST_BY_PATTERN_FULL_FRAME', ['custom'], overwrite=False)
+    DectimeGraphs(config, 'HIST_BY_VIDEO_BY_PATTERN_BY_QUALITY', [20], overwrite=False)
+
     # Main.siti(2)
-    # Main.dectime_graphs(3)  # "1-PATTERN,2-PAT_QUAL,3-B_PAT_QUAL,4-PAT_F,5-B_PAT_F"
     # Main.quality(5)  # 1-all, 2-psnr, 3-wspsnr, 4-spsnr, 5-results
     # Main.tiles_from_dataset(2)  # 1-prepare, 2-get_tile
     # Main.tiles_from_dataset(2)  # 1-prepare, 2-get_tile
+    pass
 
 
 class Main:
@@ -50,18 +56,14 @@ class Main:
                                                    role_folder='HistByPatternByQuality',
                                                    bins=['custom'],
                                                    )),
-            3: ('BAR_BY_PATTERN_BY_QUALITY', dict(overwrite=False,
-                                                  role_folder='BarByPatternByQuality',
-                                                  bins=[60],
-                                                  )),
-            4: ('HIST_BY_PATTERN_FULL_FRAME', dict(overwrite=False,
+            3: ('HIST_BY_PATTERN_FULL_FRAME', dict(overwrite=False,
                                                    role_folder='HistByPattern_full',
-                                                   bins=[60],
+                                                   bins=['custom'],
                                                    )),
-            5: ('BAR_BY_PATTERN_FULL_FRAME', dict(overwrite=False,
-                                                  role_folder='BarByPatternFull',
-                                                  bins=[60],
-                                                  )),
+            4: ('HIST_BY_VIDEO_BY_PATTERN_BY_QUALITY', dict(overwrite=False,
+                                                            role_folder='HistByVideoByPatternByQuality',
+                                                            bins=['custom'],
+                                                            )),
         }
         Main.start(opt, DectimeGraphs, role_ini, role_end)
 
@@ -84,9 +86,10 @@ class Main:
                               )),
             6: ('CHECK_DECODE', dict(only_error=True, clean=False)),
             7: ('CHECK_RESULTS', dict(only_error=True)),
+            8: ('CHECK_GET_TILES', dict(dataset_name='nasrabadi_28videos')),
         }
         Main.start(opt, CheckTiles, role_ini, role_end)
-    
+
     @staticmethod
     def dashing(role_ini, role_end=None):
         opt = {
@@ -96,7 +99,7 @@ class Main:
             4: ('MEASURE_CHUNKS', dict(overwrite=False)),
         }
         Main.start(opt, TileDecodeBenchmark, role_ini, role_end)
-    
+
     @staticmethod
     def siti(role_ini, role_end=None):
         opt = {
@@ -105,7 +108,7 @@ class Main:
                              save=True)),
         }
         Main.start(opt, TileDecodeBenchmark, role_ini, role_end)
-    
+
     @staticmethod
     def quality(role_ini, role_end=None):
         opt = {
@@ -133,7 +136,7 @@ class Main:
         Main.start(opt, GetTiles, role_ini, role_end)
 
     @staticmethod
-    def start(opt, cls, role_ini, role_end = None):
+    def start(opt, cls, role_ini, role_end=None):
         role_end = role_end if role_end else role_ini
         for i in range(role_ini, role_end + 1):
             role = opt[role_ini][0]
