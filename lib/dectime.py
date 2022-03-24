@@ -531,7 +531,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                              color='#3297c9')
 
         elif plot_type == 'bar':
-            artist = ax.bar(x, y, width=width, yerr=yerr, label=label)
+            artist = ax.bar(x, y, width=width, yerr=yerr, label=label, color=color)
 
         elif plot_type == 'plot':
             color = color if color else None
@@ -551,7 +551,6 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
             #     print(f'{title} - CRF {xtic} {len(line.get_xdata())}')
         else:
             raise ValueError(f'The plot_type parameter "{plot_type}" not supported.')
-
 
         if scilimits:
             ax.ticklabel_format(axis='y', style='scientific',
@@ -1532,71 +1531,54 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
         def make_bar_tiling_quality_video():
             print(f'\n====== Make Bar - Bins = {self.bins} ======')
-            stats = pd.read_csv(ProjectPaths.stats_file())
+            stats_df = pd.read_csv(ProjectPaths.stats_file())
 
             for self.tiling in self.tiling_list:
                 if ProjectPaths.bar_tiling_quality_video_file().exists() and not overwrite:
                     warning(f'Figure exist. Skipping')
                     return
-                pos = [(2, 6, x) for x in range(1, 2 * 5 + 1)]
+                pos = [(2, 1, x) for x in range(1, 2 * 1 + 1)]
                 subplot_pos = iter(pos)
                 fig = figure.Figure(figsize=(12, 4), dpi=300)
 
                 for self.metric in ['time', 'rate']:
+                    nrows, ncols, index = next(subplot_pos)
+                    ax: axes.Axes = fig.add_subplot(nrows, ncols, index)
+                    xticks = stats_df['name'].unique()
+                    start = -1
                     for self.quality in self.quality_list:
-                        nrows, ncols, index = next(subplot_pos)
-                        ax: axes.Axes = fig.add_subplot(nrows, ncols, index)
+                        for self.proj in self.proj_list:
+                            start += 1
+                            stats = stats_df[(stats_df['quality'] == int(self.quality)) & (stats_df['tiling'] == self.tiling) & (stats_df['proj'] == self.proj) & (stats_df['metric'] == self.metric)]
+                            stats = stats.sort_values(by=['average'], ascending=False)
 
-                        xticks = stats['name'].unique()
+                            x = list(range(0+start, len(xticks)*13+start, 13))
+                            time_avg = stats['average']
+                            time_std = stats['std']
 
-                        cmp_stats = stats[(stats['quality'] == self.quality) & (stats['tiling'] == self.tiling) & (stats['proj'] == 'cmp') & (stats['metric'] == self.metric)]
-                        x = list(range(len(xticks)+3))
-                        time_avg = cmp_stats['average']
-                        time_std = cmp_stats['std']
+                            if self.metric == 'time':
+                                ylabel = 'Decoding time (s)'
+                                scilimits = (-3, -3)
+                            else:
+                                ylabel = 'Bit Rate (Mbps)'
+                                scilimits = (6, 6)
 
-                        if self.metric == 'time':
-                            ylabel = 'Decoding time (s)' if index in [1, 6] else None
-                            scilimits = (-3, -3)
-                        else:
-                            ylabel = 'Bit Rate (Mbps)' if index in [1, 6] else None
-                            scilimits = (6, 6)
+                            if self.proj == 'cmp':
+                                color = 'red'
+                            else:
+                                color = 'blue'
+                            self.make_graph('bar', ax=ax,
+                                            x=x, y=time_avg, yerr=time_std,
+                                            title=f'{self.tiling}-{self.metric}',
+                                            ylabel=ylabel,
+                                            width=1,
+                                            scilimits=scilimits)
+                    ax.set_xticks(list(range(0+6, len(xticks)*13+6, 13)))
+                    ax.set_xticklabels(xticks, rotation=-80)
 
-                        self.make_graph('bar', ax=ax,
-                                        x=x, y=time_avg, yerr=time_std,
-                                        title=f'{self.proj}-{self.tiling}',
-                                        xlabel='CRF',
-                                        ylabel=ylabel,
-                                        xticks=xticks,
-                                        width=1,
-                                        scilimits=scilimits)
-
-                        # bar plot of erp
-
-                        erp_stats = stats[(stats['quality'] == self.quality) & (stats['tiling'] == self.tiling) & (
-                                    stats['proj'] == 'erp') & (stats['metric'] == self.metric)]
-                        x = list(range(1, len(xticks) + 4))
-                        time_avg = erp_stats['average']
-                        time_std = erp_stats['std']
-
-                        if self.metric == 'time':
-                            ylabel = 'Decoding time (s)' if index in [1, 6] else None
-                            scilimits = (-3, -3)
-                        else:
-                            ylabel = 'Bit Rate (Mbps)' if index in [1, 6] else None
-                            scilimits = (6, 6)
-
-                        self.make_graph('bar', ax=ax,
-                                        x=x, y=time_avg, yerr=time_std,
-                                        title=f'{self.proj}-{self.tiling}',
-                                        ylabel=ylabel,
-                                        xticks=xticks,
-                                        width=1,
-                                        scilimits=scilimits)
-                        ax.set_xticklabels(ax.get_xticks(), rotation = -80)
                 # fig.show()
                 print(f'Salvando a figura')
                 fig.savefig(ProjectPaths.bar_tiling_quality_video_file())
-
 
         def make_bar_tiling_quality():
             print(f'\n====== Make Bar - Bins = {self.bins} ======')
