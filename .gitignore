@@ -17,3 +17,7 @@ build/
 .vs
 .vscode
 bin/
+/datasets
+/lossless
+/original
+/projections
