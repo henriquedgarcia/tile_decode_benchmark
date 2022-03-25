@@ -19,8 +19,8 @@ def main():
 
     # DectimeGraphs(config, 'HIST_BY_PATTERN', ['custom'], overwrite=False)
     # DectimeGraphs(config, 'HIST_BY_PATTERN_BY_QUALITY',  [10, 20, 30, 40, 50, 'custom'], overwrite=False)
-    # DectimeGraphs(config, 'HIST_BY_PATTERN_FULL_FRAME', ['custom'], overwrite=False)
-    DectimeGraphs(config, 'HIST_BY_VIDEO_BY_PATTERN_BY_QUALITY', [20], overwrite=False)
+    # DectimeGraphs(config, 'HIST_BY_VIDEO_BY_PATTERN_BY_QUALITY', [20], overwrite=False)
+    DectimeGraphs(config, 'HIST_BY_PATTERN_FULL_FRAME', ['custom'], overwrite=False)
 
     # Main.siti(2)
     # Main.quality(5)  # 1-all, 2-psnr, 3-wspsnr, 4-spsnr, 5-results
