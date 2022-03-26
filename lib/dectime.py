@@ -380,7 +380,6 @@ class Graphs:
     @property
     def quality_list(self):
         quality_list = self.config['quality_list']
-
         try:
             quality_list.remove('0')
         except ValueError:
@@ -451,13 +450,18 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
     def rc_config(self):
         import matplotlib as mpl
-        rc_param = {"figure": {'figsize':(12.8, 3.84), 'dpi':300, 'autolayout':True},
-                    "lines": {'linewidth':0.5, 'markersize':3},
-                    "axes": {'linewidth': 0.5, 'titlesize': 8, 'labelsize': 6, 'prop_cycle': cycler(color=[plt.get_cmap('tab20')(i) for i in range(20)])},
-                    "xtick": {'labelsize' : 6},
-                    "ytick": {'labelsize' : 6},
-                    "legend": {'fontsize' : 6},
-                    "font": {'size' : 8}}
+        rc_param = {"figure": {'figsize': (12.8, 3.84), 'dpi': 300, 'autolayout': True},
+                    "lines": {'linewidth': 0.5, 'markersize': 3},
+                    "errorbar": {'capsize': 4},
+                    "patch": {'linewidth': 0.5, 'edgecolor': 'black', 'facecolor': '#3297c9'},
+                    "axes": {'linewidth': 0.5, 'titlesize': 8, 'labelsize': 6,
+                             'prop_cycle': cycler(color=[plt.get_cmap('tab20')(i) for i in range(20)])},
+                    "xtick": {'labelsize': 6},
+                    "ytick": {'labelsize': 6},
+                    "legend": {'fontsize': 6},
+                    "font": {'size': 8},
+                    "boxplot": {'flierprops.marker': '+', 'flierprops.markersize': 1}
+                    }
 
         for group in rc_param:
             mpl.rc(group, **rc_param[group])
@@ -1543,11 +1547,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
             data = load_json(ProjectPaths.data_file())
 
             for self.tiling in self.tiling_list:
-                # pos = [(2, 1, x) for x in range(1, 2 * 1 + 1)]
-                # subplot_pos = iter(pos)
-                # fig = figure.Figure(figsize=(12, 4), dpi=300)
-
-                for self.metric in ['time', 'rate']:
+                for self.metric in self.metric_list:
                     if ProjectPaths.boxplot_tiling_quality_video_file().exists() and not overwrite:
                         warning(f'Figure exist. Skipping')
                         return
@@ -1563,10 +1563,12 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                     ax.grid(axis='y')
                     xticks = stats_df['name'].unique()
                     start = -1
+
                     for self.quality in self.quality_list:
                         for self.proj in ['cmp', 'erp']:
                             start += 1
                             data_bucket = []
+
                             for name in xticks:
                                 data_bucket.append(data[name][self.proj][self.tiling][self.quality][self.metric])
                             x = list(range(0 + start, len(xticks) * 13 + start, 13))
@@ -1690,12 +1692,12 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                 return img_file
 
             @staticmethod
-            def bar_video_pattern_quality_file() -> Path:
+            def bar_pattern_full_frame_file() -> Path:
                 img_file = self.workfolder / f'bar_pattern_full_frame_{self.metric}.png'
                 return img_file
 
             @staticmethod
-            def boxplot_tiling_quality_video_file() -> Path:
+            def boxplot_pattern_full_frame_file() -> Path:
                 img_file = self.workfolder / f'boxplot_tiling_quality_video_{self.tiling}_{self.metric}.png'
                 return img_file
 
@@ -1703,9 +1705,9 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
             get_data()
             make_fit()
             calc_stats()
-            make_plot()
-            # make_bar()
-            # make_boxplot()
+            make_hist()
+            make_bar()
+            make_boxplot()
 
         def get_data():
             print('\n\n====== Get Data ======')
@@ -1846,7 +1848,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
             pd.DataFrame(stats).to_csv(str(ProjectPaths.stats_file()), index=False)
 
-        def make_plot():
+        def make_hist():
             print(f'\n====== Make Plot - Bins = {self.bins} ======')
             n_dist = 3
 
@@ -1857,7 +1859,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                           'halfnorm': '#f5793a', 'expon': '#c9bd9e'}
 
             # make an image for each metric
-            for metric in self.metric_list:
+            for self.metric in self.metric_list:
                 # Check image file by metric
                 if ProjectPaths.hist_pattern_full_frame_file().exists() and not overwrite:
                     warning(f'Figure exist. Skipping')
@@ -1870,23 +1872,21 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                 fig = figure.Figure(figsize=(12.8, 3.84))
                 pos = [(2, 5, x) for x in range(1, 5 * 2 + 1)]
                 subplot_pos = iter(pos)
-                xlabel = 'Decoding Time (s)' if metric == 'time' else 'Bitrate (Mbps)'
+                xlabel = 'Decoding Time (s)' if self.metric == 'time' else 'Bitrate (Mbps)'
 
-                for proj in self.proj_list:
-                    for tiling in self.tiling_list:
-                        # Load fitter
+                for self.proj in self.proj_list:
+                    for self.tiling in self.tiling_list:
+                        # Load fitter and select samples
                         fitter = load_pickle(ProjectPaths.fitter_pickle_file())
+                        samples = data[self.proj][self.tiling][self.metric]
 
                         # Position of plot
                         nrows, ncols, index = next(subplot_pos)
                         ax: axes.Axes = fig.add_subplot(nrows, ncols, index)
-                        ax.set_yscale('log')
 
-                        # Make histogram
-                        samples = data[self.proj][self.tiling][self.metric]
-
+                        # Make the histogram
                         self.make_graph('hist', ax, y=samples, bins=len(fitter.x),
-                                        label='empirical', title=f'{proj}-{tiling}',
+                                        label='empirical', title=f'{self.proj}-{self.tiling}',
                                         xlabel=xlabel)
 
                         # make plot for n_dist distributions
@@ -1897,156 +1897,118 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                                             label=f'{dist_name}',
                                             color=color_list[dist_name])
 
+                        # ax.set_yscale('log')
                         ax.legend(loc='upper right')
 
                 print(f'  Saving the figure')
                 fig.savefig(ProjectPaths.hist_pattern_full_frame_file())
 
-        def _make_bar(plot_type: Union[str, str], ax: axes.Axes, x: List[float],
-                      y: List[float], yerr: List[float] = None,
-                      title: str = None, label: str = None, xlabel: str = None,
-                      ylabel: str = None, xticks: list = None,
-                      legend: dict = None, width: float = 0.8,
-                      scilimits: Optional[Tuple[int, int]] = (6, 6),
-                      color=None):
-
-            if plot_type == 'bar':
-                ax.bar(x, y, width=width, yerr=yerr, label=label)
-            elif plot_type == 'plot':
-                ax.plot(x, y, color='r', linewidth=1, label=label)
-            elif plot_type == 'boxplot':
-                color = color if color else ''
-                bx = ax.boxplot(y, positions=x, widths=1,
-                                whis = (0, 100),
-                                showfliers=False,
-                                boxprops=dict(facecolor=color),
-                                flierprops=dict(color='r'),
-                                medianprops=dict(color='k'),
-                                patch_artist=True, labels=label)
-                # # Get numbers of ouliers
-                # for xtic, line in zip(xticks, bx['fliers']):
-                #     print(f'{title} - CRF {xtic} {len(line.get_xdata())}')
-
-            ax.ticklabel_format(axis='y', style='scientific',
-                                scilimits=scilimits)
-            if xlabel is not None:
-                ax.set_xlabel(xlabel)
-            if ylabel is not None:
-                ax.set_ylabel(ylabel)
-            if xticks is not None:
-                ax.set_xticks(x)
-                ax.set_xticklabels(xticks)
-            if title is not None:
-                ax.set_title(title)
-            if legend is not None:
-                ax.legend(**legend)
-
         def make_bar():
             print(f'\n====== Make Bar - Bins = {self.bins} ======')
-            name = f'Bar_by_pattern_fullframe_{self.bins}bins.png'
-            path = self.workfolder / name
+            path = ProjectPaths.bar_pattern_full_frame_file()
             if path.exists() and not overwrite:
                 warning(f'Figure exist. Skipping')
                 return
 
-            stats = pd.DataFrame(self.stats)
+            stats = pd.read_csv(ProjectPaths.stats_file())
             fig = figure.Figure(figsize=(6.4, 3.84))
-            subplot_pos = iter(((2,2,1),(2,2,2),(2,2,3),(2,2,4)))
+            pos = [(2, 1, x) for x in range(1, 2 * 1 + 1)]
+            subplot_pos = iter(pos)
 
-            for proj in ['cmp', 'erp']:
-                data = stats[stats[f'proj'] == proj]
-                for metric in ['time', 'rate']:
-                    nrows, ncols, index = next(subplot_pos)
-                    ax: axes.Axes = fig.add_subplot(nrows, ncols, index)
+            for self.metric in self.metric_list:
+                nrows, ncols, index = next(subplot_pos)
+                ax: axes.Axes = fig.add_subplot(nrows, ncols, index)
 
-                    data_avg = data[f'{metric}_average']
-                    data_std = data[f'{metric}_std']
-                    x = list(range(len(self.config['tiling_list'])))
-                    xticks = data['tiling']
-                    ylabel = 'Decoding time (s)' if index in [1, 3] else 'Bit Rate (Mbps)'
+                for start, self.proj in enumerate(self.proj_list):
+                    data = stats[(stats[f'proj'] == self.proj) & (stats['metric'] == self.metric)]
+                    data_avg = data[f'average']
+                    data_std = data[f'std']
 
-                    if index in [1, 3]:
+                    if self.metric == 'time':
+                        ylabel = 'Decoding time (ms)'
                         scilimits = (-3, -3)
                         ax.set_ylim(0.230, 1.250)
                     else:
+                        ylabel = 'Bit Rate (Mbps)'
                         scilimits = (6, 6)
 
-                    _make_bar('bar', ax=ax,
-                              x=x, y=data_avg, yerr=data_std,
-                              title=f'{proj}',
-                              ylabel=ylabel,
-                              xticks=xticks,
-                              scilimits=scilimits)
+                    if self.proj == 'cmp':
+                        color = 'lime'
+                    else:
+                        color = 'blue'
 
-            # fig.show()
+                    x = list(range(0 + start, len(data[f'tiling']) * 3 + start, 3))
+
+                    self.make_graph('bar', ax=ax,
+                                    x=x, y=data_avg, yerr=data_std,
+                                    title=f'{self.metric}',
+                                    ylabel=ylabel,
+                                    color=color,
+                                    scilimits=scilimits)
+
+                # finishing of Graphs
+                patch1 = mpatches.Patch(color='lime', label='CMP')
+                patch2 = mpatches.Patch(color='blue', label='ERP')
+                legend = {'handles': (patch1, patch2), 'loc': 'upper right'}
+                ax.legend(**legend)
+                ax.set_xticks([i + 0.5 for i in range(0, len(self.tiling_list) * 3, 3)])
+                ax.set_xticklabels(self.tiling_list)
+
             print(f'Salvando a figura')
             fig.savefig(path)
 
         def make_boxplot():
             print(f'\n====== Make Bar - Bins = {self.bins} ======')
-            name = f'Boxplot_by_pattern_by_quality_{self.bins}bins.png'
-            path = self.workfolder / name
+            path = ProjectPaths.boxplot_pattern_full_frame_file()
             if path.exists() and not overwrite:
                 warning(f'Figure exist. Skipping')
                 return
 
-            fig = figure.Figure()
-            subplot_pos = iter(eval(self.plot_config['subplot_pos']))
+            data = load_json(ProjectPaths.data_file())
 
-            for metric in ['time', 'rate']:
-                for tiling in self.config['tiling_list']:
-                    nrows, ncols, index = next(subplot_pos)
-                    ax: axes.Axes = fig.add_subplot(nrows, ncols, index)
-                    for proj in ['cmp', 'erp']:
-                        data = []
-                        for quality in self.config['quality_list']:
-                            if quality == '0': continue
-                            data.append(self.data[proj][tiling][quality][metric])
+            fig = figure.Figure(figsize=(6.4, 3.84))
+            pos = [(2, 1, x) for x in range(1, 2 * 1 + 1)]
+            subplot_pos = iter(pos)
 
-                        start = 0
-                        if proj == 'cmp':
-                            start = 1
-                        if proj == 'erp':
-                            start = 2
-                        x = list(range(start,3*(len(self.config['quality_list'])-1)+start-1, 3))
+            for self.metric in self.metric_list:
+                nrows, ncols, index = next(subplot_pos)
+                ax: axes.Axes = fig.add_subplot(nrows, ncols, index)
 
-                        stats = self.stats[(self.stats['tiling'] == tiling) & (self.stats['proj'] == proj)]
-                        xticks = stats['quality']
+                for start, self.proj in enumerate(self.proj_list):
+                    data_bucket = []
+                    for self.tiling in self.tiling_list:
+                        data_bucket.append(data[self.proj][self.tiling][self.metric])
 
-                        if index == 1:
-                            ylabel = 'Decoding time (s)'
-                        elif index == 6:
-                            ylabel = 'Bit Rate (Mbps)'
-                        else:
-                            ylabel = None
+                    if self.metric == 'time':
+                        ylabel = 'Decoding time (ms)'
+                        scilimits = (-3, -3)
+                        ax.set_ylim(0.230, 1.250)
+                    else:
+                        ylabel = 'Bit Rate (Mbps)'
+                        scilimits = (6, 6)
 
-                        if index >= 6:
-                            scilimits = (6, 6)
-                        else:
-                            scilimits = (-3, -3)
+                    if self.proj == 'cmp':
+                        color = 'lime'
+                    else:
+                        color = 'blue'
 
-                        if proj == 'cmp':
-                            color='#1f77b4'
-                        else:
-                            color='pink'
+                    x = list(range(0 + start, len(self.tiling_list) * 3 + start, 3))
+                    xticks = self.tiling_list
 
-                        _make_bar('boxplot', ax=ax,
-                                  x=x,
-                                  y=data,
-                                  title=f'{metric} - {tiling}',
-                                  xlabel='CRF',
-                                  ylabel=ylabel,
-                                  xticks=xticks,
-                                  width=5,
-                                  scilimits=scilimits,
-                                  color=color)
+                    self.make_graph('boxplot', ax=ax,
+                                    x=x,
+                                    y=data_bucket,
+                                    title=f'{self.metric}',
+                                    ylabel=ylabel,
+                                    width=1,
+                                    scilimits=scilimits,
+                                    color=color)
 
-                        if index >= 1:
-                            patch1 = mpatches.Patch(color='#1f77b4', label='CMP')
-                            patch2 = mpatches.Patch(color='pink', label='ERP')
-                            legend = {'handles': (patch1, patch2),
-                                      'loc': 'upper right'}
-                            ax.legend(**legend)
+                    patch1 = mpatches.Patch(color='lime', label='CMP')
+                    patch2 = mpatches.Patch(color='blue', label='ERP')
+                    legend = {'handles': (patch1, patch2),
+                              'loc': 'upper right'}
+                    ax.legend(**legend)
 
             print(f'Salvando a figura')
             fig.savefig(path)
