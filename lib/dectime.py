@@ -451,16 +451,21 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
     def rc_config(self):
         import matplotlib as mpl
         rc_param = {"figure": {'figsize': (12.8, 3.84), 'dpi': 300, 'autolayout': True},
-                    "lines": {'linewidth': 0.5, 'markersize': 3},
-                    "errorbar": {'capsize': 4},
-                    "patch": {'linewidth': 0.5, 'edgecolor': 'black', 'facecolor': '#3297c9'},
                     "axes": {'linewidth': 0.5, 'titlesize': 8, 'labelsize': 6,
                              'prop_cycle': cycler(color=[plt.get_cmap('tab20')(i) for i in range(20)])},
                     "xtick": {'labelsize': 6},
                     "ytick": {'labelsize': 6},
                     "legend": {'fontsize': 6},
                     "font": {'size': 8},
-                    "boxplot": {'flierprops.marker': '+', 'flierprops.markersize': 1}
+                    "patch": {'linewidth': 0.5, 'edgecolor': 'black', 'facecolor': '#3297c9'},
+                    "lines": {'linewidth': 0.5, 'markersize': 3},
+                    "errorbar": {'capsize': 4},
+                    "boxplot": {'flierprops.marker': '+', 'flierprops.markersize': 1, 'flierprops.linewidth': 0.5,
+                                'boxprops.linewidth': 0.0,
+                                'capprops.linewidth': 1,
+                                'medianprops.linewidth': 0.5,
+                                'whiskerprops.linewidth': 0.5,
+                                }
                     }
 
         for group in rc_param:
@@ -528,11 +533,13 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                    xlabel: str = None, ylabel: str = None,
                    xticks: list = None, width: int = 0.8,
                    scilimits: Optional[Tuple[int, int]] = None,
-                   color=None, bins=None):
+                   color=None, bins=None, histtype='bar', cumulative=False,
+                   log=False):
 
         if plot_type == 'hist':
-            artist = ax.hist(y, bins=bins, histtype='bar', density=True, label=label,
-                             color='#3297c9')
+            artist = ax.hist(y, bins=bins, histtype=histtype, label=label,
+                             cumulative=True, density=True, log=log,
+                             color='#808080', edgecolor='black', linewidth=0.4)
 
         elif plot_type == 'bar':
             artist = ax.bar(x, y, width=width, yerr=yerr, label=label, color=color)
@@ -550,6 +557,9 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                                 flierprops=dict(color='r'),
                                 medianprops=dict(color='k'),
                                 patch_artist=True, labels=label)
+            for cap in artist['caps']:
+                cap.set_xdata(cap.get_xdata() + (0.3, -0.3))
+
             # # Get numbers of ouliers
             # for xtic, line in zip(xticks, bx['fliers']):
             #     print(f'{title} - CRF {xtic} {len(line.get_xdata())}')
@@ -557,7 +567,8 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
             raise ValueError(f'The plot_type parameter "{plot_type}" not supported.')
 
         if scilimits:
-            ax.ticklabel_format(axis='y', style='scientific',
+            axis = 'x' if plot_type == 'hist' else 'y'
+            ax.ticklabel_format(axis=axis, style='scientific',
                                 scilimits=scilimits)
         if xlabel is not None:
             ax.set_xlabel(xlabel)
@@ -1767,8 +1778,8 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                             min_ = np.min(samples)
                             max_ = np.max(samples)
                             norm = round((max_ - min_) / 0.001)
-                            if norm > 60:
-                                bins = 60
+                            if norm > 30:
+                                bins = 30
                             else:
                                 bins = norm
 
@@ -1852,11 +1863,11 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
             print(f'\n====== Make Plot - Bins = {self.bins} ======')
             n_dist = 3
 
-            color_list = {'burr12': '#000000', 'fatiguelife': '#ff8888',
-                          'gamma': '#687964', 'invgauss': '#11cc22',
-                          'rayleigh': '#0f2080', 'lognorm': '#ff9910',
-                          'genpareto': '#ffc428', 'pareto': '#990099',
-                          'halfnorm': '#f5793a', 'expon': '#c9bd9e'}
+            color_list = {'burr12': 'tab:blue', 'fatiguelife': 'tab:orange',
+                          'gamma': 'tab:green', 'invgauss': 'tab:red',
+                          'rayleigh': 'tab:purple', 'lognorm': 'tab:brown',
+                          'genpareto': 'tab:pink', 'pareto': 'tab:gray',
+                          'halfnorm': 'tab:olive', 'expon': 'tab:cyan'}
 
             # make an image for each metric
             for self.metric in self.metric_list:
@@ -1872,7 +1883,13 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                 fig = figure.Figure(figsize=(12.8, 3.84))
                 pos = [(2, 5, x) for x in range(1, 5 * 2 + 1)]
                 subplot_pos = iter(pos)
-                xlabel = 'Decoding Time (s)' if self.metric == 'time' else 'Bitrate (Mbps)'
+
+                if self.metric == 'time':
+                    xlabel = 'Decoding time (s)'
+                    # scilimits = (-3, -3)
+                else:
+                    xlabel = 'Bit Rate (Mbps)'
+                    # scilimits = (6, 6)
 
                 for self.proj in self.proj_list:
                     for self.tiling in self.tiling_list:
@@ -1886,7 +1903,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
                         # Make the histogram
                         self.make_graph('hist', ax, y=samples, bins=len(fitter.x),
-                                        label='empirical', title=f'{self.proj}-{self.tiling}',
+                                        label='empirical', title=f'{self.proj.upper()}-{self.tiling}',
                                         xlabel=xlabel)
 
                         # make plot for n_dist distributions
@@ -1933,22 +1950,22 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                         scilimits = (6, 6)
 
                     if self.proj == 'cmp':
-                        color = 'lime'
+                        color = 'tab:green'
                     else:
-                        color = 'blue'
+                        color = 'tab:blue'
 
                     x = list(range(0 + start, len(data[f'tiling']) * 3 + start, 3))
 
                     self.make_graph('bar', ax=ax,
                                     x=x, y=data_avg, yerr=data_std,
-                                    title=f'{self.metric}',
-                                    ylabel=ylabel,
                                     color=color,
+                                    ylabel=ylabel,
+                                    title=f'{self.metric}',
                                     scilimits=scilimits)
 
                 # finishing of Graphs
-                patch1 = mpatches.Patch(color='lime', label='CMP')
-                patch2 = mpatches.Patch(color='blue', label='ERP')
+                patch1 = mpatches.Patch(color='tab:green', label='CMP')
+                patch2 = mpatches.Patch(color='tab:blue', label='ERP')
                 legend = {'handles': (patch1, patch2), 'loc': 'upper right'}
                 ax.legend(**legend)
                 ax.set_xticks([i + 0.5 for i in range(0, len(self.tiling_list) * 3, 3)])
@@ -1982,33 +1999,31 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                     if self.metric == 'time':
                         ylabel = 'Decoding time (ms)'
                         scilimits = (-3, -3)
-                        ax.set_ylim(0.230, 1.250)
                     else:
                         ylabel = 'Bit Rate (Mbps)'
                         scilimits = (6, 6)
 
                     if self.proj == 'cmp':
-                        color = 'lime'
+                        color = 'tab:green'
                     else:
-                        color = 'blue'
+                        color = 'tab:blue'
 
                     x = list(range(0 + start, len(self.tiling_list) * 3 + start, 3))
-                    xticks = self.tiling_list
 
                     self.make_graph('boxplot', ax=ax,
                                     x=x,
                                     y=data_bucket,
                                     title=f'{self.metric}',
                                     ylabel=ylabel,
-                                    width=1,
                                     scilimits=scilimits,
                                     color=color)
-
-                    patch1 = mpatches.Patch(color='lime', label='CMP')
-                    patch2 = mpatches.Patch(color='blue', label='ERP')
+                    patch1 = mpatches.Patch(color='tab:green', label='CMP')
+                    patch2 = mpatches.Patch(color='tab:blue', label='ERP')
                     legend = {'handles': (patch1, patch2),
                               'loc': 'upper right'}
                     ax.legend(**legend)
+                    ax.set_xticks([i + 0.5 for i in range(0, len(self.tiling_list) * 3, 3)])
+                    ax.set_xticklabels(self.tiling_list)
 
             print(f'Salvando a figura')
             fig.savefig(path)

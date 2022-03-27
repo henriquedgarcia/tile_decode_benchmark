@@ -13,13 +13,14 @@ config_list += [f'config/config_nas_erp_cmp.json']
 # config_list += [f'config/config_test.json']
 # config_list += [f'config/config_ffmpeg_crf_12videos_60s.json']
 
+
 def main():
     # Main.decode_time(5)  # 1-pre, 2-com, 3-seg, 4-dec, 5-collect
     # Main.check_files(8)  # 1-ori, 2-loss, 3-comp, 4-seg, 5-clean, 6-dec, 7-res
 
     # DectimeGraphs(config, 'HIST_BY_PATTERN', ['custom'], overwrite=False)
-    # DectimeGraphs(config, 'HIST_BY_PATTERN_BY_QUALITY',  [10, 20, 30, 40, 50, 'custom'], overwrite=False)
-    # DectimeGraphs(config, 'HIST_BY_VIDEO_BY_PATTERN_BY_QUALITY', [20], overwrite=False)
+    # DectimeGraphs(config, 'HIST_BY_PATTERN_BY_QUALITY',  ['custom'], overwrite=False)
+    # DectimeGraphs(config, 'HIST_BY_VIDEO_BY_PATTERN_BY_QUALITY', ['custom'], overwrite=False)
     DectimeGraphs(config, 'HIST_BY_PATTERN_FULL_FRAME', ['custom'], overwrite=False)
 
     # Main.siti(2)
