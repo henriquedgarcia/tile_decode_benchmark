@@ -18,10 +18,10 @@ def main():
     # Main.decode_time(5)  # 1-pre, 2-com, 3-seg, 4-dec, 5-collect
     # Main.check_files(8)  # 1-ori, 2-loss, 3-comp, 4-seg, 5-clean, 6-dec, 7-res
 
-    DectimeGraphs(config, 'HIST_BY_PATTERN', ['custom'], overwrite=False)
-    # DectimeGraphs(config, 'HIST_BY_PATTERN_BY_QUALITY',  ['custom'], overwrite=False)
-    # DectimeGraphs(config, 'HIST_BY_VIDEO_BY_PATTERN_BY_QUALITY', ['custom'], overwrite=False)
-    # DectimeGraphs(config, 'HIST_BY_PATTERN_FULL_FRAME', ['custom'], overwrite=False)
+    DectimeGraphs(config, 'BY_PATTERN', ['custom'], overwrite=False)
+    # DectimeGraphs(config, 'BY_PATTERN_BY_QUALITY',  ['custom'], overwrite=False)
+    # DectimeGraphs(config, 'BY_VIDEO_BY_PATTERN_BY_QUALITY', ['custom'], overwrite=False)
+    # DectimeGraphs(config, 'BY_PATTERN_FULL_FRAME', ['custom'], overwrite=False)
 
     # Main.siti(2)
     # Main.quality(5)  # 1-all, 2-psnr, 3-wspsnr, 4-spsnr, 5-results

@@ -26,7 +26,7 @@ from .util import (run_command, check_video_gop, iter_frame, load_sph_file,
                    xyz2hcs, save_json, load_json, lin_interpol, save_pickle,
                    load_pickle)
 from .video_state import Config, VideoContext
-
+import scipy.stats
 
 class BaseTileDecodeBenchmark:
     config: Config = None
@@ -337,6 +337,7 @@ class Graphs:
     config: Config = None
     video_context: VideoContext = None
     _video: str = None
+    quality_ref: str = '0'
     quality: str = None
     tiling: str = None
     metric: str = None
@@ -409,7 +410,27 @@ class Graphs:
             dectime = load_json(dectime_filename, object_hook=dict)
             yield dectime
         finally:
-            del (dectime)
+            del dectime
+
+    @contextmanager
+    def quality_ctx(self):
+        quality = {
+            'tiling': {
+                'crf': {
+                    'tile': {
+                        'psnr': [],
+                        'ws-psnr': [],
+                        's-psnr': [],
+                    },
+                },
+            },
+        }
+        try:
+            dectime_filename = self.video_context.project_path / self.video_context.quality_folder / f'quality_{self.video}.json'
+            quality = load_json(dectime_filename, object_hook=dict)
+            yield quality
+        finally:
+            del quality
 
 
 class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
@@ -430,10 +451,10 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
         :param role: Someone from Role dict
         :param kwargs: Role parameters
         """
-        function = {'HIST_BY_PATTERN': self.hist_by_pattern,
-                    'HIST_BY_PATTERN_BY_QUALITY': self.hist_by_pattern_by_quality,
-                    'HIST_BY_VIDEO_BY_PATTERN_BY_QUALITY': self.hist_by_video_by_tiling_by_quality,
-                    'HIST_BY_PATTERN_FULL_FRAME': self.hist_by_pattern_full_frame,
+        function = {'BY_PATTERN': self.by_pattern,
+                    'BY_PATTERN_BY_QUALITY': self.by_pattern_by_quality,
+                    'BY_VIDEO_BY_PATTERN_BY_QUALITY': self.by_video_by_tiling_by_quality,
+                    'BY_PATTERN_FULL_FRAME': self.by_pattern_full_frame,
                     }
 
         self.config = Config(config)
@@ -448,7 +469,8 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
         for self.bins in bins:
             self.run(**kwargs)
 
-    def rc_config(self):
+    @staticmethod
+    def rc_config():
         import matplotlib as mpl
         rc_param = {"figure": {'figsize': (12.8, 3.84), 'dpi': 300, 'autolayout': True},
                     "axes": {'linewidth': 0.5, 'titlesize': 8, 'labelsize': 6,
@@ -526,7 +548,8 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
         else:
             raise ValueError(f'Distribution unknown: {dist_name}')
 
-    def make_graph(self, plot_type: Union[str, str], ax: axes.Axes,
+    @staticmethod
+    def make_graph(plot_type: Union[str, str], ax: axes.Axes,
                    x: List[float] = None, y: List[float] = None,
                    yerr: List[float] = None,
                    legend: dict = None, title: str = None, label: str = None,
@@ -538,8 +561,8 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
         if plot_type == 'hist':
             artist = ax.hist(y, bins=bins, histtype=histtype, label=label,
-                             cumulative=True, density=True, log=log,
-                             color='#808080', edgecolor='black', linewidth=0.4)
+                             cumulative=cumulative, density=True, log=log,
+                             color='#aaaaaa', edgecolor='black', linewidth=0.2)
 
         elif plot_type == 'bar':
             artist = ax.bar(x, y, width=width, yerr=yerr, label=label, color=color)
@@ -584,7 +607,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
         return artist
 
-    def hist_by_pattern(self, overwrite):
+    def by_pattern(self, overwrite):
         class ProjectPaths:
             @staticmethod
             def data_file() -> Path:
@@ -613,7 +636,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
             @staticmethod
             def boxplot_pattern_file() -> Path:
-                img_file = self.workfolder / f'boxplot_pattern_{self.tiling}_{self.metric}.png'
+                img_file = self.workfolder / f'boxplot_pattern_{self.metric}.png'
                 return img_file
 
         def main():
@@ -634,32 +657,42 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
             data = AutoDict()
 
-            for proj in self.proj_list:
+            for self.proj in self.proj_list:
                 for self.tiling in self.tiling_list:
-                    for metric in ['time', 'time_std', 'rate']:
-                        print(f'  Getting - {proj} {self.tiling} {metric}... ', end='')
-
-                        bulcket = data[self.proj][self.tiling][self.metric] = []
+                    for self.metric in ['time', 'time_std', 'rate', 'PSNR', 'WS-PSNR', 'S-PSNR']:
+                        bucket = data[self.proj][self.tiling][self.metric] = []
 
                         for self.video in self.videos_list:
-                            if proj not in self.video: continue
-                            with self.dectime_ctx() as dectime:
+                            if self.proj not in self.video: continue
+                            print(f'\r  Getting - {self.proj}  {self.name} {self.tiling} {self.metric}... ', end='')
+
+                            with self.dectime_ctx() as dectime, self.quality_ctx() as qlt_data:
                                 for self.quality in self.quality_list:
                                     for self.tile in self.tile_list:
                                         for self.chunk in self.chunk_list:
-                                            # values["time"|"time_std"|"rate"]: list[float|int]
+                                            # qual["psnr"|"ws-psnr"|"s-psnr"]: float
+                                            # values["dectimes"|"bitrate"]: list[float]|int
 
                                             values = dectime[self.tiling][self.quality][f'{self.tile}'][f'{self.chunk}']
-                                            if metric == 'time':
-                                                bulcket.append(np.average(values['dectimes']))
-                                            elif metric == 'time_std':
-                                                bulcket.append(np.std(values['dectimes']))
-                                            elif metric == 'rate':
-                                                bulcket.append(np.average(values['bitrate']))
+
+                                            if self.metric == 'time':
+                                                metric_val = float(np.average(values['dectimes']))
+                                            elif self.metric == 'time_std':
+                                                metric_val = float(np.std(values['dectimes']))
+                                            elif self.metric == 'rate':
+                                                metric_val = float(values['bitrate'])
+                                            if self.metric in ['PSNR', 'WS-PSNR', 'S-PSNR']:
+                                                value = qlt_data[self.tiling][self.quality][f'{self.tile}'][self.metric]
+                                                idx = self.chunk - 1
+                                                metric_val = float(np.average(value[idx * 30: idx * 30 + 30]))
+
+                                            bucket.append(metric_val)
+
+                            print('OK')
 
             print(f' Saving... ', end='')
             save_json(data, ProjectPaths.data_file())
-            del(data)
+            del data
             print(f'  Finished.')
 
         def make_fit():
@@ -695,7 +728,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                         # Make the fit
                         distributions = self.config['distributions']
                         fitter = Fitter(samples, bins=bins, distributions=distributions,
-                                    timeout=900)
+                                        timeout=900)
                         fitter.fit()
 
                         # Saving
@@ -730,7 +763,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                         df_errors: pd.DataFrame = fitter.df_errors
 
                         # Calculate errors
-                        sse:pd.Series = df_errors['sumsquare_error']
+                        sse: pd.Series = df_errors['sumsquare_error']
                         bins = len(fitter.x)
                         rmse = np.sqrt(sse / bins)
                         nrmse = rmse / (sse.max() - sse.min())
@@ -780,14 +813,16 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
             data = load_json(ProjectPaths.data_file())
 
             # make an image for each metric
-            for metric in self.metric_list:
+            for self.metric in self.metric_list:
                 # Check image file by metric
-                if ProjectPaths.hist_pattern_file().exists() and not overwrite:
+                im_file = ProjectPaths.hist_pattern_file()
+                if im_file.exists() and not overwrite:
                     warning(f'Figure exist. Skipping')
                     continue
 
                 # Make figure
-                fig = figure.Figure(figsize = (12.8, 3.84))
+                fig = figure.Figure(figsize=(12.8, 3.84))
+                fig2 = figure.Figure(figsize=(12.8, 3.84))
                 pos = [(2, 5, x) for x in range(1, 5 * 2 + 1)]
                 subplot_pos = iter(pos)
 
@@ -798,8 +833,8 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                     xlabel = 'Bit Rate (Mbps)'
                     # scilimits = (6, 6)
 
-                for proj in self.proj_list:
-                    for tiling in self.tiling_list:
+                for self.proj in self.proj_list:
+                    for self.tiling in self.tiling_list:
                         # Load fitter and select samples
                         fitter = load_pickle(ProjectPaths.fitter_pickle_file())
                         samples = data[self.proj][self.tiling][self.metric]
@@ -807,11 +842,15 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                         # Position of plot
                         nrows, ncols, index = next(subplot_pos)
                         ax: axes.Axes = fig.add_subplot(nrows, ncols, index)
+                        ax2: axes.Axes = fig2.add_subplot(nrows, ncols, index)
 
                         # Make histogram
                         self.make_graph('hist', ax, y=samples, bins=len(fitter.x),
                                         label='empirical', title=f'{self.proj.upper()}-{self.tiling}',
                                         xlabel=xlabel)
+                        self.make_graph('hist', ax2, y=samples, bins=len(fitter.x),
+                                        label='empirical', title=f'{self.proj.upper()}-{self.tiling}',
+                                        xlabel=xlabel, cumulative=True)
 
                         # make plot for n_dist distributions
                         dists = fitter.df_errors['sumsquare_error'].sort_values()[0:n_dist].index
@@ -821,11 +860,21 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                                             label=f'{dist_name}',
                                             color=color_list[dist_name])
 
+                            # aa = ax2.twinx()
+                            dist: scipy.stats.rv_continuous = eval("scipy.stats." + dist_name)
+                            param = fitter.fitted_param[dist_name]
+                            cdf_fitted = list(dist.cdf(fitter.x, *param))
+
+                            self.make_graph('plot', ax2, x=fitter.x, y=cdf_fitted,
+                                            label=f'{dist_name}',
+                                            color=color_list[dist_name])
+
                         # ax.set_yscale('log')
                         ax.legend(loc='upper right')
 
                 print(f'  Saving the figure')
-                fig.savefig(ProjectPaths.hist_pattern_file())
+                fig.savefig(im_file)
+                fig2.savefig(im_file.with_stem(f'hist_pattern_{self.metric}_{self.bins}bins_cdf.png'))
 
         def make_bar():
             print(f'\n====== Make Bar - Bins = {self.bins} ======')
@@ -852,7 +901,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                     if self.metric == 'time':
                         ylabel = 'Decoding time (ms)'
                         scilimits = (-3, -3)
-                        ax.set_ylim(0.230, 1.250)
+                        # ax.set_ylim(0.230, 1.250)
                     else:
                         ylabel = 'Bit Rate (Mbps)'
                         scilimits = (6, 6)
@@ -886,60 +935,62 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
             print(f'\n====== Make Plot - Bins = {self.bins} ======')
 
             # Check image file by metric
-            img_file = self.workfolder / f'boxplot_by_pattern_{self.bins}bins.png'
+            img_file = ProjectPaths.boxplot_pattern_file()
             if img_file.exists() and not overwrite:
                 warning(f'Figure exist. Skipping')
                 return
 
-            # Make figure
-            fig = figure.Figure(figsize = (5.8, 3.84))
-            subplot_pos = iter(((2,1,1), (2,1,2)))
-            xticks = self.tiling_list
+            data = load_json(ProjectPaths.data_file())
 
-            # make an axes for each metric
-            for metric in ['time', 'rate']:
-                ylabel = 'Decoding Time (s)' if metric == 'time' else 'Bitrate (Mbps)'
+            fig = figure.Figure(figsize=(5.8, 3.84))
+            pos = [(2, 1, x) for x in range(1, 2 * 1 + 1)]
+            subplot_pos = iter(pos)
 
-                # Position of plot
+            for self.metric in self.metric_list:
                 nrows, ncols, index = next(subplot_pos)
                 ax: axes.Axes = fig.add_subplot(nrows, ncols, index)
 
-                for start, proj in enumerate(['cmp', 'erp'], 1):
-                    x = list(range(start, 3 * (len(self.tiling_list)) + start - 1, 3))
-                    data = []
+                for start, self.proj in enumerate(self.proj_list):
+                    data_bucket = []
 
-                    for tiling in self.tiling_list:
-                        # Load data
-                        data_file = self.workfolder_data / f'data_{proj}_{tiling}_{metric}.json'
-                        data.append(load_json(data_file))
+                    for self.tiling in self.tiling_list:
+                        data_bucket.append(data[self.proj][self.tiling][self.metric])
 
-                    # Make boxplot
-                    color = '#1f77b4' if proj == 'cmp' else 'pink'
-                    scilimits = (-3, -3) if metric == 'time' else (6, 6)
+                    if self.metric == 'time':
+                        ylabel = 'Decoding time (ms)'
+                        scilimits = (-3, -3)
+                    else:
+                        ylabel = 'Bit Rate (Mbps)'
+                        scilimits = (6, 6)
 
-                    self.make_graph('boxplot', ax, x=x, y=data,
-                                    title=f'{proj}-{metric}',
-                                    xlabel='Tiling',
+                    if self.proj == 'cmp':
+                        color = 'tab:green'
+                    else:
+                        color = 'tab:blue'
+
+                    x = list(range(0 + start, len(self.tiling_list) * 3 + start, 3))
+
+                    self.make_graph('boxplot', ax, x=x, y=data_bucket,
+                                    title=f'{self.proj.upper()}-{self.metric}',
                                     ylabel=ylabel,
-                                    xticks=xticks,
-                                    width=1,
                                     scilimits=scilimits,
                                     color=color,
                                     )
 
-                    patch1 = mpatches.Patch(color='#1f77b4', label='CMP')
-                    patch2 = mpatches.Patch(color='pink', label='ERP')
+                    patch1 = mpatches.Patch(color=color, label='CMP')
+                    patch2 = mpatches.Patch(color=color, label='ERP')
                     legend = {'handles': (patch1, patch2),
                               'loc': 'upper right'}
                     ax.legend(**legend)
+                    ax.set_xticks([i + 0.5 for i in range(0, len(self.tiling_list) * 3, 3)])
+                    ax.set_xticklabels(self.tiling_list)
 
-                # fig.show()
-                print(f'  Saving the figure')
-                fig.savefig(img_file)
+            print(f'  Saving the figure')
+            fig.savefig(img_file)
 
         main()
 
-    def hist_by_pattern_by_quality(self, overwrite):
+    def by_pattern_by_quality(self, overwrite):
         class ProjectPaths:
             @staticmethod
             def data_file() -> Path:
@@ -1015,7 +1066,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
             print(f' Saving... ', end='')
             save_json(data, ProjectPaths.data_file())
-            del(data)
+            del data
             print(f'  Finished.')
 
         def make_fit():
@@ -1058,7 +1109,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                             # Saving
                             print(f'  Saving... ')
                             save_pickle(ft, ProjectPaths.fitter_pickle_file())
-                            del (data)
+                            del data
                             print(f'  Finished.')
 
         def calc_stats():
@@ -1078,7 +1129,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                     for self.quality in self.quality_list:
                         data_bucket = {}
 
-                        for metric in self.metric_list:
+                        for self.metric in self.metric_list:
                             # Load data file
                             data_bucket[self.metric] = data[self.proj][self.tiling][self.quality][self.metric]
 
@@ -1086,7 +1137,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                             fitter = load_pickle(ProjectPaths.fitter_pickle_file())
 
                             # Calculate percentiles
-                            percentile = np.percentile(data_bucket[metric], [0, 25, 50, 75, 100]).T
+                            percentile = np.percentile(data_bucket[self.metric], [0, 25, 50, 75, 100]).T
                             df_errors: pd.DataFrame = fitter.df_errors
 
                             # Calculate errors
@@ -1096,13 +1147,13 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                             nrmse = rmse / (sse.max() - sse.min())
 
                             # Append info and stats on Dataframe
-                            stats[f'proj'].append(proj)
-                            stats[f'tiling'].append(tiling)
-                            stats[f'quality'].append(quality)
-                            stats[f'metric'].append(metric)
+                            stats[f'proj'].append(self.proj)
+                            stats[f'tiling'].append(self.tiling)
+                            stats[f'quality'].append(self.quality)
+                            stats[f'metric'].append(self.metric)
                             stats[f'bins'].append(bins)
-                            stats[f'average'].append(np.average(data_bucket[metric]))
-                            stats[f'std'].append(float(np.std(data_bucket[metric])))
+                            stats[f'average'].append(np.average(data_bucket[self.metric]))
+                            stats[f'std'].append(float(np.std(data_bucket[self.metric])))
                             stats[f'min'].append(percentile[0])
                             stats[f'quartile1'].append(percentile[1])
                             stats[f'median'].append(percentile[2])
@@ -1181,7 +1232,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                                 fitted_pdf = fitter.fitted_pdf[dist_name]
                                 err = fitter.df_errors['sumsquare_error'][dist_name]
                                 self.make_graph('plot', ax, x=fitter.x, y=fitted_pdf,
-                                                label=f'{dist_name}',
+                                                label=f'{dist_name} - SSE {err}',
                                                 color=color_list[dist_name])
 
                             # ax.set_yscale('log')
@@ -1211,7 +1262,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                         nrows, ncols, index = next(subplot_pos)
                         ax: axes.Axes = fig.add_subplot(nrows, ncols, index)
 
-                        time_stats = stats[(stats['tiling'] == tiling) & (stats['proj'] == proj) & (stats['metric'] == 'time')]
+                        time_stats = stats[(stats['tiling'] == tiling) & (stats['proj'] == self.proj) & (stats['metric'] == 'time')]
                         x = xticks = time_stats['quality']
                         time_avg = time_stats['average']
                         time_std = time_stats['std']
@@ -1229,7 +1280,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                         # line plot of bit rate
                         ax = ax.twinx()
 
-                        rate_stats = stats[(stats['tiling'] == tiling) & (stats['proj'] == proj) & (stats['metric'] == 'rate')]
+                        rate_stats = stats[(stats['tiling'] == tiling) & (stats['proj'] == self.proj) & (stats['metric'] == 'rate')]
                         rate_avg = rate_stats['average']
                         rate_stdp = rate_avg - rate_stats['average']
                         rate_stdm = rate_avg + rate_stats['average']
@@ -1253,7 +1304,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                 print(f'Salvando a figura')
                 fig.savefig(path)
 
-        def make_bar_tiling_quality():
+        def make_bar_quality_tiling():
             print(f'\n====== Make Bar - Bins = {self.bins} ======')
 
             path = self.workfolder / f'Bar_by_pattern_by_quality_{self.bins}bins.png'
@@ -1369,7 +1420,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
         main()
 
-    def hist_by_video_by_tiling_by_quality(self, overwrite):
+    def by_video_by_tiling_by_quality(self, overwrite):
         class ProjectPaths:
             @staticmethod
             def data_file() -> Path:
@@ -1479,8 +1530,8 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                                     min_ = np.min(data)
                                     max_ = np.max(data)
                                     norm = round((max_ - min_) / 0.001)
-                                    if norm > 60:
-                                        bins = 60
+                                    if norm > 30:
+                                        bins = 30
                                     else:
                                         bins = norm
 
@@ -1811,7 +1862,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
         main()
 
-    def hist_by_pattern_full_frame(self, overwrite):
+    def by_pattern_full_frame(self, overwrite):
         class ProjectPaths:
             @staticmethod
             def data_file() -> Path:
@@ -2114,6 +2165,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
         def make_boxplot():
             print(f'\n====== Make Bar - Bins = {self.bins} ======')
+
             path = ProjectPaths.boxplot_pattern_full_frame_file()
             if path.exists() and not overwrite:
                 warning(f'Figure exist. Skipping')
@@ -2131,6 +2183,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
                 for start, self.proj in enumerate(self.proj_list):
                     data_bucket = []
+
                     for self.tiling in self.tiling_list:
                         data_bucket.append(data[self.proj][self.tiling][self.metric])
 
@@ -2148,15 +2201,13 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
                     x = list(range(0 + start, len(self.tiling_list) * 3 + start, 3))
 
-                    self.make_graph('boxplot', ax=ax,
-                                    x=x,
-                                    y=data_bucket,
-                                    title=f'{self.metric}',
+                    self.make_graph('boxplot', ax=ax, x=x, y=data_bucket,
+                                    title=f'{self.proj.upper()}-{self.metric}',
                                     ylabel=ylabel,
                                     scilimits=scilimits,
                                     color=color)
-                    patch1 = mpatches.Patch(color='tab:green', label='CMP')
-                    patch2 = mpatches.Patch(color='tab:blue', label='ERP')
+                    patch1 = mpatches.Patch(color=color, label='CMP')
+                    patch2 = mpatches.Patch(color=color, label='ERP')
                     legend = {'handles': (patch1, patch2),
                               'loc': 'upper right'}
                     ax.legend(**legend)
@@ -3225,7 +3276,8 @@ try:
 except ImportError:
     pass
 
-def total_size(o, handlers={}, verbose=False):
+
+def total_size(o, handlers=None, verbose=False):
     """ Returns the approximate memory footprint an object and all of its contents.
 
     Automatically finds the contents of the following builtin containers and
@@ -3236,6 +3288,8 @@ def total_size(o, handlers={}, verbose=False):
                     OtherContainerClass: OtherContainerClass.get_elements}
 
     """
+    if handlers is None:
+        handlers = {}
     dict_handler = lambda d: chain.from_iterable(d.items())
     all_handlers = {tuple: iter,
                     list: iter,
@@ -3243,23 +3297,23 @@ def total_size(o, handlers={}, verbose=False):
                     dict: dict_handler,
                     set: iter,
                     frozenset: iter,
-                   }
+                    }
     all_handlers.update(handlers)     # user handlers take precedence
     seen = set()                      # track which object id's have already been seen
     default_size = getsizeof(0)       # estimate sizeof object without __sizeof__
 
-    def sizeof(o):
-        if id(o) in seen:       # do not double count the same object
+    def sizeof(obj):
+        if id(obj) in seen:       # do not double count the same object
             return 0
-        seen.add(id(o))
-        s = getsizeof(o, default_size)
+        seen.add(id(obj))
+        s = getsizeof(obj, default_size)
 
         if verbose:
-            print(s, type(o), repr(o), file=stderr)
+            print(s, type(obj), repr(obj), file=stderr)
 
         for typ, handler in all_handlers.items():
-            if isinstance(o, typ):
-                s += sum(map(sizeof, handler(o)))
+            if isinstance(obj, typ):
+                s += sum(map(sizeof, handler(obj)))
                 break
         return s
 
