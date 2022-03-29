@@ -344,6 +344,16 @@ class Graphs:
     tile: int = None
     chunk: int = None
     proj: str = None
+    color_list = {'burr12': 'tab:blue',
+                  'fatiguelife': 'tab:orange',
+                  'gamma': 'tab:green',
+                  'invgauss': 'tab:red',
+                  'rayleigh': 'tab:purple',
+                  'lognorm': 'tab:brown',
+                  'genpareto': 'tab:pink',
+                  'pareto': 'tab:gray',
+                  'halfnorm': 'tab:olive',
+                  'expon': 'tab:cyan'}
 
     @property
     def video(self):
@@ -555,14 +565,14 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                    legend: dict = None, title: str = None, label: str = None,
                    xlabel: str = None, ylabel: str = None,
                    xticks: list = None, width: int = 0.8,
-                   scilimits: Optional[Tuple[int, int]] = None,
+                   scilimits: Optional[tuple[tuple[str, tuple[int, int]], ...]] = None,
                    color=None, bins=None, histtype='bar', cumulative=False,
                    log=False):
 
         if plot_type == 'hist':
             artist = ax.hist(y, bins=bins, histtype=histtype, label=label,
                              cumulative=cumulative, density=True, log=log,
-                             color='#aaaaaa', edgecolor='black', linewidth=0.2)
+                             color='#bbbbbb', edgecolor='black', linewidth=0.2)
 
         elif plot_type == 'bar':
             artist = ax.bar(x, y, width=width, yerr=yerr, label=label, color=color)
@@ -590,9 +600,10 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
             raise ValueError(f'The plot_type parameter "{plot_type}" not supported.')
 
         if scilimits:
-            axis = 'x' if plot_type == 'hist' else 'y'
-            ax.ticklabel_format(axis=axis, style='scientific',
-                                scilimits=scilimits)
+            for axis, limits in scilimits:
+                ax.ticklabel_format(axis=axis,
+                                    style='scientific',
+                                    scilimits=limits)
         if xlabel is not None:
             ax.set_xlabel(xlabel)
         if ylabel is not None:
@@ -607,7 +618,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
         return artist
 
-    def by_pattern(self, overwrite):
+    def by_pattern(self, overwrite, n_dist=3):
         class ProjectPaths:
             @staticmethod
             def data_file() -> Path:
@@ -744,7 +755,8 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                 print(f'  stats_file found! Skipping.')
                 return
 
-            data = load_json(ProjectPaths.data_file())
+            # Load data file
+            dectime_data = load_json(ProjectPaths.data_file())
             stats = defaultdict(list)
 
             for self.proj in self.proj_list:
@@ -753,7 +765,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
                     for self.metric in self.metric_list:
                         # Load data
-                        data_bucket[self.metric] = data[self.proj][self.tiling][self.metric]
+                        data_bucket[self.metric] = dectime_data[self.proj][self.tiling][self.metric]
 
                         # Load fitter pickle
                         fitter = load_pickle(ProjectPaths.fitter_pickle_file())
@@ -801,13 +813,6 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
         def make_hist():
             print(f'\n====== Make Plot - Bins = {self.bins} ======')
-            n_dist = 3
-
-            color_list = {'burr12': 'tab:blue', 'fatiguelife': 'tab:orange',
-                          'gamma': 'tab:green', 'invgauss': 'tab:red',
-                          'rayleigh': 'tab:purple', 'lognorm': 'tab:brown',
-                          'genpareto': 'tab:pink', 'pareto': 'tab:gray',
-                          'halfnorm': 'tab:olive', 'expon': 'tab:cyan'}
 
             # Load data
             data = load_json(ProjectPaths.data_file())
@@ -821,17 +826,17 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                     continue
 
                 # Make figure
-                fig = figure.Figure(figsize=(12.8, 3.84))
-                fig2 = figure.Figure(figsize=(12.8, 3.84))
+                fig = figure.Figure(figsize=(12.8, 3.84))   # pdf
+                fig2 = figure.Figure(figsize=(12.8, 3.84))  # cdf
                 pos = [(2, 5, x) for x in range(1, 5 * 2 + 1)]
                 subplot_pos = iter(pos)
 
                 if self.metric == 'time':
-                    xlabel = 'Decoding time (s)'
-                    # scilimits = (-3, -3)
+                    xlabel = 'Decoding time (ms)'
+                    scilimits = (-3, -3)
                 else:
                     xlabel = 'Bit Rate (Mbps)'
-                    # scilimits = (6, 6)
+                    scilimits = (6, 6)
 
                 for self.proj in self.proj_list:
                     for self.tiling in self.tiling_list:
@@ -847,10 +852,11 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                         # Make histogram
                         self.make_graph('hist', ax, y=samples, bins=len(fitter.x),
                                         label='empirical', title=f'{self.proj.upper()}-{self.tiling}',
-                                        xlabel=xlabel)
+                                        xlabel=xlabel, scilimits=scilimits)
                         self.make_graph('hist', ax2, y=samples, bins=len(fitter.x),
                                         label='empirical', title=f'{self.proj.upper()}-{self.tiling}',
-                                        xlabel=xlabel, cumulative=True)
+                                        xlabel=xlabel, scilimits=scilimits,
+                                        cumulative=True)
 
                         # make plot for n_dist distributions
                         dists = fitter.df_errors['sumsquare_error'].sort_values()[0:n_dist].index
@@ -858,7 +864,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                             fitted_pdf = fitter.fitted_pdf[dist_name]
                             self.make_graph('plot', ax, x=fitter.x, y=fitted_pdf,
                                             label=f'{dist_name}',
-                                            color=color_list[dist_name])
+                                            color=self.color_list[dist_name])
 
                             # aa = ax2.twinx()
                             dist: scipy.stats.rv_continuous = eval("scipy.stats." + dist_name)
@@ -867,7 +873,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
                             self.make_graph('plot', ax2, x=fitter.x, y=cdf_fitted,
                                             label=f'{dist_name}',
-                                            color=color_list[dist_name])
+                                            color=self.color_list[dist_name])
 
                         # ax.set_yscale('log')
                         ax.legend(loc='upper right')
@@ -898,20 +904,19 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                     data_avg = data[f'average']
                     data_std = data[f'std']
 
+                    x = list(range(0 + start, len(data[f'tiling']) * 3 + start, 3))
+
                     if self.metric == 'time':
                         ylabel = 'Decoding time (ms)'
-                        scilimits = (-3, -3)
-                        # ax.set_ylim(0.230, 1.250)
+                        scilimits = ('x', (-3, -3)), ('y', (0, 0))
                     else:
                         ylabel = 'Bit Rate (Mbps)'
-                        scilimits = (6, 6)
+                        scilimits = ('x', (6, 6)), ('y', (-6, -6))
 
                     if self.proj == 'cmp':
                         color = 'tab:green'
                     else:
                         color = 'tab:blue'
-
-                    x = list(range(0 + start, len(data[f'tiling']) * 3 + start, 3))
 
                     self.make_graph('bar', ax=ax,
                                     x=x, y=data_avg, yerr=data_std,
