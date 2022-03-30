@@ -18,8 +18,8 @@ def main():
     # Main.decode_time(5)  # 1-pre, 2-com, 3-seg, 4-dec, 5-collect
     # Main.check_files(8)  # 1-ori, 2-loss, 3-comp, 4-seg, 5-clean, 6-dec, 7-res
 
-    DectimeGraphs(config, 'BY_PATTERN', ['custom'], overwrite=False, n_dist=3)
-    # DectimeGraphs(config, 'BY_PATTERN_BY_QUALITY',  ['custom'], overwrite=False, n_dist=3)
+    DectimeGraphs(config, role='BY_PATTERN', bins=['custom'], overwrite=False, n_dist=3)
+    # DectimeGraphs(config, role='BY_PATTERN_BY_QUALITY', bins=['custom'], overwrite=False, n_dist=3)
     # DectimeGraphs(config, 'BY_VIDEO_BY_PATTERN_BY_QUALITY', ['custom'], overwrite=False, n_dist=3)
     # DectimeGraphs(config, 'BY_PATTERN_FULL_FRAME', ['custom'], overwrite=False, n_dist=3)
 

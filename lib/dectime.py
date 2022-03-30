@@ -377,6 +377,11 @@ class Graphs:
         return list(projs)
 
     @property
+    def vid_proj(self):
+        projection: str = self.videos_list[self.video]['projection']
+        return projection
+
+    @property
     def videos_list(self):
         return self.config.videos_list
 
@@ -564,7 +569,8 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                    yerr: List[float] = None,
                    legend: dict = None, title: str = None, label: str = None,
                    xlabel: str = None, ylabel: str = None,
-                   xticks: list = None, width: int = 0.8,
+                   xticklabels: list[Union[float, str]] = None, xticks: list[float] = None,
+                   width: int = 0.8,
                    scilimits: Optional[tuple[tuple[str, tuple[int, int]], ...]] = None,
                    color=None, bins=None, histtype='bar', cumulative=False,
                    log=False):
@@ -599,7 +605,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
         else:
             raise ValueError(f'The plot_type parameter "{plot_type}" not supported.')
 
-        if scilimits:
+        if scilimits is not None:
             for axis, limits in scilimits:
                 ax.ticklabel_format(axis=axis,
                                     style='scientific',
@@ -609,8 +615,9 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
         if ylabel is not None:
             ax.set_ylabel(ylabel)
         if xticks is not None:
-            ax.set_xticks(x)
-            ax.set_xticklabels(xticks)
+            ax.set_xticks(xticks)
+        if xticklabels is not None:
+            ax.set_xticklabels(xticklabels)
         if title is not None:
             ax.set_title(title)
         if legend is not None:
@@ -620,35 +627,49 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
     def by_pattern(self, overwrite, n_dist):
         class ProjectPaths:
-            @staticmethod
-            def data_file() -> Path:
-                data_file = self.workfolder_data / f'data.json'
+            ctx = self
+
+            @property
+            def quality_file(self) -> Path:
+                quality_file = self.ctx.video_context.project_path / self.ctx.video_context.quality_folder / f'quality_{self.ctx.video}.json'
+                return quality_file
+
+            @property
+            def dectime_file(self) -> Path:
+                dectime_file = self.ctx.video_context.project_path / self.ctx.video_context.dectime_folder / f'dectime_{self.ctx.video}.json'
+                return dectime_file
+
+            @property
+            def data_file(self) -> Path:
+                data_file = self.ctx.workfolder_data / f'data.json'
                 return data_file
 
-            @staticmethod
-            def fitter_pickle_file() -> Path:
-                fitter_file = self.workfolder_data / f'fitter_{self.proj}_{self.tiling}_{self.metric}_{self.bins}bins.pickle'
+            @property
+            def fitter_pickle_file(self) -> Path:
+                fitter_file = self.ctx.workfolder_data / f'fitter_{self.ctx.proj}_{self.ctx.tiling}_{self.ctx.metric}_{self.ctx.bins}bins.pickle'
                 return fitter_file
 
-            @staticmethod
-            def stats_file() -> Path:
-                stats_file = self.workfolder / f'stats_{self.bins}bins.csv'
+            @property
+            def stats_file(self) -> Path:
+                stats_file = self.ctx.workfolder / f'stats_{self.ctx.bins}bins.csv'
                 return stats_file
 
-            @staticmethod
-            def hist_pattern_file() -> Path:
-                img_file = self.workfolder / f'hist_pattern_{self.metric}_{self.bins}bins.png'
+            @property
+            def hist_pattern_file(self) -> Path:
+                img_file = self.ctx.workfolder / f'hist_pattern_{self.ctx.metric}_{self.ctx.bins}bins.png'
                 return img_file
 
-            @staticmethod
-            def bar_pattern_file() -> Path:
-                img_file = self.workfolder / f'bar_pattern.png'
+            @property
+            def bar_pattern_file(self) -> Path:
+                img_file = self.ctx.workfolder / f'bar_pattern.png'
                 return img_file
 
-            @staticmethod
-            def boxplot_pattern_file() -> Path:
-                img_file = self.workfolder / f'boxplot_pattern.png'
+            @property
+            def boxplot_pattern_file(self) -> Path:
+                img_file = self.ctx.workfolder / f'boxplot_pattern.png'
                 return img_file
+
+        paths = ProjectPaths()
 
         def main():
             get_data()
@@ -661,48 +682,44 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
         def get_data():
             print('\n\n====== Get Data ======')
             # data[self.proj][self.tiling][self.metric]
+            data_file = paths.data_file
 
-            if ProjectPaths.data_file().exists() and not overwrite:
-                warning(f'\n  The data file "{ProjectPaths.data_file()}" exist. Loading date.')
+            if data_file.exists() and not overwrite:
+                warning(f'\n  The data file "{ProjectPaths.data_file}" exist. Loading date.')
                 return
 
             data = AutoDict()
 
-            for self.proj in self.proj_list:
-                for self.tiling in self.tiling_list:
-                    for self.metric in ['time', 'time_std', 'rate', 'PSNR', 'WS-PSNR', 'S-PSNR']:
-                        bucket = data[self.proj][self.tiling][self.metric] = []
+            for self.tiling in self.tiling_list:
+                for self.video in self.videos_list:
+                    print(f'\r  Getting - {self.vid_proj}  {self.name} {self.tiling} {self.metric}... ', end='')
 
-                        for self.video in self.videos_list:
-                            print(f'\r  Getting - {self.proj} {self.tiling} {self.metric} - {self.name} ... ', end='')
-                            if self.proj not in self.video: continue
+                    dectime = load_json(paths.dectime_file, object_hook=dict)
+                    qlt_data = load_json(paths.quality_file, object_hook=dict)
+                    bucket = data[self.vid_proj][self.tiling] = defaultdict(list)
 
-                            with self.dectime_ctx() as dectime, self.quality_ctx() as qlt_data:
-                                for self.quality in self.quality_list:
-                                    for self.tile in self.tile_list:
-                                        for self.chunk in self.chunk_list:
-                                            # qual["psnr"|"ws-psnr"|"s-psnr"]: float
-                                            # values["dectimes"|"bitrate"]: list[float]|int
+                    for self.quality in self.quality_list:
+                        for self.tile in self.tile_list:
+                            for self.chunk in self.chunk_list:
+                                # quality_val["PSNR"|"WS-PSNR"|"S-PSNR"]: float
+                                # dectime_val["dectimes"|"bitrate"]: list[float]|int
 
-                                            values = dectime[self.tiling][self.quality][f'{self.tile}'][f'{self.chunk}']
+                                dectime_val = dectime[self.tiling][self.quality][f'{self.tile}'][f'{self.chunk}']
+                                quality_val = qlt_data[self.tiling][self.quality][f'{self.tile}']
 
-                                            if self.metric == 'time':
-                                                metric_val = float(np.average(values['dectimes']))
-                                            elif self.metric == 'time_std':
-                                                metric_val = float(np.std(values['dectimes']))
-                                            elif self.metric == 'rate':
-                                                metric_val = float(values['bitrate'])
-                                            if self.metric in ['PSNR', 'WS-PSNR', 'S-PSNR']:
-                                                value = qlt_data[self.tiling][self.quality][f'{self.tile}'][self.metric]
-                                                idx = self.chunk - 1
-                                                metric_val = float(np.average(value[idx * 30: idx * 30 + 30]))
+                                bucket['time'].append(float(np.average(dectime_val['dectimes'])))
+                                bucket['rate'].append(float(dectime_val['bitrate']))
+                                bucket['time_std'].append(float(np.std(dectime_val['dectimes'])))
 
-                                            bucket.append(metric_val)
+                                for metric in ['PSNR', 'WS-PSNR', 'S-PSNR']:
+                                    value = quality_val[metric]
+                                    idx = self.chunk - 1
+                                    bucket[metric].append(float(np.average(value[idx * 30: idx * 30 + 30])))
 
-                            print('OK')
+                        print('OK')
 
             print(f' Saving... ', end='')
-            save_json(data, ProjectPaths.data_file())
+            save_json(data, data_file)
             del data
             print(f'  Finished.')
 
@@ -710,7 +727,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
             print(f'\n\n====== Make Fit - Bins = {self.bins} ======')
 
             # Load data file
-            data = load_json(ProjectPaths.data_file())
+            data = load_json(paths.data_file)
 
             for self.proj in self.proj_list:
                 for self.tiling in self.tiling_list:
@@ -718,7 +735,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                         print(f'  Fitting - {self.proj} {self.tiling} {self.metric}... ', end='')
 
                         # Check fitter pickle
-                        if ProjectPaths.fitter_pickle_file().exists() and not overwrite:
+                        if paths.fitter_pickle_file.exists() and not overwrite:
                             print(f'Pickle found! Skipping.')
                             continue
 
@@ -744,19 +761,19 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
                         # Saving
                         print(f'  Saving... ')
-                        save_pickle(fitter, ProjectPaths.fitter_pickle_file())
+                        save_pickle(fitter, paths.fitter_pickle_file)
                         print(f'  Finished.')
 
         def calc_stats():
             print('  Calculating Statistics')
 
             # Check stats file
-            if ProjectPaths.stats_file().exists() and not overwrite:
+            if paths.stats_file.exists() and not overwrite:
                 print(f'  stats_file found! Skipping.')
                 return
 
             # Load data file
-            dectime_data = load_json(ProjectPaths.data_file())
+            dectime_data = load_json(paths.data_file)
             stats = defaultdict(list)
 
             for self.proj in self.proj_list:
@@ -768,7 +785,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                         data_bucket[self.metric] = dectime_data[self.proj][self.tiling][self.metric]
 
                         # Load fitter pickle
-                        fitter = load_pickle(ProjectPaths.fitter_pickle_file())
+                        fitter = load_pickle(paths.fitter_pickle_file)
 
                         # Calculate percentiles
                         percentile = np.percentile(data_bucket[self.metric], [0, 25, 50, 75, 100]).T
@@ -809,18 +826,18 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                     stats[f'correlation'].append(corr)  # for time
                     stats[f'correlation'].append(corr)  # for rate
 
-            pd.DataFrame(stats).to_csv(str(ProjectPaths.stats_file()), index=False)
+            pd.DataFrame(stats).to_csv(str(paths.stats_file), index=False)
 
         def make_hist():
             print(f'\n====== Make Plot - Bins = {self.bins} ======')
 
             # Load data
-            data = load_json(ProjectPaths.data_file())
+            data = load_json(paths.data_file)
 
             # make an image for each metric
             for self.metric in self.metric_list:
                 # Check image file by metric
-                im_file = ProjectPaths.hist_pattern_file()
+                im_file = paths.hist_pattern_file
                 if im_file.exists() and not overwrite:
                     warning(f'Figure exist. Skipping')
                     continue
@@ -841,7 +858,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                 for self.proj in self.proj_list:
                     for self.tiling in self.tiling_list:
                         # Load fitter and select samples
-                        fitter = load_pickle(ProjectPaths.fitter_pickle_file())
+                        fitter = load_pickle(paths.fitter_pickle_file)
                         samples = data[self.proj][self.tiling][self.metric]
 
                         # Position of plot
@@ -884,12 +901,12 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
         def make_bar():
             print(f'\n====== Make Bar - Bins = {self.bins} ======')
 
-            path = ProjectPaths.bar_pattern_file()
+            path = paths.bar_pattern_file
             if path.exists() and not overwrite:
                 warning(f'Figure exist. Skipping')
                 return
 
-            stats = pd.read_csv(ProjectPaths.stats_file())
+            stats = pd.read_csv(paths.stats_file)
             fig = figure.Figure(figsize=(6.4, 3.84))
             pos = [(2, 1, x) for x in range(1, 2 * 1 + 1)]
             subplot_pos = iter(pos)
@@ -939,101 +956,107 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
             print(f'\n====== Make Plot - Bins = {self.bins} ======')
 
             # Check image file by metric
-            img_file = ProjectPaths.boxplot_pattern_file()
+            img_file = paths.boxplot_pattern_file
             if img_file.exists() and not overwrite:
                 warning(f'Figure exist. Skipping')
                 return
 
-            data = load_json(ProjectPaths.data_file())
+            data = load_json(paths.data_file)
 
             fig = figure.Figure(figsize=(5.8, 3.84))
             pos = [(2, 1, x) for x in range(1, 2 * 1 + 1)]
             subplot_pos = iter(pos)
 
+            n_ticks = len(self.tiling_list)
+            bar_by_ticks = len(self.proj_list) + 1
+            positions = lambda idx: list(range(0 + idx, n_ticks *bar_by_ticks + idx, bar_by_ticks))
+
             for self.metric in self.metric_list:
                 nrows, ncols, index = next(subplot_pos)
                 ax: axes.Axes = fig.add_subplot(nrows, ncols, index)
+                colors = {'cmp':'tab:green', 'erp':'tab:blue'}
+                is_time = self.metric == 'time'
 
                 for start, self.proj in enumerate(self.proj_list):
                     data_bucket = []
-
                     for self.tiling in self.tiling_list:
                         data_bucket.append(data[self.proj][self.tiling][self.metric])
 
-                    if self.metric == 'time':
-                        ylabel = 'Decoding time (ms)'
-                        scilimits = (-3, -3)
-                    else:
-                        ylabel = 'Bit Rate (Mbps)'
-                        scilimits = (6, 6)
+                    x = positions(start)
 
-                    if self.proj == 'cmp':
-                        color = 'tab:green'
-                    else:
-                        color = 'tab:blue'
+                    boxplot = ax.boxplot(data_bucket, positions=x, widths=0.8,
+                                         whis=(0, 100), showfliers=False,
+                                         boxprops=dict(facecolor=colors[self.proj]),
+                                         flierprops=dict(color='r'),
+                                         medianprops=dict(color='k'),
+                                         patch_artist=True)
+                    for cap in boxplot['caps']:
+                        cap.set_xdata(cap.get_xdata() + (0.3, -0.3))
 
-                    x = list(range(0 + start, len(self.tiling_list) * 3 + start, 3))
+                title = f'{self.metric.capitalize()}'
 
-                    self.make_graph('boxplot', ax, x=x, y=data_bucket,
-                                    title=f'{self.proj.upper()}-{self.metric}',
-                                    ylabel=ylabel,
-                                    scilimits=scilimits,
-                                    color=color,
-                                    )
+                scilimits = (-3, -3) if is_time else (6, 6)
+                xticks = [i + 0.5 for i in range(0, len(self.tiling_list) * 3, 3)]
+                xticklabels = self.tiling_list
+                ylabel = 'Decoding time (ms)' if is_time else 'Bit Rate (Mbps)'
+                legend_handles = [mpatches.Patch(color=colors['cmp'], label='CMP'),
+                                  mpatches.Patch(color=colors['erp'], label='ERP'),]
 
-                    patch1 = mpatches.Patch(color=color, label='CMP')
-                    patch2 = mpatches.Patch(color=color, label='ERP')
-                    legend = {'handles': (patch1, patch2),
-                              'loc': 'upper right'}
-                    ax.legend(**legend)
-                    ax.set_xticks([i + 0.5 for i in range(0, len(self.tiling_list) * 3, 3)])
-                    ax.set_xticklabels(self.tiling_list)
+                ax.set_ylabel(ylabel)
+                ax.set_title(title)
+                ax.set_xticks(xticks)
+                ax.set_xticklabels(xticklabels)
+                ax.ticklabel_format(axis='y', style='scientific', scilimits=scilimits)
+                ax.legend(handles=legend_handles, pos='upper left')
+                # ax.semilogy()
 
             print(f'  Saving the figure')
             fig.savefig(img_file)
 
         main()
 
-    def by_pattern_by_quality(self, overwrite):
+    def by_pattern_by_quality(self, overwrite, n_dist):
         class ProjectPaths:
-            @staticmethod
-            def data_file() -> Path:
-                data_file = self.workfolder_data / f'data.json'
+            ctx = self
+
+            @property
+            def data_file(self) -> Path:
+                data_file = self.ctx.workfolder_data / f'data.json'
                 return data_file
 
-            @staticmethod
-            def fitter_pickle_file() -> Path:
-                fitter_file = self.workfolder_data / f'fitter_{self.proj}_{self.tiling}_{self.metric}_{self.bins}bins.pickle'
+            @property
+            def fitter_pickle_file(self) -> Path:
+                fitter_file = self.ctx.workfolder_data / f'fitter_{self.ctx.proj}_{self.ctx.tiling}_{self.ctx.metric}_{self.ctx.bins}bins.pickle'
                 return fitter_file
 
-            @staticmethod
-            def stats_file() -> Path:
-                stats_file = self.workfolder / f'stats_{self.bins}bins.csv'
+            @property
+            def stats_file(self) -> Path:
+                stats_file = self.ctx.workfolder / f'stats_{self.ctx.bins}bins.csv'
                 return stats_file
 
-            @staticmethod
-            def hist_pattern_quality_file() -> Path:
-                img_file = self.workfolder / f'hist_pattern_quality_{self.metric}_CRF{self.quality}_{self.bins}bins.png'
+            @property
+            def hist_pattern_quality_file(self) -> Path:
+                img_file = self.ctx.workfolder / f'hist_pattern_tiling_{self.ctx.metric}_{self.ctx.bins}bins.png'
                 return img_file
 
-            @staticmethod
-            def bar_pattern_quality_file() -> Path:
-                img_file = self.workfolder / f'bar_pattern_quality_{self.metric}.png'
+            @property
+            def bar_pattern_quality_file(self) -> Path:
+                img_file = self.ctx.workfolder / f'bar_pattern_tiling_{self.ctx.metric}.png'
                 return img_file
 
-            @staticmethod
-            def boxplot_pattern_quality_file() -> Path:
-                img_file = self.workfolder / f'boxplot_pattern_quality_{self.metric}.png'
+            @property
+            def boxplot_pattern_quality_file(self) -> Path:
+                img_file = self.ctx.workfolder / f'boxplot_pattern_tiling_{self.ctx.tiling}_{self.ctx.metric}.png'
                 return img_file
 
         def main():
             get_data()
-            make_fit()
-            calc_stats()
-            make_hist()
-            make_bar_quality_tiling()
-            make_bar_tiling_quality()
-            make_boxplot()
+            # make_fit()
+            # calc_stats()
+            # make_hist()
+            # make_bar_quality_tiling()
+            # make_bar_tiling_quality()
+            # make_boxplot()
 
         def get_data():
             print('\n\n====== Get Data ======')
