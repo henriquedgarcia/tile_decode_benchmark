@@ -3,14 +3,15 @@ from typing import Union, Iterator
 import matplotlib.pyplot as plt
 import numpy as np
 
-def rot_matrix(new_position: tuple):
+def rot_matrix(yaw: float, pitch: float, roll: float):
     """
     Create rotation matrix using Tait–Bryan angles in Z-Y-X order.
     See Wikipedia.
-    :param tuple new_position: A new position (yaw, pitch, roll).
+    :param yaw: A new position (yaw, pitch, roll).
+    :param pitch: A new position (yaw, pitch, roll).
+    :param roll: A new position (yaw, pitch, roll).
     :return:
     """
-    yaw, pitch, roll = new_position
 
     cp = np.cos(pitch)
     sp = np.sin(pitch)
@@ -40,6 +41,51 @@ def rot_matrix(new_position: tuple):
     return mat_y @ mat_z @ mat_x
 
 
+def pix2cart(self, m, n, shape, proj='erp', f=0):
+    H, W = shape
+
+    if proj == 'erp':
+        u = (m + 0.5) / W
+        v = (n + 0.5) / H
+        azimuth = (u - 0.5) * (2 * np.pi)
+        elevation = (0.5 - v) * np.pi
+        x = np.cos(azimuth) * np.cos(elevation)
+        y = np.sin(elevation)
+        z = -np.cos(elevation) * np.sin(azimuth)
+
+    elif proj == 'cmp':
+        Ah = H / 2  # face is a square. u
+        Aw = W / 3  # face is a square. v
+        u = (m + 0.5) * 2 / Ah - 1
+        v = (n + 0.5) * 2 / Aw - 1
+        if f == 0:
+            x = 1.0
+            y = -v
+            z = -u
+        elif f == 1:
+            x = -1.0
+            y = -v
+            z = u
+        elif f == 2:
+            x = u
+            y = 1.0
+            z = v
+        elif f == 3:
+            x = u
+            y = -1.0
+            z = -v
+        elif f == 4:
+            x = u
+            y = -v
+            z = 1.0
+        elif f == 5:
+            x = -u
+            y = -v
+            z = -1.0
+
+    return x, y, z
+
+
 class Resolution:
     W: int
     H: int
@@ -47,18 +93,18 @@ class Resolution:
     def __init__(self, resolution: Union[str, tuple]):
         if isinstance(resolution, str):
             w, h = resolution.split('x')
-            self.shape = h, w
         elif isinstance(resolution, tuple):
-            self.shape = resolution
+            h, w = resolution
+        self.shape = h, w
 
     @property
-    def shape(self) -> tuple:
+    def shape(self):
         return self.H, self.W
 
     @shape.setter
-    def shape(self, shape: tuple):
-        self.H = round(float(shape[0]))
-        self.W = round(float(shape[1]))
+    def shape(self, value: tuple):
+        self.H = round(float(value[0]))
+        self.W = round(float(value[1]))
 
     def __iter__(self):
         return iter((self.H, self.W))
@@ -82,9 +128,15 @@ class Plane:
     normal: tuple
     relation: str
 
-    def __init__(self, normal=(0, 0, 0), relation='<'):
-        self.normal = normal
-        self.relation = relation  # With viewport
+    def __init__(self, z, y, x, relation='<'):
+        """
+        @param z: Z component of normal vector
+        @param y: Y component of normal vector
+        @param x: X component of normal vector
+        @param relation: direction of normal.
+        """
+        self.normal = z, y, x
+        self.relation = relation  # direction of normal. Condition to viewport
 
 
 class View:
@@ -106,10 +158,19 @@ class View:
         fovx = np.deg2rad(self.fov.H)
         fovy = np.deg2rad(self.fov.W)
 
-        self.p1 = Plane((-np.sin(fovy / 2), 0, np.cos(fovy / 2)))
-        self.p2 = Plane((-np.sin(fovy / 2), 0, -np.cos(fovy / 2)))
-        self.p3 = Plane((-np.sin(fovx / 2), np.cos(fovx / 2), 0))
-        self.p4 = Plane((-np.sin(fovx / 2), -np.cos(fovx / 2), 0))
+        s_fovx = np.sin(fovx / 2)
+        s_fovy = np.sin(fovy / 2)
+        c_fovx = np.cos(fovx / 2)
+        c_fovy = np.cos(fovy / 2)
+
+        z, y, x = c_fovy, 0, -s_fovy
+        self.p1 = Plane(z, y, x)
+        z, y, x = -c_fovy, 0, -s_fovy
+        self.p2 = Plane(z, y, x)
+        z, y, x = 0, c_fovx, -s_fovx
+        self.p3 = Plane(z, y, x)
+        z, y, x = 0, -c_fovx, -s_fovx
+        self.p4 = Plane(z, y, x)
 
     def __iter__(self) -> Iterator[Plane]:
         return iter([self.p1, self.p2, self.p3, self.p4])
@@ -122,8 +183,9 @@ class Viewport:
     position: tuple
     projection: np.ndarray
     resolution: Resolution
+    proj: str
 
-    def __init__(self, fov: str) -> None:
+    def __init__(self, fov: str, proj: str ='erp') -> None:
         """
         Viewport Class used to extract view pixels in projections.
         :param fov:
@@ -131,33 +193,35 @@ class Viewport:
         self.fov = Fov(fov)
         self.default_view = View(fov)
         self.rotated_view = View(fov)
+        self.proj = proj
 
-    def set_rotation(self, position: tuple):
+    def set_rotation(self, yaw, pitch, roll):
         """
         Set a new position to viewport using aerospace's body coordinate system
         and make the projection. Return numpy.ndarray.
-        :param position: the positions like (yaw, pitch, roll)
+        :param yaw: the positions like (yaw, pitch, roll)
+        :param pitch: the positions like (yaw, pitch, roll)
+        :param roll: the positions like (yaw, pitch, roll)
         :return:
         """
-        self.position = position
-        self.rotated_view = self._rotate()
+        self.rotated_view = self._rotate(yaw, pitch, roll)
         return self
 
-    def _rotate(self):
+    def _rotate(self, yaw, pitch, roll):
         """
         Rotate the normal planes of viewport using matrix of rotation and Tait–Bryan
         angles in Z-Y-X order. Refer to Wikipedia.
         :return: A new View object with the new position (yaw, pitch, roll).
         """
-        view = self.default_view
-        new_view = View(f'{view.fov}')
-        mat = rot_matrix(self.position)
+        new_view = View(f'{self.fov}')
+        self.position = yaw, pitch, roll
+
+        mat = rot_matrix(yaw, pitch, roll)
 
         # For each plane in view
-        for default_plane, new_plane in zip(view, new_view):
+        for default_plane, new_plane in zip(self.default_view, new_view):
             roted_normal = mat @ tuple(default_plane.normal)
-            new_plane.normal = (
-            roted_normal[0], roted_normal[1], roted_normal[2])
+            new_plane.normal = (roted_normal[0], roted_normal[1], roted_normal[2])
 
         return new_view
 
@@ -168,42 +232,57 @@ class Viewport:
         :return: a numpy.ndarray with one deep color
         """
         if isinstance(resolution, str):
-            self.resolution = resolution = Resolution(resolution)
+            self.resolution = Resolution(resolution)
         elif isinstance(resolution, Resolution):
-            self.resolution = resolution = resolution
+            self.resolution = resolution
+        else:
+            raise TypeError(f'Resolution must be <str> or <Resolution>.')
 
-        self.projection = np.ones(resolution.shape, dtype=np.uint8) * 255
+        self.projection = np.ones(self.resolution.shape, dtype=np.uint8) * 255
+        H, W = self.projection.shape
 
-        with np.nditer(self.projection, op_flags=['readwrite'],
-                       flags=['multi_index']) as it:
-            for cell in it:
-                y, x = it.multi_index
-                if self.is_viewport(self.pix2cart(x, y)):
-                    cell[...] = 0
+        if self.proj == 'erp':
+            for n in range(H):
+                for m in range(W):
+                    z, y, x = pix2cart(n, m, self.resolution.shape)
+                    if self.is_viewport(z, y, x):
+                        self.projection[n, m] = 0
+
+        elif self.proj == 'cmp':
+            self.projection = np.ones(self.resolution.shape, dtype=np.uint8) * 255
+            for face_id in range(6):
+                f_shape = (H / 2, W / 3)
+                f_pos = (face_id // 3, face_id % 2)
+                f_x1 = 0 + f_shape[1] * f_pos[1]
+                f_x2 = f_x1 + f_shape[1]
+                f_y1 = 0 + f_shape[0] * f_pos[0]
+                f_y2 = f_y1 + f_shape[1]
+                face_array = self.projection[f_y1:f_y2, f_x1:f_x2]
+                #
+                # with np.nditer(self.projection, op_flags=['readwrite'],
+                #                flags=['multi_index']) as it:
+                #     for cell in it:
+                #         y, x = it.multi_index
+                #         if self.is_viewport(pix2cart(x, y, self.resolution.shape)):
+                #             cell[...] = 0
+
         return self.projection
 
-    def pix2cart(self, m, n):
-        H, W = self.resolution.shape
-        azimuth = ((m + 0.5) / W - 0.5) * 2 * 3.141592653589793
-        elevation = -((n + 0.5) / H - 0.5) * 3.141592653589793
-        x = np.cos(azimuth) * np.cos(elevation)
-        y = np.sin(elevation)
-        z = -np.cos(elevation) * np.sin(azimuth)
-        return x, y, z
-
-    def is_viewport(self, point: tuple) -> bool:
+    def is_viewport(self, z, y, x) -> bool:
         """
         Check if the plane equation is true to viewport
         x1 * m + y1 * n + z1 * z < 0
         If True, the "point" is on the viewport
         Obs: is_in só retorna true se todas as expressões forem verdadeiras
-        :param point: A 3D Point in the space (x, y, z).
+        :param z: A 3D Point in the space (x, y, z).
+        :param y: A 3D Point in the space (x, y, z).
+        :param x: A 3D Point in the space (x, y, z).
         :return: A boolean
         """
         for plane in self.rotated_view:
-            if not (plane.normal[0] * point[0]
-                    + plane.normal[1] * point[1]
-                    + plane.normal[2] * point[2]) < 0:
+            if not (plane.normal[0] * x
+                    + plane.normal[1] * y
+                    + plane.normal[2] * z) < 0:
                 return False
         return True
 

@@ -111,6 +111,7 @@ class View:
         self.p3 = Plane((-np.sin(fovx / 2), np.cos(fovx / 2), 0))
         self.p4 = Plane((-np.sin(fovx / 2), -np.cos(fovx / 2), 0))
 
+
     def __iter__(self) -> Iterator[Plane]:
         return iter([self.p1, self.p2, self.p3, self.p4])
 
@@ -155,9 +156,8 @@ class Viewport:
 
         # For each plane in view
         for default_plane, new_plane in zip(view, new_view):
-            roted_normal = mat @ tuple(default_plane.normal)
-            new_plane.normal = (
-            roted_normal[0], roted_normal[1], roted_normal[2])
+            roted_normal = mat @ tuple(default_plane.normal[::-1])  # change to x-y-z order
+            new_plane.normal = (roted_normal[0], roted_normal[1], roted_normal[2])
 
         return new_view
 

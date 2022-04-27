@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.9
 import argparse
-from lib.dectime import (TileDecodeBenchmark, CheckTiles,
+from lib.dectime import (TileDecodeBenchmark, CheckTiles, MakeViewport,
                          QualityAssessment, GetTiles, DectimeGraphs)
 import logging
 
@@ -19,7 +19,9 @@ def main():
     # check_files(8)  # 1-ori, 2-loss, 3-comp, 4-seg, 5-clean, 6-dec, 7-res
 
     # bins=['fd', 'rice', 'sturges', 'sqrt', 'doane', 'scott', 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80],
-    dectime_graphs(1)
+    # dectime_graphs(0)
+
+    make_viewport(0)
 
     # siti(2)
     # quality(5)  # 1-all, 2-psnr, 3-wspsnr, 4-spsnr, 5-results
@@ -31,6 +33,13 @@ def dectime_graphs(role_id):
     role_list = ['BY_PATTERN', 'BY_PATTERN_BY_QUALITY',
                  'BY_PATTERN_FULL_FRAME', 'BY_VIDEO_BY_PATTERN_BY_QUALITY']
     DectimeGraphs(config, role=role_list[role_id], bins=[30], overwrite=False, n_dist=6)
+
+
+def make_viewport(role_id):
+    role_list = {0: ('NAS_ERP', 'nasrabadi_28videos')}
+    MakeViewport(config,
+                 role=role_list[role_id][0], ds_name=role_list[role_id][1],
+                 overwrite=False)
 
 
 def decode_time(role_id):

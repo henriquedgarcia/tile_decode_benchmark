@@ -9,7 +9,7 @@ import numpy as np
 
 from lib.assets import Resolution, Position
 from .util import load_json, AutoDict
-from .viewport2 import Viewport
+from .viewport2 import Viewport, pix2cart
 
 
 @dataclass
@@ -83,13 +83,12 @@ class Tile:
         """
 
         :param proj_res:
-        :return:
+        :return: (pix_x, pix_y), (
         """
         position = self.position
         resolution = self.resolution
         vp = Viewport('1x1')
         vp.resolution = proj_res
-        convert = vp.pix2cart
 
         x_i = position.x  # first row
         x_f = position.x + resolution.W  # last row
@@ -100,13 +99,13 @@ class Tile:
         yi_yf = range(int(y_i), int(y_f))
 
         for x in xi_xf:
-            yield (x, y_i), convert(x, y_i)
+            yield (x, y_i), pix2cart(x, y_i, resolution.shape)
         for x in xi_xf:
-            yield (x, y_f - 1), convert(x, y_f - 1)
+            yield (x, y_f - 1), pix2cart(x, y_f - 1, resolution.shape)
         for y in yi_yf:
-            yield (x_i, y), convert(x_i, y)
+            yield (x_i, y), pix2cart(x_i, y, resolution.shape)
         for y in yi_yf:
-            yield (x_f - 1, y), convert(x_f - 1, y)
+            yield (x_f - 1, y), pix2cart(x_f - 1, y, resolution.shape)
 
 
 class Tiling:
@@ -119,7 +118,8 @@ class Tiling:
 
     def __init__(self,
                  pattern: Union[str, Resolution],
-                 proj_res: Union[str, Resolution], 
+                 proj_res: Union[str, Resolution],
+                 proj: str = 'erp',
                  fov: str = '1x1'):
 
         """
@@ -132,7 +132,7 @@ class Tiling:
         self.tile_res = self.proj_res / self.pattern.shape
         self.fov = fov
         self.fov_y, self.fov_x = self.fov
-        self.viewport = Viewport(f'{fov}')
+        self.viewport = Viewport(f'{fov}', proj=proj)
 
     def __str__(self):
         return str(self.pattern)
@@ -176,9 +176,9 @@ class Tiling:
 
         self.n_tiles = self._pattern.W * self._pattern.H
 
-    def get_vptiles(self, position: tuple):
+    def get_vptiles(self, yaw, pitch, roll):
         viewport = self.viewport
-        viewport.set_rotation(position)
+        viewport.set_rotation(yaw, pitch, roll)
 
         tiles = []
 
@@ -334,12 +334,12 @@ class Factors:
     #########
     @property
     def tiling_list(self) -> List[Tiling]:
-
         self._tiling_list = []
         for pattern in self.config['tiling_list']:
             proj_res = self.video.resolution if self.video else pattern
             tiling = Tiling(pattern=pattern,
                             proj_res=proj_res,
+                            proj=self.config.videos_list[self.video]['projection'],
                             fov=self.config['fov'])
             self._tiling_list.append(tiling)
         return self._tiling_list
@@ -423,8 +423,9 @@ class ProjectPaths(Factors):
     segment_folder = Path('segment')
     dectime_folder = Path('dectime')
     stats_folder = Path('stats')
-    _graphs_folder = Path('graphs')
+    _viewport_folder = Path('viewport')
     siti_folder = Path('siti')
+    _graphs_folder = Path('graphs')
     _check_folder = Path('check')
     quality_folder = Path('quality')
     get_tiles_folder = Path('get_tiles')
@@ -526,6 +527,12 @@ class ProjectPaths(Factors):
     @property
     def graphs_folder(self) -> Path:
         folder = self.project_path / self._graphs_folder
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+    @property
+    def viewport_folder(self) -> Path:
+        folder = self.project_path / self._viewport_folder
         folder.mkdir(parents=True, exist_ok=True)
         return folder
 

@@ -13,6 +13,7 @@ import skvideo.io
 from scipy import ndimage
 
 from lib.assets import AutoDict, StatsData, PointHCS, Resolution, Point, Pixel
+from collections import namedtuple
 
 ################    QUALITY    ################
 def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
@@ -23,7 +24,6 @@ def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
     :param shape:
     :return:
     """
-
     iter_file = sph_file.read_text().splitlines()
 
     sph_points = []
@@ -34,25 +34,23 @@ def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
     if shape is not None:
         sph_points_mask = np.zeros(shape)
 
+    # for each line (sample), convert to cartesian system and horizontal system
     for idx, line in enumerate(iter_file[1:]):
         point = list(map(float, line.strip().split()))
         hcs_point = dict(azimuth=np.deg2rad(point[1]),
                          elevation=np.deg2rad(point[0]))
         sph_points.append(hcs_point)
 
-        ccs_point = dict(x=np.sin(hcs_point['elevation'])
-                           * np.cos(hcs_point['azimuth']),
+        ccs_point = dict(x=np.sin(hcs_point['elevation']) * np.cos(hcs_point['azimuth']),
                          y=np.sin(hcs_point['azimuth']),
-                         z=-np.cos(hcs_point['elevation'])
-                           * np.cos(hcs_point['azimuth']))
+                         z=-np.cos(hcs_point['elevation']) * np.cos(hcs_point['azimuth']))
         cart_coord.append(ccs_point)
 
         if shape is not None:
             height, width = shape
-            x = np.ceil((hcs_point['azimuth'] + np.pi)
-                        * width / (2 * np.pi) - 1)
-            y = np.floor((hcs_point['elevation'] - np.pi / 2)
-                         * height / np.pi + height)
+            # convert to erp image coordinate
+            x = np.ceil((hcs_point['azimuth'] + np.pi) * width / (2 * np.pi) - 1)
+            y = np.floor((hcs_point['elevation'] - np.pi / 2) * height / np.pi + height)
             if y >= height: y = height - 1
             ics_point = dict(x=int(x), y=int(y))
             sph_points_img.append(ics_point)
