@@ -21,8 +21,8 @@ def main():
     # bins=['fd', 'rice', 'sturges', 'sqrt', 'doane', 'scott', 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80],
     # dectime_graphs(0)
 
-    make_viewport(0)
-
+    # make_viewport(0)
+    tiles_from_dataset(0)
     # siti(2)
     # quality(5)  # 1-all, 2-psnr, 3-wspsnr, 4-spsnr, 5-results
     # tiles_from_dataset(2)  # 1-prepare, 2-get_tile
@@ -100,19 +100,11 @@ def quality(role_ini, role_end=None):
     start(opt, QualityAssessment, role_ini, role_end)
 
 
-def tiles_from_dataset(role_ini, role_end=None):
-    opt = {
-        # Measure normal SITI
-        1: ('PREPARE', dict(overwrite=False,
-                            dataset_name='nasrabadi_28videos')),
-        2: ('GET_TILES', dict(overwrite=False,
-                              dataset_name='nasrabadi_28videos',
-                              )),
-        3: ('JSON2PICKLE', dict(overwrite=False,
-                                dataset_name='nasrabadi_28videos')),
-        0: ('REFACTOR', dict(dataset_name='nasrabadi_28videos')),
-    }
-    start(opt, GetTiles, role_ini, role_end)
+def tiles_from_dataset(role_id):
+    role_list = ['PREPARE', 'GET_TILES', 'JSON2PICKLE', 'REFACTOR']
+
+    GetTiles(config=config, role=role_list[role_id],
+             overwrite=False, dataset_name='nasrabadi_28videos')
 
 
 def start(opt, cls, role_ini, role_end=None):
