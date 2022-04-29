@@ -75,9 +75,9 @@ class Role:
 
 
 class Position(NamedTuple):
-    x: float
-    y: float
-    z: float = None
+    x: Union[float, int]
+    y: Union[float, int]
+    z: Optional[Union[float, int]] = None
 
     def __str__(self):
         string = f'({self.x}, {self.y}'
