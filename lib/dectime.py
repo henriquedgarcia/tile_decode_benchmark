@@ -14,22 +14,22 @@ from typing import Any, NamedTuple, Union, Dict, Tuple, List, Optional
 from cycler import cycler
 import matplotlib.axes as axes
 import matplotlib.figure as figure
+import matplotlib.gridspec as gridspec
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from fitter import Fitter
-
+import scipy.stats
+import skvideo.io
+from PIL import Image
 from .assets import AutoDict, Role
 from .util import (run_command, check_video_gop, iter_frame, load_sph_file,
-                   xyz2hcs, save_json, load_json, lin_interpol, save_pickle,
-                   load_pickle)
+                  xyz2hcs, save_json, load_json, lin_interpol, save_pickle,
+                  load_pickle)
 from .video_state import Config, VideoContext
-from .viewport2 import Viewport
-
-import scipy.stats
-import matplotlib.gridspec as gridspec
+from .viewport import Viewport
 
 
 class BaseTileDecodeBenchmark:
@@ -3327,7 +3327,7 @@ class MakeViewport(BaseTileDecodeBenchmark):
         self.database_json = self.database_path / f'{ds_name}.json'
         self.database_pickle = self.database_path / f'{ds_name}.pickle'
 
-        self.workfolder = self.video_context.viewport_folder / role
+        self.workfolder = self.video_context.viewport_folder / role.lower()
         self.workfolder_data = self.workfolder / 'data'
         self.workfolder_data.mkdir(parents=True, exist_ok=True)
 
@@ -3338,17 +3338,37 @@ class MakeViewport(BaseTileDecodeBenchmark):
         database = load_pickle(database_pickle)
 
         viewport = Viewport('90x90', proj='erp')
-        # database[video_name][user_id] = {'azimuth': theta, 'elevation': phi}
+        # database[video_name][user_id] = {'azimuth': theta, 'elevation': phi}  # in rad
         for video in database:
+            if video == 'wild_elephants_nas': continue
             for user in database[video]:
-                yaw = database[video][user]['azimuth']
-                pitch = database[video][user]['elevation']
-                roll = [0] * len(pitch)
-                for pos in zip(yaw, pitch, roll):
-                    viewport.set_rotation(*pos)
-                    viewport.project('400x200')
-                    viewport.show()
-                    return
+                output_video = self.workfolder / f'{video}_{user}.mp4'
+                if output_video.exists(): continue
+
+                yaw_list = database[video][user]['azimuth']
+                pitch_list = database[video][user]['elevation']
+                roll_list = [0] * len(pitch_list)
+
+                self.writer = skvideo.io.FFmpegWriter(output_video, outputdict={'-r': '30', '-pix_fmt': 'yuv420'})
+                original_video = Path(f'{self.workfolder}/videos/{video}_erp_200x100_30.mp4')
+                self.reader = skvideo.io.FFmpegReader(f'{original_video}')
+                video_frame = self.reader.nextFrame()
+                count = 0
+                for yaw, pitch, roll in zip(yaw_list, pitch_list, roll_list):
+                    proj_array = viewport.rotate(yaw, pitch, roll).project('400x200').projection
+                    proj_mask = Image.fromarray(proj_array)
+
+                    frame_array = next(video_frame)
+                    frame_img = Image.fromarray(frame_array).resize(proj_mask.size)
+
+                    mask = Image.new("RGB", proj_mask.size, (255,255,255))
+                    im = Image.composite(mask, frame_img, proj_mask)
+
+                    im_array = np.asarray(im)
+                    self.writer.writeFrame(im_array)
+                    count += 1
+                    if count >= 30: break
+                self.writer.close()
 
 
 class GetTiles(BaseTileDecodeBenchmark):
@@ -3460,12 +3480,11 @@ class GetTiles(BaseTileDecodeBenchmark):
                                / f'database_{self.name}.pickle')
         save_pickle(self.new_database, new_database_pickle)
 
-    def process_nasrabadi(self, **kwargs):
-        overwrite = kwargs['overwrite']
-        database_pickle = self.database_pickle
+    def process_nasrabadi(self, overwrite, dataset_name):
+        database_json = self.database_json
 
-        if database_pickle.exists() and not overwrite:
-            warning(f'The file {database_pickle} exist. Skipping.')
+        if database_json.exists() and not overwrite:
+            warning(f'The file {database_json} exist. Skipping.')
             return
 
         database = AutoDict()
