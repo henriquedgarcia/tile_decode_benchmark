@@ -1,0 +1,52 @@
+{
+  "videos_list": {
+    "nyc_timelapse_erp_cor": {
+      "original": "nyc_timelapse_erp.mkv",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:00",
+      "duration": 60,
+      "group": 0
+    },
+    "paris_tour_erp_cor": {
+      "original": "paris_tour_erp.mkv",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:00",
+      "duration": 60,
+      "group": 0
+    },
+    "rinos_erp_cor": {
+      "original": "rinos_erp.webm",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:15",
+      "duration": 60,
+      "group": 0
+    },
+    "rollercoaster_erp_cor": {
+      "original": "rollercoaster_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "1:05",
+      "duration": 60,
+      "group": 0
+    },
+    "scuba_diving_erp_cor": {
+      "original": "scuba_diving_erp.mkv",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:40",
+      "duration": 60,
+      "group": 0
+    },
+    "venice_erp_cor": {
+      "original": "venice_erp.mkv",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:00",
+      "duration": 60,
+      "group": 0
+    }
+  }
+}
