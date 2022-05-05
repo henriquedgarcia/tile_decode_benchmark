@@ -7,9 +7,9 @@ from typing import (Any, List, Union, Optional)
 import matplotlib.pyplot as plt
 import numpy as np
 
-from lib.assets import Resolution, Position
+from .assets import Resolution, Position
+from .viewport import Viewport, erp2cart
 from .util import load_json, AutoDict
-from .viewport2 import Viewport, pix2cart
 
 
 @dataclass
@@ -85,8 +85,8 @@ class Tile:
         :param proj_res:
         :return: (pix_x, pix_y), (
         """
-        position = self.position
-        resolution = self.resolution
+        position: Position = self.position
+        resolution: Resolution = self.resolution
         vp = Viewport('1x1')
         vp.resolution = proj_res
 
@@ -99,13 +99,13 @@ class Tile:
         yi_yf = range(int(y_i), int(y_f))
 
         for x in xi_xf:
-            yield (x, y_i), pix2cart(x, y_i, resolution.shape)
+            yield (x, y_i), erp2cart(y_i, x, resolution.shape)
         for x in xi_xf:
-            yield (x, y_f - 1), pix2cart(x, y_f - 1, resolution.shape)
+            yield (x, y_f - 1), erp2cart(y_f - 1, x, resolution.shape)
         for y in yi_yf:
-            yield (x_i, y), pix2cart(x_i, y, resolution.shape)
+            yield (x_i, y), erp2cart(y, x_i, resolution.shape)
         for y in yi_yf:
-            yield (x_f - 1, y), pix2cart(x_f - 1, y, resolution.shape)
+            yield (x_f - 1, y), erp2cart(y, x_f - 1, resolution.shape)
 
 
 class Tiling:
@@ -178,13 +178,13 @@ class Tiling:
 
     def get_vptiles(self, yaw, pitch, roll):
         viewport = self.viewport
-        viewport.set_rotation(yaw, pitch, roll)
+        viewport.rotate(yaw, pitch, roll)
 
         tiles = []
 
         for tile in self.tiles_list:
-            for (pixel, point_3d) in tile.get_border(self.proj_res):
-                if viewport.is_viewport(point_3d):
+            for (pixel, (x, y, z)) in tile.get_border(self.proj_res):
+                if viewport.is_viewport(x, y, z):
                     tiles.append(tile.idx)
                     break
 
@@ -193,6 +193,7 @@ class Tiling:
         #     for (pixel, point_3d) in tile.get_border(self.proj_res):
         #         self.viewport.projection[pixel.y, pixel.x] = 100
         # self.viewport.show()
+
         return tiles
 
     def draw_borders(self):
@@ -214,7 +215,6 @@ class Tiling:
             self._proj_res = resolution
         elif isinstance(resolution, str):
             self._proj_res = Resolution(resolution)
-
 
     @property
     def tile_res(self) -> Resolution:

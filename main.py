@@ -7,9 +7,9 @@ import logging
 logging.basicConfig(level=logging.WARNING)
 
 config_list = []
-config_list += [f'config/config_nas_erp_cmp.json']
+# config_list += [f'config/config_nas_erp_cmp.json']
 # config_list += [f'config/config_nas_cmp.json']
-# config_list += [f'config/config_nas_erp.json']
+config_list += [f'config/config_nas_erp.json']
 # config_list += [f'config/config_test.json']
 # config_list += [f'config/config_ffmpeg_crf_12videos_60s.json']
 
@@ -20,9 +20,9 @@ def main():
 
     # bins=['fd', 'rice', 'sturges', 'sqrt', 'doane', 'scott', 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80],
     # dectime_graphs(0)
-
     # make_viewport(0)
-    tiles_from_dataset(0)
+    #
+    get_tiles(1)
     # siti(2)
     # quality(5)  # 1-all, 2-psnr, 3-wspsnr, 4-spsnr, 5-results
     # tiles_from_dataset(2)  # 1-prepare, 2-get_tile
@@ -100,7 +100,12 @@ def quality(role_ini, role_end=None):
     start(opt, QualityAssessment, role_ini, role_end)
 
 
-def tiles_from_dataset(role_id):
+def get_tiles(role_id):
+    """
+    ['PREPARE', 'GET_TILES', 'JSON2PICKLE', 'REFACTOR']
+    :param role_id:
+    :return:
+    """
     role_list = ['PREPARE', 'GET_TILES', 'JSON2PICKLE', 'REFACTOR']
 
     GetTiles(config=config, role=role_list[role_id],

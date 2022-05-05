@@ -3,7 +3,7 @@
     "angel_falls_erp_nas": {
       "original": "angel_falls_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "5:30",
       "duration": 60,
       "group": 0
@@ -11,7 +11,7 @@
     "blue_angels_erp_nas": {
       "original": "blue_angels_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "1:00",
       "duration": 60,
       "group": 0
@@ -19,7 +19,7 @@
     "cable_cam_erp_nas": {
       "original": "cable_cam_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:15",
       "duration": 60,
       "group": 0
@@ -27,7 +27,7 @@
     "chariot_race_erp_nas": {
       "original": "chariot_race_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:00",
       "duration": 60,
       "group": 0
@@ -35,7 +35,7 @@
     "closet_tour_erp_nas": {
       "original": "closet_tour_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:07",
       "duration": 60,
       "group": 0
@@ -43,7 +43,7 @@
     "drone_chases_car_erp_nas": {
       "original": "drone_chases_car_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "2:11",
       "duration": 60,
       "group": 0
@@ -51,7 +51,7 @@
     "drone_footage_erp_nas": {
       "original": "drone_footage_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:01",
       "duration": 60,
       "group": 0
@@ -59,7 +59,7 @@
     "drone_video_erp_nas": {
       "original": "drone_video_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:15",
       "duration": 60,
       "group": 0
@@ -67,7 +67,7 @@
     "drop_tower_erp_nas": {
       "original": "drop_tower_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "1:11",
       "duration": 60,
       "group": 0
@@ -75,7 +75,7 @@
     "dubstep_dance_erp_nas": {
       "original": "dubstep_dance_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:05",
       "duration": 60,
       "group": 0
@@ -83,7 +83,7 @@
     "elevator_lift_erp_nas": {
       "original": "elevator_lift_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:04",
       "duration": 49,
       "group": 0
@@ -91,7 +91,7 @@
     "glass_elevator_erp_nas": {
       "original": "glass_elevator_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:14",
       "duration": 60,
       "group": 0
@@ -99,7 +99,7 @@
     "montana_erp_nas": {
       "original": "montana_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:00",
       "duration": 60,
       "group": 0
@@ -107,7 +107,7 @@
     "motorsports_park_erp_nas": {
       "original": "motorsports_park_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:15",
       "duration": 60,
       "group": 0
@@ -115,7 +115,7 @@
     "nyc_drive_erp_nas": {
       "original": "nyc_drive_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:12",
       "duration": 60,
       "group": 0
@@ -123,7 +123,7 @@
     "pac_man_erp_nas": {
       "original": "pac_man_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0",
       "duration": 60,
       "group": 0
@@ -131,7 +131,7 @@
     "penthouse_erp_nas": {
       "original": "penthouse_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:04",
       "duration": 60,
       "group": 0
@@ -139,7 +139,7 @@
     "petite_anse_erp_nas": {
       "original": "petite_anse_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:45",
       "duration": 60,
       "group": 0
@@ -147,7 +147,7 @@
     "rhinos_erp_nas": {
       "original": "rhinos_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:18",
       "duration": 60,
       "group": 0
@@ -155,7 +155,7 @@
     "sunset_erp_nas": {
       "original": "sunset_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:40",
       "duration": 60,
       "group": 0
@@ -163,7 +163,7 @@
     "three_peaks_erp_nas": {
       "original": "three_peaks_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:00",
       "duration": 60,
       "group": 0
@@ -171,7 +171,7 @@
     "video_04_erp_nas": {
       "original": "4_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0",
       "duration": 60,
       "group": 0
@@ -179,7 +179,7 @@
     "video_19_erp_nas": {
       "original": "19_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0",
       "duration": 60,
       "group": 0
@@ -187,7 +187,7 @@
     "video_20_erp_nas": {
       "original": "20_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0",
       "duration": 60,
       "group": 0
@@ -195,7 +195,7 @@
     "video_22_erp_nas": {
       "original": "22_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0",
       "duration": 60,
       "group": 0
@@ -203,7 +203,7 @@
     "video_23_erp_nas": {
       "original": "23_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0",
       "duration": 60,
       "group": 0
@@ -211,15 +211,15 @@
     "video_24_erp_nas": {
       "original": "24_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0",
       "duration": 60,
       "group": 0
-      },
+    },
     "wingsuit_dubai_erp_nas": {
       "original": "wingsuit_dubai_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "0:00",
       "duration": 60,
       "group": 0

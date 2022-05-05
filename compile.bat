@@ -1,4 +1,1 @@
-cd lib
-python setup.py build_ext --inplace
-cd ..
-
+python lib/setup.py build_ext --inplace

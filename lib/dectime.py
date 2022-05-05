@@ -9,9 +9,8 @@ from contextlib import contextmanager
 from logging import warning, debug, fatal
 from pathlib import Path
 from subprocess import run, DEVNULL
-from typing import Any, NamedTuple, Union, Dict, Tuple, List, Optional
+from typing import Any, NamedTuple, Union, Dict, List, Optional
 
-from cycler import cycler
 import matplotlib.axes as axes
 import matplotlib.figure as figure
 import matplotlib.gridspec as gridspec
@@ -20,16 +19,19 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from fitter import Fitter
 import scipy.stats
 import skvideo.io
 from PIL import Image
+from cycler import cycler
+from fitter import Fitter
+
 from .assets import AutoDict, Role
+from .transform import cart2hcs
 from .util import (run_command, check_video_gop, iter_frame, load_sph_file,
-                  xyz2hcs, save_json, load_json, lin_interpol, save_pickle,
-                  load_pickle)
+                   save_json, load_json, lin_interpol, save_pickle,
+                   load_pickle)
 from .video_state import Config, VideoContext
-from .viewport import Viewport
+from .viewport import ERP
 
 
 class BaseTileDecodeBenchmark:
@@ -41,11 +43,7 @@ class BaseTileDecodeBenchmark:
         self.print_resume()
         self.role.init()
 
-        # total = len(self.video_context)
-        total = 0
         for n in self.video_context:
-            # print(f'{n}/{total}', end='\r', flush=True)
-            # info(f'\n{self.video_context.state}')
             action = self.role.operation(**kwargs)
 
             if action in (None, 'continue', 'skip'):
@@ -92,12 +90,11 @@ class BaseTileDecodeBenchmark:
     def get_times(self) -> List[float]:
         times = []
         dectime_log = self.video_context.dectime_log
-        f = self.video_context.dectime_log.open('r')
 
         for line in dectime_log.read_text(encoding='utf-8').splitlines():
-            time = line.strip().split(' ')[1].split('=')[1][:-1]
-            times.append(float(time))
-        f.close()
+            dectime = line.strip().split(' ')[1].split('=')[1][:-1]
+            times.append(float(dectime))
+
         content = self.video_context.dectime_log.read_text(encoding='utf-8')
         content_lines = content.splitlines()
         times = [float(line.strip().split(' ')[1].split('=')[1][:-1])
@@ -295,7 +292,7 @@ class TileDecodeBenchmark(BaseTileDecodeBenchmark):
         """
         debug(f'Collecting {self.video_context}')
         dectime_json_file = self.video_context.dectime_json_file
-        segment_file  = self.video_context.segment_file
+        segment_file = self.video_context.segment_file
         dectime_log = self.video_context.dectime_log
 
         if dectime_json_file.exists() and not overwrite:
@@ -686,6 +683,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                 return img_file
 
         paths = ProjectPaths()
+
         # overwrite = True
 
         def main(overwrite=True):
@@ -754,7 +752,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
                             min, q1, med, q3, max = np.percentile(data_bucket, [0, 25, 50, 75, 100]).T
                             iqr = 1.5 * (q3 - q1)
-                            clean_left= q1 - iqr
+                            clean_left = q1 - iqr
                             clean_right = q3 + iqr
 
                             data_bucket_clean = [d for d in data_bucket
@@ -815,7 +813,6 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                         print(f'  Saving... ')
                         save_pickle(fitter, paths.fitter_pickle_file)
                         print(f'  Finished.')
-
 
         def calc_stats(overwrite=False):
             print('  Calculating Statistics')
@@ -909,7 +906,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
             pd.DataFrame(stats).to_csv(str(paths.stats_file), index=False)
             pd.DataFrame(corretations_bucket).to_csv(str(paths.corretations_file), index=False)
 
-        def make_hist(overwrite = False):
+        def make_hist(overwrite=False):
             print(f'\n====== Make Plot - Bins = {self.bins} ======')
 
             # make an image for each metric
@@ -922,7 +919,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                         continue
 
                     # Make figure
-                    fig_pdf = figure.Figure(figsize=(12.8, 1.92), dpi=300)   # pdf
+                    fig_pdf = figure.Figure(figsize=(12.8, 1.92), dpi=300)  # pdf
                     fig_cdf = figure.Figure(figsize=(12.8, 1.92), dpi=300)  # cdf
                     pos = [(1, 5, x) for x in range(1, 5 * 1 + 1)]
                     subplot_pos = iter(pos)
@@ -938,7 +935,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
                         # Make histogram
                         kwrds = dict(label='empirical', color='#dbdbdb', width=fitter.x[1] - fitter.x[0])
-                        bins_area = [ y * (fitter.x[1]-fitter.x[0]) for y in fitter.y]
+                        bins_area = [y * (fitter.x[1] - fitter.x[0]) for y in fitter.y]
                         ax_pdf.bar(fitter.x, fitter.y, **kwrds)
                         ax_cdf.bar(fitter.x, np.cumsum(bins_area), **kwrds)
 
@@ -962,13 +959,13 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                         xlabel = 'Decoding time (ms)' if self.metric == 'time' else 'Bit Rate (Mbps)'
                         ylabel = 'Density' if index in [1, 6] else None
                         ylabel2 = 'Cumulative' if index in [1, 6] else None
-                        legkwrd_pdf = {'loc':'upper right'}
-                        legkwrd_cdf = {'loc':'lower right'}
+                        legkwrd_pdf = {'loc': 'upper right'}
+                        legkwrd_cdf = {'loc': 'lower right'}
 
                         ax_pdf.ticklabel_format(axis='x', style='scientific', scilimits=scilimits)
-                        ax_pdf.ticklabel_format(axis='y', style='scientific', scilimits=(0,0))
+                        ax_pdf.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
                         ax_cdf.ticklabel_format(axis='x', style='scientific', scilimits=scilimits)
-                        ax_cdf.ticklabel_format(axis='y', style='scientific', scilimits=(0,0))
+                        ax_cdf.ticklabel_format(axis='y', style='scientific', scilimits=(0, 0))
 
                         ax_pdf.set_title(title)
                         ax_cdf.set_title(title)
@@ -1101,7 +1098,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                 for bar_offset, self.tiling in enumerate(self.tiling_list):
                     nrows_sep, ncols_sep, index_sep = next(subplot_pos_sep)
                     ax_sep: axes.Axes = fig_boxplot_separated.add_subplot(nrows_sep, ncols_sep, index_sep)
-                    box_positions = {'erp':2, 'cmp':1}
+                    box_positions = {'erp': 2, 'cmp': 1}
 
                     for self.proj in self.proj_list:
                         tiling_data = self.data[self.proj][self.tiling][self.metric]
@@ -1214,7 +1211,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
         paths = ProjectPaths()
 
-        def main(overwrite = True):
+        def main(overwrite=True):
             get_data()
             make_fit()
             calc_stats()
@@ -1223,7 +1220,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
             make_bar_quality_tiling()
             make_boxplot(overwrite)
 
-        def get_data(overwrite = False):
+        def get_data(overwrite=False):
             print('\n\n====== Get Data ======')
             # data[self.proj][self.tiling][self.quality][self.metric]
             data_file = paths.data_file
@@ -1273,7 +1270,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
             del data
             print(f'  Finished.')
 
-        def make_fit(overwrite = False):
+        def make_fit(overwrite=False):
             print(f'\n\n====== Make Fit - Bins = {self.bins} ======')
 
             # Load data file
@@ -1305,7 +1302,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
 
             del data
 
-        def calc_stats(overwrite = False):
+        def calc_stats(overwrite=False):
             print('  Calculating Statistics')
 
             # Check stats file
@@ -1399,7 +1396,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
             pd.DataFrame(stats).to_csv(str(paths.stats_file), index=False)
             pd.DataFrame(corretations_bucket).to_csv(str(paths.corretations_file), index=False)
 
-        def make_hist(overwrite = False):
+        def make_hist(overwrite=False):
             print(f'\n====== Make hist - Bins = {self.bins} ======')
 
             # Load data
@@ -1475,7 +1472,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                     fig.savefig(im_file)
                     fig2.savefig(im_file.with_stem(f'{im_file.stem}_cdf'))
 
-        def make_bar_tiling_quality(overwrite = False):
+        def make_bar_tiling_quality(overwrite=False):
             """
             fig = metric
             axes = tiling
@@ -1489,7 +1486,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                 return
 
             # Make figure
-            figsize=(12.8, 3.84)
+            figsize = (12.8, 3.84)
             pos = [(2, 5, x) for x in range(1, 2 * 5 + 1)]
             scilimits_y = {'time': (-3, -3), 'rate': (6, 6)}
             xlabel = 'CRF'
@@ -1519,7 +1516,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                     ax.ticklabel_format(axis='y', style='scientific', scilimits=scilimits_y['time'])
 
                     # Config labels
-                    title=f'{self.proj.upper()} - {self.tiling}'
+                    title = f'{self.proj.upper()} - {self.tiling}'
                     ax.set_title(title)
                     ax.set_xticks(xticks)
                     ax.set_xticklabels(xticklabels)
@@ -1543,7 +1540,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                 print(f'Salvando a figura')
                 fig.savefig(path)
 
-        def make_bar_quality_tiling(overwrite = False):
+        def make_bar_quality_tiling(overwrite=False):
             # fig = metric
             # axes = quality
             # bar = tiling
@@ -1583,7 +1580,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                     ax.ticklabel_format(axis='y', style='scientific', scilimits=scilimits_y['time'])
 
                     # Config labels
-                    title=f'{self.proj.upper()} - CRF {self.quality}'
+                    title = f'{self.proj.upper()} - CRF {self.quality}'
                     ax.set_title(title)
                     ax.set_xticks(xticks)
                     ax.set_xticklabels(xticklabels)
@@ -1608,7 +1605,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                 print(f'Salvando a figura')
                 fig.savefig(path)
 
-        def make_boxplot(overwrite = False):
+        def make_boxplot(overwrite=False):
             """
             fig = metric
             axes = tiling
@@ -1640,14 +1637,14 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                               mpatches.Patch(color=bar_colors['erp'], label='ERP')]
 
             # Make figure
-            figsize=(12.8, 3.84)
+            figsize = (12.8, 3.84)
             pos = [(2, 5, x) for x in range(1, 2 * 5 + 1)]
             fig = figure.Figure(figsize=figsize)
             subplot_pos = iter(pos)
 
             fig_boxplot_separated = figure.Figure(figsize=(15.4, 3.84))
             outer = gridspec.GridSpec(2, 5,
-            #                           # wspace=0.1, hspace=0.1
+                                      #                           # wspace=0.1, hspace=0.1
                                       )
             box_positions = {'erp': 2, 'cmp': 1}
 
@@ -1662,7 +1659,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                         # Group data by quality
                         data_bucket = []
                         for self.quality in self.quality_list:
-                            samples = data[ self.proj][self.tiling][self.quality][self.metric]
+                            samples = data[self.proj][self.tiling][self.quality][self.metric]
                             data_bucket.append(samples)
 
                         # Make boxplot
@@ -1691,8 +1688,8 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                     ax.legend(handles=legend_handles, loc='upper right')
 
                     ################ separated axes ################
-                    inner = gridspec.GridSpecFromSubplotSpec(1, len(self.quality_list), subplot_spec=outer[index-1],)
-                                                             # wspace=0.05, hspace=0.05)
+                    inner = gridspec.GridSpecFromSubplotSpec(1, len(self.quality_list), subplot_spec=outer[index - 1], )
+                    # wspace=0.05, hspace=0.05)
                     for sub_idx, self.quality in enumerate(self.quality_list):
                         ax_sep: axes.Axes = fig_boxplot_separated.add_subplot(inner[sub_idx])
 
@@ -2383,10 +2380,11 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                     for self.quality in self.quality_list:
                         for self.proj in self.proj_list:
                             start += 1
-                            stats = stats_df[(stats_df['quality'] == int(self.quality)) & (stats_df['tiling'] == self.tiling) & (stats_df['proj'] == self.proj) & (stats_df['metric'] == self.metric)]
+                            stats = stats_df[(stats_df['quality'] == int(self.quality)) & (stats_df['tiling'] == self.tiling) & (stats_df['proj'] == self.proj) & (
+                                        stats_df['metric'] == self.metric)]
                             stats = stats.sort_values(by=['average'], ascending=False)
 
-                            x = list(range(0+start, len(xticks)*13+start, 13))
+                            x = list(range(0 + start, len(xticks) * 13 + start, 13))
                             time_avg = stats['average']
                             time_std = stats['std']
 
@@ -2408,7 +2406,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                                             width=1,
                                             color=color,
                                             scilimits=scilimits)
-                    ax.set_xticks(list(range(0+6, len(xticks)*13+6, 13)))
+                    ax.set_xticks(list(range(0 + 6, len(xticks) * 13 + 6, 13)))
                     ax.set_xticklabels(xticks, rotation=13, ha='right', va='top')
                     print(f'Salvando a figura')
                     fig.savefig(ProjectPaths.bar_tiling_quality_video_file())
@@ -2545,7 +2543,6 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
         main()
 
 
-
 class Dashing(BaseTileDecodeBenchmark):
     def __init__(self, config: str = None, role: str = None, **kwargs):
         """
@@ -2563,9 +2560,9 @@ class Dashing(BaseTileDecodeBenchmark):
             'COMPRESS': Role(name='COMPRESS', deep=4, init=None,
                              operation=self.compress, finish=None),
             'DASH': Role(name='SEGMENT', deep=4, init=None,
-                            operation=self.dash, finish=None),
+                         operation=self.dash, finish=None),
             'MEASURE_CHUNKS': Role(name='DECODE', deep=5, init=None,
-                           operation=self.measure, finish=None),
+                                   operation=self.measure, finish=None),
         }
 
         self.config = Config(config)
@@ -2575,6 +2572,7 @@ class Dashing(BaseTileDecodeBenchmark):
         self.run(**kwargs)
 
     def dash(self): pass
+
     def measure(self): pass
 
 
@@ -2607,7 +2605,7 @@ class CheckTiles(BaseTileDecodeBenchmark):
         }
 
         self.role = operations[role]
-        self.check_table = {'file':[],'msg':[]}
+        self.check_table = {'file': [], 'msg': []}
 
         self.results = AutoDict()
         self.results_dataframe = pd.DataFrame()
@@ -2801,7 +2799,7 @@ class CheckTiles(BaseTileDecodeBenchmark):
         filename = f'get_tiles_{dataset_name}_{video_name}_{self.video_context.video.projection}_{tiling}.pickle'
         get_tiles_pickle = self.get_tiles_path / filename
 
-        if not get_tiles_pickle.exists() :
+        if not get_tiles_pickle.exists():
             warning(f'The file {get_tiles_pickle} NOT exist. Skipping.')
             return
 
@@ -2834,6 +2832,7 @@ class CheckTiles(BaseTileDecodeBenchmark):
 
         new_results[f'{tiling}'] = results
         save_pickle(new_results, get_tiles_pickle_new)
+
 
 # class Siti2D(BaseTileDecodeBenchmark):
 #     def __init__(self, config: str = None, role: str = None, **kwargs):
@@ -3016,13 +3015,13 @@ class QualityMetrics:
 
     # ### wspsnr ### #
     def prepare_weight_ndarray(self):
-        if self.video_context.video.projection == 'equirectangular':
+        if self.video_context.video.projection == 'erp':
             height, width = self.video_context.video.resolution.shape
             func = lambda y, x: np.cos((y + 0.5 - height / 2) * np.pi
                                        / height)
             self.weight_ndarray = np.fromfunction(func, (height, width),
                                                   dtype='float32')
-        elif self.video_context.video.projection == 'cubemap':
+        elif self.video_context.video.projection == 'cmp':
             # each face must be square (proj. aspect ration == 3:2).
             face = self.video_context.video.resolution.shape[0] / 2
             face_ctr = face / 2
@@ -3334,46 +3333,72 @@ class MakeViewport(BaseTileDecodeBenchmark):
         function[role]()
 
     def nas_erp(self):
-        database_pickle = self.database_pickle
-        database = load_pickle(database_pickle)
+        database = load_json(self.database_json)
 
-        viewport = Viewport('90x90', proj='erp')
-        # database[video_name][user_id] = {'azimuth': theta, 'elevation': phi}  # in rad
+        # viewport = Viewport('90x90', proj='erp')
+        erp = ERP('6x4', '576x288', '90x90')
+        height, width = erp.proj_res
+
         for video in database:
             if video == 'wild_elephants_nas': continue
+
             for user in database[video]:
+                # database[video][user] = (yaw, pitch, roll)  # in rad
                 output_video = self.workfolder / f'{video}_{user}.mp4'
                 if output_video.exists(): continue
+                self.writer = skvideo.io.FFmpegWriter(output_video,
+                                                      inputdict={'-r': '30'},
+                                                      outputdict={'-r': '30', '-pix_fmt': 'yuv420p'})
 
-                yaw_list = database[video][user]['azimuth']
-                pitch_list = database[video][user]['elevation']
-                roll_list = [0] * len(pitch_list)
+                yaw_pitch_roll_frames = database[video][user]
+                self.reader = skvideo.io.FFmpegReader(f'{self.workfolder}/videos/{video}_erp_200x100_30.mp4')
 
-                self.writer = skvideo.io.FFmpegWriter(output_video, outputdict={'-r': '30', '-pix_fmt': 'yuv420'})
-                original_video = Path(f'{self.workfolder}/videos/{video}_erp_200x100_30.mp4')
-                self.reader = skvideo.io.FFmpegReader(f'{original_video}')
-                video_frame = self.reader.nextFrame()
                 count = 0
-                for yaw, pitch, roll in zip(yaw_list, pitch_list, roll_list):
-                    proj_array = viewport.rotate(yaw, pitch, roll).project('400x200').projection
-                    proj_mask = Image.fromarray(proj_array)
+                yaw_pitch_roll_frames = [[0, 0, 0],
+                                         [90, 0, 0],
+                                         [-90, 0, 0],
+                                         [0, 45, 0],
+                                         [0, -45, 0],
+                                         [0, 0, 45],
+                                         [0, 0, -45],
+                                         ]
+                for frame_array, (yaw, pitch, roll) in zip(self.reader, yaw_pitch_roll_frames):
+                    frame_img = Image.fromarray(frame_array).resize((width, height))
+                    yaw, pitch, roll = np.deg2rad((yaw, pitch, roll))
+                    erp.set_vp(yaw, pitch, roll)
 
-                    frame_array = next(video_frame)
-                    frame_img = Image.fromarray(frame_array).resize(proj_mask.size)
+                    # Draw all tiles
+                    erp.clear_image()
+                    erp.draw_tiles_borders(lum=200)
+                    cover = Image.new("RGB", (width, height), (0, 0, 0))
+                    frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
 
-                    mask = Image.new("RGB", proj_mask.size, (255,255,255))
-                    im = Image.composite(mask, frame_img, proj_mask)
+                    # Draw VP tiles
+                    erp.clear_image()
+                    erp.draw_vp_tiles(lum=200)
+                    cover = Image.new("RGB", (width, height), (0, 255, 0))
+                    frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
 
-                    im_array = np.asarray(im)
-                    self.writer.writeFrame(im_array)
+                    # Draw viewport
+                    erp.clear_image()
+                    erp.draw_vp(lum=150)
+                    cover = Image.new("RGB", (width, height), (200, 200, 200))
+                    frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+                    # frame_img.show()
+
+                    # noinspection PyTypeChecker
+                    self.writer.writeFrame(np.array(frame_img))
+                    # todo: remove this
+                    print(f'{video}-user{user}-frame{count}')
                     count += 1
-                    if count >= 30: break
+                    # if count >= 30: break
                 self.writer.close()
+                break
 
 
-class GetTiles(BaseTileDecodeBenchmark):
-    results = AutoDict()
-    database = AutoDict()
+class GetTiles(BaseTileDecodeBenchmark, Graphs):
+    results: AutoDict
+    database: AutoDict
     old_video = None
     old_tiling = None
     old_chunk = None
@@ -3396,29 +3421,22 @@ class GetTiles(BaseTileDecodeBenchmark):
                             init=None,
                             operation=self.process_nasrabadi,
                             finish=None),
-            'GET_TILES': Role(name='GET_TILES', deep=2,
-                              init=self.init_get_tiles,
+            'GET_TILES': Role(name='GET_TILES', deep=0,
+                              init=None,
                               operation=self.get_tiles,
-                              finish=self.finish_get_tiles),
-            'JSON2PICKLE': Role(name='JSON2PICKLE', deep=2,
-                                init=None,
-                                operation=self.json2pickle,
-                                finish=None),
-            'REFACTOR': Role(name='REFACTOR', deep=2, init=self.init_refactor,
-                             operation=self.refactor,
-                             finish=self.end_refactor),
+                              finish=None),
         }
-        ds_name = kwargs['dataset_name']
 
         self.config = Config(config)
         self.role = operations[role]
         self.video_context = VideoContext(self.config, self.role.deep)
+        self.overwrite = kwargs['overwrite']
 
-        self.dataset_name = ds_name
+        self.dataset_name = kwargs.pop('dataset_name')
         self.database_folder = Path('datasets')
-        self.database_path = self.database_folder / ds_name
-        self.database_json = self.database_path / f'{ds_name}.json'
-        self.database_pickle = self.database_path / f'{ds_name}.pickle'
+        self.database_path = self.database_folder / self.dataset_name
+        self.database_json = self.database_path / f'{self.dataset_name}.json'
+        self.database_pickle = self.database_path / f'{self.dataset_name}.pickle'
 
         self.get_tiles_path = (self.video_context.project_path
                                / self.video_context.get_tiles_folder)
@@ -3426,61 +3444,7 @@ class GetTiles(BaseTileDecodeBenchmark):
 
         self.run(**kwargs)
 
-    # Refactor
-    def init_refactor(self):
-        self.video_context.dataset_name = self.dataset_name
-        self.hm_dataset = load_pickle(self.video_context.dataset_pickle)
-        self.dectime = load_json(self.video_context.dectime_json_file)
-        self.tile_quality = load_json(self.video_context.quality_result_json)
-
-    def refactor(self, **kwargs):
-        print(f'{self.video_context.state}')
-        if self.video_context.video != self.old_video:
-            if self.old_video is not None:
-                new_database_pickle = (self.video_context.project_path
-                                       / f'database_{self.name}.pickle')
-                save_pickle(self.new_database, new_database_pickle)
-
-            self.old_video = self.video_context.video
-            self.old_name = f'{self.video_context.video}'
-
-            name = self.old_name.replace('_cmp', '')
-            self.name = name.replace('_erp', '')
-            self.projection = self.video_context.video.projection
-
-            new_database_pickle = (self.video_context.project_path
-                                   / f'database_{self.name}.pickle')
-
-            if new_database_pickle.exists():
-                self.new_database = load_pickle(new_database_pickle)
-            else:
-                self.new_database = AutoDict()
-
-            self.new_database[self.projection]['dectime_rate'] |= self.dectime[self.old_name]
-            self.new_database[self.projection]['tile_quality'] |= self.tile_quality[self.name]
-            self.new_database['hm_dataset'][self.dataset_name] |= self.hm_dataset[self.name]
-
-        ##########################
-        if self.video_context.tiling != self.old_tiling:
-            self.old_tiling = self.video_context.tiling
-            self.tiling = f'{self.video_context.tiling}'
-
-            if self.tiling != '1x1':
-                get_tiles = load_pickle(self.video_context.get_tiles_pickle)
-                for user_id in get_tiles:
-                    self.new_database[self.projection]['get_tiles'][
-                        self.tiling][user_id] = get_tiles[user_id][:1800]
-            else:
-                for user_id in self.hm_dataset[self.name]:
-                    self.new_database[self.projection]['get_tiles'][
-                        self.tiling][user_id] = [[0]]*1800
-
-    def end_refactor(self):
-        new_database_pickle = (self.video_context.project_path
-                               / f'database_{self.name}.pickle')
-        save_pickle(self.new_database, new_database_pickle)
-
-    def process_nasrabadi(self, overwrite, dataset_name):
+    def process_nasrabadi(self, overwrite):
         database_json = self.database_json
 
         if database_json.exists() and not overwrite:
@@ -3488,168 +3452,137 @@ class GetTiles(BaseTileDecodeBenchmark):
             return
 
         database = AutoDict()
-
-        video_id_map_csv = pd.read_csv(f'{self.database_path}/video_id_map.csv')
-        video_id_map = video_id_map_csv['my_id']
-        video_id_map.index = video_id_map_csv['video_id']
-
-        # "Videos 10,17,27,28 were rotated 265, 180,63,81 degrees to right,
-        # respectively, to reorient during playback." - Author
-        nasrabadi_rotation = {10: np.deg2rad(-265), 17: np.deg2rad(-180),
-                              27: np.deg2rad(-63), 28: np.deg2rad(-81)}
-
+        video_id_map = load_json(f'{self.database_path}/videos_map.json', object_hook=dict)
         user_map = {}
+        rotation_map = {10: np.deg2rad(-265), 17: np.deg2rad(-180),
+                        27: np.deg2rad(-63), 28: np.deg2rad(-81)}
 
         for csv_database_file in self.database_path.glob('*/*.csv'):
-            # info('Preparing Local.')
-            user, video_id = csv_database_file.stem.split('_')
-            video_name = video_id_map[video_id]
+            # Parse filename in user_id and video_id
+            user_nas_id, video_nas_id = csv_database_file.stem.split('_')
+            video_name = video_id_map[video_nas_id]
 
-            # info(f'Renaming users.')
-            if user not in user_map.keys():
-                user_map[user] = len(user_map)
-            user_id = str(user_map[user])
+            # Map user_id to str(int)
+            try:
+                user_id = str(user_map[user_nas_id])
+            except KeyError:
+                user_map[user_nas_id] = len(user_map)
+                user_id = str(user_map[user_nas_id])
 
-            # info(f'Checking if database key was collected.')
-            if database[video_name][user_id] != {} and not overwrite:
-                warning(f'The key [{video_name}][{user_id}] is not empty. '
-                        f'Skipping')
-                continue
+            print(f'\rUser {user_id} - {video_name} - ', end='')
 
-            # info(f'Loading original database.')
-            head_movement = pd.read_csv(csv_database_file,
-                                        names=['timestamp',
-                                               'Qx', 'Qy', 'Qz', 'Qw',
-                                               'Vx', 'Vy', 'Vz'])
+            # "Videos 10,17,27,28 were rotated 265, 180,63,81 degrees to right,
+            # respectively, to reorient during playback." - Author
+            # Videos 'cable_cam_nas','drop_tower_nas','wingsuit_dubai_nas','drone_chases_car_nas'
+            rotation = rotation_map[video_nas_id] if video_nas_id in [10, 17, 27, 28] else 0
 
-            rotation = 0
-            if video_id in [10,17,27,28]:
-                # info(f'Cheking rotation offset.')
-                rotation = nasrabadi_rotation[video_id]
-
-            frame_counter = 0
-            last_line = None
-            theta, phi = [], []
+            previous_line = None
+            yaw_pitch_roll_frames = []
             start_time = time.time()
+            names = ['timestamp', 'Qx', 'Qy', 'Qz', 'Qw', 'Vx', 'Vy', 'Vz']
+            n = 0
+            frame_counter = 0
 
-            for n, line in enumerate(head_movement.iterrows()):
-                if not len(theta) < 1800: break
-                line = line[1]
-                print(f'\rUser {user_id} - {video_name} - sample {n:04d} - frame {frame_counter}', end='')
+            # with open(csv_database_file, newline='') as csv_database:
+            with open(csv_database_file) as csv_database:
+                head_movement = pd.read_csv(csv_database_file, names=names)
+                for n, line in enumerate(head_movement.itertuples(index=False, name=None)):
+                    # for n, line in enumerate(csv.reader(csv_database)):
+                    if len(yaw_pitch_roll_frames) >= 1800: break
+                    timestamp, Qx, Qy, Qz, Qw, Vx, Vy, Vz = map(float, line)
+                    x, y, z = Vz, Vy, Vx  # Based on gitHub code of author
 
-                # Se o timestamp for menor do que frame_time,
-                # continue. Senão, faça interpolação. frame time = counter / fps
-                frame_time = frame_counter / 30
-                if line.timestamp < frame_time:
-                    last_line = line
-                    continue
-                if line.timestamp == frame_time:
-                    # Based on gitHub code of author
-                    x, y, z = line[['Vz', 'Vx', 'Vy']]
-                else:
-                    # Linear Interpolation
-                    t: float = frame_time
-                    t_f: float = line.timestamp
-                    t_i: float = last_line.timestamp
-                    v_f: pd.Serie = line[['Vz', 'Vx', 'Vy']]
-                    v_i: pd.Serie = last_line[['Vz', 'Vx', 'Vy']]
-                    x, y, z = lin_interpol(t, t_f, t_i, v_f, v_i)
+                    frame_timestamp = frame_counter / 30
+                    if timestamp < frame_timestamp:
+                        previous_line = timestamp, x, y, z
+                        continue
 
-                azimuth, elevation = xyz2hcs(x, y, z)
-                new_azimuth = azimuth + rotation
-                if new_azimuth < -np.pi:
-                    new_azimuth += 2 * np.pi
-                elif new_azimuth >= np.pi:
-                    new_azimuth -= 2 * np.pi
+                    if timestamp > frame_timestamp:
+                        # Linear Interpolation
+                        old_timestamp, old_x, old_y, old_z = previous_line
+                        t: float = frame_timestamp
+                        t_i: float = old_timestamp
+                        t_f: float = timestamp
+                        v_i: tuple = old_x, old_y, old_z
+                        v_f: tuple = x, y, z
+                        x, y, z = lin_interpol(t, (t_f, t_i), (v_f, v_i))
 
-                if elevation < -np.pi / 2:
-                    elevation = - np.pi - elevation
-                elif elevation > np.pi / 2:
-                    elevation = np.pi - elevation
+                    azimuth, elevation = cart2hcs(x, y, z)
+                    yaw, pitch = map(np.rad2deg, (azimuth, elevation))
+                    yaw, pitch = map(round, (yaw, pitch), (3, 3))
+                    roll = 0
+                    yaw = (yaw + 180.) % 360 - 180
+                    if yaw >= 180 or yaw < -180:
+                        print(f'\n{frame_counter=}, {yaw=}°')
+                    if pitch > 90 or pitch < -90:
+                        print(f'\n{frame_counter=}, {pitch=}°')
+                    yaw_pitch_roll_frames.append((yaw, pitch, roll))
 
-                theta.append(new_azimuth)
-                phi.append(elevation)
-                frame_counter += 1
-                last_line = line
+                    frame_counter += 1
+                    previous_line = timestamp, x, y, z
+            while len(yaw_pitch_roll_frames) < 1800:
+                yaw_pitch_roll_frames.append(yaw_pitch_roll_frames[-1])
+            database[video_name][user_id] = yaw_pitch_roll_frames
+            print(f'Samples {n:04d} - {frame_counter=} - {time.time() - start_time:0.3f}')
 
-            database[video_name][user_id] = {'azimuth': theta, 'elevation': phi}
-            print(f' - {time.time() - start_time:0.3f}')
-
-        print(f'\nFinish. Saving as {database_pickle}.')
-        save_pickle(database, database_pickle)
-
-    def init_get_tiles(self):
-        for video in self.config.videos_list:
-            if self.config.videos_list[video]['projection'] == 'equirectangular':
-                # self.config.videos_list[video]['scale'] = '144x72'
-                # self.config.videos_list[video]['scale'] = '288x144'
-                # self.config.videos_list[video]['scale'] = '432x216'
-                self.config.videos_list[video]['scale'] = '576x288'
-            elif self.config.videos_list[video]['projection'] == 'cubemap':
-                # self.config.videos_list[video]['scale'] = '144x96'
-                # self.config.videos_list[video]['scale'] = '288x192'
-                # self.config.videos_list[video]['scale'] = '432x288'
-                self.config.videos_list[video]['scale'] = '576x384'
-
-        database_pickle = self.database_pickle
-        # info(f'Loading database {database_pickle}.')
-        self.database = load_pickle(database_pickle)
+        print(f'\nFinish. Saving as {database_json}.')
+        save_json(database, database_json)
 
     def get_tiles(self, **kwargs):
+        self.database = load_json(self.database_json)
         overwrite = kwargs['overwrite']
 
-        tiling = self.video_context.tiling
-        if str(tiling) == '1x1':
-            # info(f'skipping tiling 1x1')
-            return
+        for self.video in self.videos_list:
+            result_json_name = f'get_tiles_{self.dataset_name}_{self.video}.json'
+            self.get_tiles_json = self.get_tiles_path / result_json_name
 
-        video_name = self.video_context.video.name.replace("_cmp", "").replace("_erp", "")
-        tiling.fov = '90x90'
-        dbname = self.dataset_name
-        database = self.database
-        self.results = AutoDict()
+            if self.get_tiles_json.exists() and not overwrite:
+                warning(f'\nThe file {self.get_tiles_json} exist. Skipping.')
+                continue
 
-        filename = f'get_tiles_{dbname}_{video_name}_{self.video_context.video.projection}_{tiling}.pickle'
-        get_tiles_pickle = self.get_tiles_path / filename
-        # info(f'Defined the result filename to {get_tiles_pickle}')
+            self.results = AutoDict()
+            users_data = self.database[self.name]
 
-        if get_tiles_pickle.exists() and not overwrite:
-            warning(f'The file {get_tiles_pickle} exist. Skipping.')
-            return
+            for self.tiling in self.tiling_list:
+                # erp '144x72', '288x144','432x216','576x288'
+                # cmp '144x96', '288x192','432x288','576x384'
+                erp = ERP(f'{self.tiling}', '576x288', '90x90')
+                print(f'{self.name} - tiling {self.tiling}')
 
-        print(f'{video_name} - tiling {tiling}')
+                for user in users_data:
+                    yaw_pitch_roll_frames = users_data[user]
+                    result: list[list[int, ...]]
+                    result_tiles = self.results[self.vid_proj][self.tiling][user]['tiles'] = []
+                    result_counter = self.results[self.vid_proj][self.tiling][user]['counter'] = {}
+                    resume = Counter()
+                    start = time.time()
+                    for frame, (yaw, pitch, roll) in enumerate(yaw_pitch_roll_frames):
+                        yaw, pitch, roll = map(np.deg2rad, (yaw, pitch, roll))
+                        erp.set_vp(yaw, pitch, roll)
+                        vptiles = erp.get_vptiles()
+                        result_tiles.append(vptiles)
 
-        for n, user_id in enumerate(database[video_name]):
-            # 'timestamp', 'Qx', 'Qy', 'Qz', 'Qw','Vx', 'Vy', 'Vz', 'azimuth',
-            # 'elevation'
-            yaw_list = database[video_name][user_id]['azimuth']
-            pitch_list = database[video_name][user_id]['elevation']
-            roll_list = [0]*len(pitch_list)
-
-            self.results[user_id] = []
-
-            for frame, (yaw, pitch, roll) in enumerate(zip(yaw_list, pitch_list, roll_list)):
-                print(f'\rUser {user_id} - sample {frame:05d}', end='')
-                tiles_selected = tiling.get_vptiles(yaw, pitch, roll)
-                self.results[user_id].append(tiles_selected)
-
-        print('')
-        save_pickle(self.results, get_tiles_pickle)
+                        resume = resume + Counter(vptiles)
+                        print(f'\r  {user} - {frame:04d} {time.time() - start:.3f}s - {dict(resume)}          ', end='')
+                    result_counter.update(resume)
+                print('')
+            save_json(self.results, self.get_tiles_json)
 
     def finish_get_tiles(self):
         pass
 
-    def json2pickle(self, overwrite=False):
-        video_name = self.video_context.video.name
-        tiling = self.video_context.tiling
-        dbname = self.dataset_name
+    # def json2pickle(self, overwrite=False):
+    #     video_name = self.video_context.video.name
+    #     tiling = self.video_context.tiling
+    #     dbname = self.dataset_name
+    #
+    #     get_tiles_pickle = self.get_tiles_path / f'get_tiles_{dbname}_{video_name}_{self.video_context.video.projection}_{tiling}.pickle'
+    #     get_tiles_json = self.get_tiles_path / f'get_tiles_{dbname}_{video_name}_{self.video_context.video.projection}_{tiling}.json'
+    #
+    #     if get_tiles_json.exists() and not get_tiles_pickle.exists() and not overwrite:
+    #         result = load_json(get_tiles_json)
+    #         save_pickle(result, get_tiles_pickle)
 
-        get_tiles_pickle = self.get_tiles_path / f'get_tiles_{dbname}_{video_name}_{self.video_context.video.projection}_{tiling}.pickle'
-        get_tiles_json = self.get_tiles_path / f'get_tiles_{dbname}_{video_name}_{self.video_context.video.projection}_{tiling}.json'
-
-        if get_tiles_json.exists() and not get_tiles_pickle.exists() and not overwrite:
-            result = load_json(get_tiles_json)
-            save_pickle(result, get_tiles_pickle)
 
 class GetViewportQuality(BaseTileDecodeBenchmark):
     """
@@ -3657,9 +3590,11 @@ class GetViewportQuality(BaseTileDecodeBenchmark):
     viewport.
     """
 
+
 from sys import getsizeof, stderr
 from itertools import chain
 from collections import deque
+
 try:
     from reprlib import repr
 except ImportError:
@@ -3687,12 +3622,12 @@ def total_size(o, handlers=None, verbose=False):
                     set: iter,
                     frozenset: iter,
                     }
-    all_handlers.update(handlers)     # user handlers take precedence
-    seen = set()                      # track which object id's have already been seen
-    default_size = getsizeof(0)       # estimate sizeof object without __sizeof__
+    all_handlers.update(handlers)  # user handlers take precedence
+    seen = set()  # track which object id's have already been seen
+    default_size = getsizeof(0)  # estimate sizeof object without __sizeof__
 
     def sizeof(obj):
-        if id(obj) in seen:       # do not double count the same object
+        if id(obj) in seen:  # do not double count the same object
             return 0
         seen.add(id(obj))
         s = getsizeof(obj, default_size)
