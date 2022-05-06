@@ -48,11 +48,11 @@ class Viewport:
         :return: self
         """
         self.position = yaw, pitch, roll
-        mat = rot_matrix(yaw, pitch, roll)
+        self.mat = rot_matrix(yaw, pitch, roll)
         self.rotated_normals = []
 
         # For each plane in view
-        self.rotated_normals = [mat @ normal for normal in self.base_normals]
+        self.rotated_normals = [self.mat @ normal for normal in self.base_normals]
         return self
 
     def is_viewport(self, x, y, z) -> bool:
@@ -114,22 +114,25 @@ class Viewport:
 
         xi_xf = range(W)
         yi_yf = range(H)
-
         for x0 in xi_xf:
             n, m = y_i, x0
             x, y, z = vp2cart(m, n, (H, W), self.fov.shape)
+            x, y, z = self.mat @ (x, y, z)
             yield (m, n), (x, y, z)
         for x0 in xi_xf:
             n, m = y_f - 1, x0
             x, y, z = vp2cart(m, n, (H, W), self.fov.shape)
+            x, y, z = self.mat @ (x, y, z)
             yield (m, n), (x, y, z)
         for y0 in yi_yf:
             n, m = y0, x_i
             x, y, z = vp2cart(m, n, (H, W), self.fov.shape)
+            x, y, z = self.mat @ (x, y, z)
             yield (m, n), (x, y, z)
         for y0 in yi_yf:
             n, m = y0, x_f - 1
             x, y, z = vp2cart(m, n, (H, W), self.fov.shape)
+            x, y, z = self.mat @ (x, y, z)
             yield (m, n), (x, y, z)
 
     def show(self):

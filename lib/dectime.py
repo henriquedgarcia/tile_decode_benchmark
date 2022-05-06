@@ -3353,25 +3353,25 @@ class MakeViewport(BaseTileDecodeBenchmark):
                 yaw_pitch_roll_frames = database[video][user]
                 self.reader = skvideo.io.FFmpegReader(f'{self.workfolder}/videos/{video}_erp_200x100_30.mp4')
 
-                count = 0
-                yaw_pitch_roll_frames = [[0, 0, 0],
-                                         [90, 0, 0],
-                                         [-90, 0, 0],
-                                         [0, 45, 0],
-                                         [0, -45, 0],
-                                         [0, 0, 45],
-                                         [0, 0, -45],
-                                         ]
+                count = 0             #     y    p    r
+                # yaw_pitch_roll_frames = [[  0,   0,   0],
+                #                          [ 90,   0,   0],
+                #                          [-90,   0,   0],
+                #                          [  0,  45,   0],
+                #                          [  0, -45,   0],
+                #                          [  0,   0,  45],
+                #                          [  0,   0, -45],
+                #                          ]
                 for frame_array, (yaw, pitch, roll) in zip(self.reader, yaw_pitch_roll_frames):
                     frame_img = Image.fromarray(frame_array).resize((width, height))
                     yaw, pitch, roll = np.deg2rad((yaw, pitch, roll))
                     erp.set_vp(yaw, pitch, roll)
 
-                    # Draw all tiles
-                    erp.clear_image()
-                    erp.draw_tiles_borders(lum=200)
-                    cover = Image.new("RGB", (width, height), (0, 0, 0))
-                    frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+                    # # Draw all tiles
+                    # erp.clear_image()
+                    # erp.draw_tiles_borders(lum=200)
+                    # cover = Image.new("RGB", (width, height), (0, 0, 0))
+                    # frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
 
                     # Draw VP tiles
                     erp.clear_image()
@@ -3379,12 +3379,12 @@ class MakeViewport(BaseTileDecodeBenchmark):
                     cover = Image.new("RGB", (width, height), (0, 255, 0))
                     frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
 
-                    # Draw viewport
+                    # Draw viewport borders
                     erp.clear_image()
-                    erp.draw_vp(lum=150)
+                    erp.draw_vp_borders(lum=200)
                     cover = Image.new("RGB", (width, height), (200, 200, 200))
                     frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
-                    # frame_img.show()
+                    frame_img.show()
 
                     # noinspection PyTypeChecker
                     self.writer.writeFrame(np.array(frame_img))

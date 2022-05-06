@@ -185,9 +185,9 @@ def rot_matrix(yaw: float, pitch: float, roll: float) -> np.array:
 
     # yaw
     mat_y = np.array(
-        [[cy, 0, sy],
+        [[cy, 0, -sy],
          [0, 1, 0],
-         [-sy, 0, cy]])
+         [sy, 0, cy]])
 
     # pitch
     mat_z = np.array(
