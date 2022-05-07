@@ -3367,11 +3367,11 @@ class MakeViewport(BaseTileDecodeBenchmark):
                     yaw, pitch, roll = np.deg2rad((yaw, pitch, roll))
                     erp.set_vp(yaw, pitch, roll)
 
-                    # # Draw all tiles
-                    # erp.clear_image()
-                    # erp.draw_tiles_borders(lum=200)
-                    # cover = Image.new("RGB", (width, height), (0, 0, 0))
-                    # frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+                    # Draw all tiles
+                    erp.clear_image()
+                    erp.draw_tiles_borders(lum=200)
+                    cover = Image.new("RGB", (width, height), (255, 0, 0))
+                    frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
 
                     # Draw VP tiles
                     erp.clear_image()
@@ -3381,17 +3381,18 @@ class MakeViewport(BaseTileDecodeBenchmark):
 
                     # Draw viewport borders
                     erp.clear_image()
-                    erp.draw_vp_borders(lum=200)
-                    cover = Image.new("RGB", (width, height), (200, 200, 200))
+                    erp.draw_vp_borders(lum=255)
+                    cover = Image.new("RGB", (width, height), (0, 0, 0))
                     frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
-                    frame_img.show()
+                    # frame_img.show()
 
                     # noinspection PyTypeChecker
                     self.writer.writeFrame(np.array(frame_img))
-                    # todo: remove this
-                    print(f'{video}-user{user}-frame{count}')
+                    print(f'\r{video}-user{user}-frame{count}', end='')
                     count += 1
+                    # todo: remove this
                     # if count >= 30: break
+                print('')
                 self.writer.close()
                 break
 
