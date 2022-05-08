@@ -3538,10 +3538,11 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
             self.get_tiles_json = self.get_tiles_path / result_json_name
 
             if self.get_tiles_json.exists() and not overwrite:
-                warning(f'\nThe file {self.get_tiles_json} exist. Skipping.')
-                continue
-
-            self.results = AutoDict()
+                warning(f'\nThe file {self.get_tiles_json} exist. Loading.')
+                self.results = load_json(self.get_tiles_json)
+                # continue
+            else:
+                self.results = AutoDict()
             users_data = self.database[self.name]
 
             for self.tiling in self.tiling_list:
@@ -3551,21 +3552,41 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
                 print(f'{self.name} - tiling {self.tiling}')
 
                 for user in users_data:
+                    start = time.time()
                     yaw_pitch_roll_frames = users_data[user]
                     result: list[list[int, ...]]
-                    result_tiles = self.results[self.vid_proj][self.tiling][user]['tiles'] = []
-                    result_counter = self.results[self.vid_proj][self.tiling][user]['counter'] = {}
+                    result_tiles  = []
+                    result_counter = {}
+                    result_chunks = {}
+
                     resume = Counter()
-                    start = time.time()
+                    chunk = 0
+                    tiles_chunks = set()
                     for frame, (yaw, pitch, roll) in enumerate(yaw_pitch_roll_frames):
+                        print(f'\r  {user} - {frame:04d} - ', end='')
                         yaw, pitch, roll = map(np.deg2rad, (yaw, pitch, roll))
                         erp.set_vp(yaw, pitch, roll)
+
                         vptiles = erp.get_vptiles()
                         result_tiles.append(vptiles)
 
-                        resume = resume + Counter(vptiles)
-                        print(f'\r  {user} - {frame:04d} {time.time() - start:.3f}s - {dict(resume)}          ', end='')
+                        if (frame+1)%30 == 0:
+                            chunk += 1
+                            result_chunks[str(chunk)] = list(tiles_chunks)
+                            resume = resume + Counter(tiles_chunks)
+                            tiles_chunks = set()
+                        tiles_chunks.update(vptiles)
+
+                        print(f'{time.time() - start:.3f}s - {dict(resume)}          ', end='')
                     result_counter.update(resume)
+
+                    if self.results[self.vid_proj][self.tiling][user]['tiles'] == {}:
+                        self.results[self.vid_proj][self.tiling][user]['tiles'] = result_tiles
+                    if self.results[self.vid_proj][self.tiling][user]['counter'] == {}:
+                        self.results[self.vid_proj][self.tiling][user]['counter'] = dict(resume)
+                    if self.results[self.vid_proj][self.tiling][user]['chunks'] == {}:
+                        self.results[self.vid_proj][self.tiling][user]['chunks'] = result_chunks
+
                 print('')
             save_json(self.results, self.get_tiles_json)
 
