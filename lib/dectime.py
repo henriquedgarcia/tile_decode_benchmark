@@ -3534,18 +3534,19 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
         overwrite = kwargs['overwrite']
 
         for self.video in self.videos_list:
-            result_json_name = f'get_tiles_{self.dataset_name}_{self.video}.json'
-            self.get_tiles_json = self.get_tiles_path / result_json_name
 
-            if self.get_tiles_json.exists() and not overwrite:
-                warning(f'\nThe file {self.get_tiles_json} exist. Loading.')
-                self.results = load_json(self.get_tiles_json)
-                # continue
-            else:
-                self.results = AutoDict()
             users_data = self.database[self.name]
 
             for self.tiling in self.tiling_list:
+                result_json_name = f'get_tiles_{self.dataset_name}_{self.video}_{self.tiling}.json'
+                self.get_tiles_json = self.get_tiles_path / result_json_name
+
+                results = AutoDict()
+                if self.get_tiles_json.exists() and not overwrite:
+                    warning(f'\nThe file {self.get_tiles_json} exist. Loading.')
+                    results = load_json(self.get_tiles_json)
+
+
                 # erp '144x72', '288x144','432x216','576x288'
                 # cmp '144x96', '288x192','432x288','576x384'
                 erp = ERP(f'{self.tiling}', '576x288', '90x90')
@@ -3553,41 +3554,46 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
 
                 for user in users_data:
                     start = time.time()
+
                     yaw_pitch_roll_frames = users_data[user]
                     result: list[list[int, ...]]
                     result_tiles  = []
                     result_counter = {}
                     result_chunks = {}
 
-                    resume = Counter()
+                    counter = Counter()
                     chunk = 0
                     tiles_chunks = set()
+
                     for frame, (yaw, pitch, roll) in enumerate(yaw_pitch_roll_frames):
                         print(f'\r  {user} - {frame:04d} - ', end='')
-                        yaw, pitch, roll = map(np.deg2rad, (yaw, pitch, roll))
-                        erp.set_vp(yaw, pitch, roll)
+
+                        erp.set_vp(*map(np.deg2rad, (yaw, pitch, roll)))
 
                         vptiles = erp.get_vptiles()
+
                         result_tiles.append(vptiles)
+
+                        tiles_chunks.update(vptiles)
 
                         if (frame+1)%30 == 0:
                             chunk += 1
-                            result_chunks[str(chunk)] = list(tiles_chunks)
-                            resume = resume + Counter(tiles_chunks)
+                            result_chunks[f'{chunk}'] = list(tiles_chunks)
+                            counter = counter + Counter(tiles_chunks)
                             tiles_chunks = set()
-                        tiles_chunks.update(vptiles)
 
-                        print(f'{time.time() - start:.3f}s - {dict(resume)}          ', end='')
-                    result_counter.update(resume)
+                        print(f'{time.time() - start:.3f}s - {dict(counter)}          ', end='')
 
-                    if self.results[self.vid_proj][self.tiling][user]['tiles'] == {}:
-                        self.results[self.vid_proj][self.tiling][user]['tiles'] = result_tiles
-                    if self.results[self.vid_proj][self.tiling][user]['counter'] == {}:
-                        self.results[self.vid_proj][self.tiling][user]['counter'] = dict(resume)
-                    if self.results[self.vid_proj][self.tiling][user]['chunks'] == {}:
-                        self.results[self.vid_proj][self.tiling][user]['chunks'] = result_chunks
+                    result_counter = dict(counter)
 
-                print('')
+                    if results[self.vid_proj][self.tiling][user]['tiles'] == {}:
+                        results[self.vid_proj][self.tiling][user]['tiles'] = result_tiles
+                    if results[self.vid_proj][self.tiling][user]['counter'] == {}:
+                        results[self.vid_proj][self.tiling][user]['counter'] = result_counter
+                    if results[self.vid_proj][self.tiling][user]['chunks'] == {}:
+                        results[self.vid_proj][self.tiling][user]['chunks'] = result_chunks
+
+                    print('')
             save_json(self.results, self.get_tiles_json)
 
     def finish_get_tiles(self):
