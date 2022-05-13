@@ -1171,6 +1171,7 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
         main()
 
     def by_pattern_by_quality(self, overwrite, n_dist):
+        dataset_name = 'nasrabadi_28videos'
         class ProjectPaths:
             ctx = self
 
@@ -1183,6 +1184,13 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
             def dectime_file(self) -> Path:
                 dectime_file = self.ctx.video_context.project_path / self.ctx.video_context.dectime_folder / f'dectime_{self.ctx.video}.json'
                 return dectime_file
+
+            @property
+            def get_tiles_json_file(self) -> Path:
+                get_tiles_path = self.ctx.video_context.project_path / self.ctx.video_context.get_tiles_folder
+                result_json_name = f'get_tiles_{dataset_name}_{self.ctx.video}_{self.ctx.tiling}.json'
+                get_tiles_json = get_tiles_path / result_json_name
+                return get_tiles_json
 
             @property
             def data_file(self) -> Path:
@@ -1236,24 +1244,44 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                 qlt_data = load_json(paths.quality_file, object_hook=dict)
 
                 for self.tiling in self.tiling_list:
+                    get_tiles = load_json(paths.get_tiles_json_file)
+                    get_tiles = get_tiles[self.vid_proj][self.tiling]
+                    # get_tiles[proj][tiling][user]['tiles']
+                    bucket = data[self.vid_proj][self.tiling]
+
+                    for user in get_tiles:
+                        chunk = 0
+                        tiles_for_chunks = set()
+
+                        if isinstance(bucket['get_tiles'][user][f'{chunk}'], list):
+                            continue
+
+                        for frame, vptiles in enumerate(get_tiles[user]['tiles']):
+                            tiles_for_chunks.update(vptiles)
+                            if (frame + 1) % 30 == 0:
+                                bucket['get_tiles'][user][f'{chunk}'] = list(tiles_for_chunks)
+                                tiles_for_chunks = set()
+                                chunk += 1
+
                     for self.quality in self.quality_list:
                         print(f'\r  Getting - {self.vid_proj} {self.name} {self.tiling} {self.quality} ... ', end='')
 
-                        bucket = data[self.vid_proj][self.tiling][self.quality]
-                        if not isinstance(bucket['time'], list):
-                            bucket = data[self.vid_proj][self.tiling][self.quality] = defaultdict(list)
+                        if not isinstance(bucket['dectimes'][self.quality]['time'], list):
+                            bucket['dectimes'][self.quality] = defaultdict(list)
+                            bucket['seen_tiles'][self.quality] = defaultdict(list)
+                            bucket['frame_tiles'][self.quality] = defaultdict(list)
 
                         for self.tile in self.tile_list:
+                            # quality_val["psnr"|"ws-psnr"|"s-psnr"]: float
+                            quality_val = qlt_data[self.tiling][self.quality][f'{self.tile}']
+
+                            # Aqui eu coloco todos os tiles e todos os chunks
                             for self.chunk in self.chunk_list:
-                                # qual["psnr"|"ws-psnr"|"s-psnr"]: float
-                                # values["dectimes"|"bitrate"]: list[float]|int
-
+                                # dectime_val["dectimes"|"bitrate"]: list[float]|int
                                 dectime_val = dectime[self.tiling][self.quality][f'{self.tile}'][f'{self.chunk}']
-                                quality_val = qlt_data[self.tiling][self.quality][f'{self.tile}']
-
-                                bucket['time'].append(float(np.average(dectime_val['dectimes'])))
-                                bucket['rate'].append(float(dectime_val['bitrate']))
-                                bucket['time_std'].append(float(np.std(dectime_val['dectimes'])))
+                                bucket['dectimes'][self.quality]['time'].append(float(np.average(dectime_val['dectimes'])))
+                                bucket['dectimes'][self.quality]['rate'].append(float(dectime_val['bitrate']))
+                                bucket['dectimes'][self.quality]['time_std'].append(float(np.std(dectime_val['dectimes'])))
 
                                 for metric in ['PSNR', 'WS-PSNR', 'S-PSNR']:
                                     value = quality_val[metric]
@@ -1261,9 +1289,30 @@ class DectimeGraphs(BaseTileDecodeBenchmark, Graphs):
                                     avg_qlt = float(np.average(value[idx * 30: idx * 30 + 30]))
                                     if avg_qlt == float('inf'):
                                         avg_qlt = 1000
-                                    bucket[metric].append(avg_qlt)
+                                    bucket['dectimes'][self.quality][metric].append(avg_qlt)
 
-                        print('OK')
+                            # aqui eu só coloco os chunks e tiles vistos por cada usuário
+                            for self.chunk in self.chunk_list:
+                                dectime_val = dectime[self.tiling][self.quality][f'{self.tile}'][f'{self.chunk}']
+                                time = []
+                                rate = []
+                                for user in bucket['get_tiles']:
+                                    if self.tile not in bucket['get_tiles'][user][f'{self.chunk}']:
+                                        # Pulando chunk não visto
+                                        continue
+                                    time.append(float(np.average(dectime_val['dectimes'])))
+                                    rate.append(float(dectime_val['bitrate']))
+
+                                bucket['seen_tiles'][self.quality]['time'].append(np.average(time))
+                                bucket['seen_tiles'][self.quality]['rate'].append(np.average(rate))
+
+                                for metric in ['PSNR', 'WS-PSNR', 'S-PSNR']:
+                                    value = quality_val[metric]
+                                    idx = self.chunk - 1
+                                    avg_qlt = float(np.average(value[idx * 30: idx * 30 + 30]))
+                                    if avg_qlt == float('inf'):
+                                        avg_qlt = 1000
+                                    bucket['seen_tiles'][self.quality][metric].append(avg_qlt)
 
             print(f' Saving... ', end='')
             save_json(data, data_file)
@@ -3353,7 +3402,7 @@ class MakeViewport(BaseTileDecodeBenchmark):
                 yaw_pitch_roll_frames = database[video][user]
                 self.reader = skvideo.io.FFmpegReader(f'{self.workfolder}/videos/{video}_erp_200x100_30.mp4')
 
-                count = 0             #     y    p    r
+                #                          [ y ,  p ,   r]
                 # yaw_pitch_roll_frames = [[  0,   0,   0],
                 #                          [ 90,   0,   0],
                 #                          [-90,   0,   0],
@@ -3362,6 +3411,8 @@ class MakeViewport(BaseTileDecodeBenchmark):
                 #                          [  0,   0,  45],
                 #                          [  0,   0, -45],
                 #                          ]
+
+                count = 0
                 for frame_array, (yaw, pitch, roll) in zip(self.reader, yaw_pitch_roll_frames):
                     frame_img = Image.fromarray(frame_array).resize((width, height))
                     yaw, pitch, roll = np.deg2rad((yaw, pitch, roll))
@@ -3558,10 +3609,9 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
                     yaw_pitch_roll_frames = users_data[user]
                     result: list[list[int, ...]]
                     result_tiles  = []
-                    result_counter = {}
+                    result_counter = Counter()
                     result_chunks = {}
 
-                    counter = Counter()
                     chunk = 0
                     tiles_chunks = set()
 
@@ -3579,22 +3629,20 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
                         if (frame+1)%30 == 0:
                             chunk += 1
                             result_chunks[f'{chunk}'] = list(tiles_chunks)
-                            counter = counter + Counter(tiles_chunks)
+                            result_counter = result_counter + Counter(tiles_chunks)
                             tiles_chunks = set()
 
-                        print(f'{time.time() - start:.3f}s - {dict(counter)}          ', end='')
-
-                    result_counter = dict(counter)
+                        print(f'{time.time() - start:.3f}s - {result_counter}          ', end='')
+                    print('')
 
                     if results[self.vid_proj][self.tiling][user]['tiles'] == {}:
                         results[self.vid_proj][self.tiling][user]['tiles'] = result_tiles
                     if results[self.vid_proj][self.tiling][user]['counter'] == {}:
-                        results[self.vid_proj][self.tiling][user]['counter'] = result_counter
+                        results[self.vid_proj][self.tiling][user]['counter'] = dict(result_counter)
                     if results[self.vid_proj][self.tiling][user]['chunks'] == {}:
                         results[self.vid_proj][self.tiling][user]['chunks'] = result_chunks
 
-                    print('')
-            save_json(self.results, self.get_tiles_json)
+                save_json(results, self.get_tiles_json)
 
     def finish_get_tiles(self):
         pass
