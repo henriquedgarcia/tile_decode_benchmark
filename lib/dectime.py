@@ -3426,23 +3426,23 @@ class MakeViewport(BaseTileDecodeBenchmark):
                     chunk = 0
                     tiles_chunks = set()
                     result_chunks = {}
+                    seen_tiles_chunk = []
                     print('get tiles by chunk')
-                    for frame, (yaw, pitch, roll) in enumerate(yaw_pitch_roll_frames):
-                        yaw, pitch, roll = np.deg2rad((yaw, pitch, roll))
-                        erp.set_vp(yaw, pitch, roll)
-                        vptiles = erp.get_vptiles()
+                    # for frame, (yaw, pitch, roll) in enumerate(yaw_pitch_roll_frames):
+                    #     yaw, pitch, roll = np.deg2rad((yaw, pitch, roll))
+                    #     erp.set_vp(yaw, pitch, roll)
+                    #     vptiles = erp.get_vptiles()
 
-                    # get_tiles_data = load_json(self.video_context.get_tiles_json)
-                    # get_tiles = get_tiles_data['erp'][tiling][user]['tiles']
-                    # for frame, (vptiles) in enumerate(get_tiles):
+                    get_tiles_data = load_json(self.video_context.get_tiles_json)
+                    get_tiles = get_tiles_data['erp'][tiling][user]['tiles']
+                    get_tiles_chunks = get_tiles_data['erp'][tiling][user]['chunks']
+                    for frame, (vptiles) in enumerate(get_tiles):
                         tiles_chunks.update(vptiles)
                         if (frame+1) % 30 == 0:
                             chunk += 1
                             result_chunks[f'{chunk}'] = list(tiles_chunks)
-                            result_counter = result_counter + Counter(tiles_chunks)
-
                             seen_tiles_chunk.append(list(tiles_chunks))
-                            result_tiles = set()
+                            tiles_chunks = set()
                             print(f'\rchunk {frame // 30:02d}', end='')
                         if frame >= 300: break
 
@@ -3476,7 +3476,7 @@ class MakeViewport(BaseTileDecodeBenchmark):
                         erp.draw_vp_borders(lum=255)
                         cover = Image.new("RGB", (width, height), (0, 0, 0))
                         frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
-                        # frame_img.show()
+                        frame_img.show()
 
                         # noinspection PyTypeChecker
                         self.writer.writeFrame(np.array(frame_img))
@@ -3664,13 +3664,13 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
                         else:
                             vptiles = results[self.vid_proj][self.tiling][user]['tiles'][frame]
 
-                        tiles_chunks.update(vptiles)
-
-                        if (frame+1)%30 == 0:
-                            chunk += 1
-                            result_chunks[f'{chunk}'] = list(tiles_chunks)
-                            result_counter = result_counter + Counter(tiles_chunks)
-                            tiles_chunks = set()
+                        if results[self.vid_proj][self.tiling][user]['chunks'] == {}:
+                            tiles_chunks.update(vptiles)
+                            if (frame + 1) % 30 == 0:
+                                chunk += 1
+                                result_chunks[f'{chunk}'] = list(tiles_chunks)
+                                result_counter = result_counter + Counter(tiles_chunks)
+                                tiles_chunks = set()
 
                         print(f'{time.time() - start:.3f}s - {result_counter}          ', end='')
                     print('')

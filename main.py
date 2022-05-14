@@ -20,9 +20,9 @@ def main():
 
     # bins=['fd', 'rice', 'sturges', 'sqrt', 'doane', 'scott', 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80],
     # dectime_graphs(0)
+    get_tiles(1)
     # make_viewport(0)
 
-    get_tiles(1)
     # siti(2)
     # quality(5)  # 1-all, 2-psnr, 3-wspsnr, 4-spsnr, 5-results
     # tiles_from_dataset(2)  # 1-prepare, 2-get_tile
