@@ -132,7 +132,7 @@ class Tiling:
         self.tile_res = self.proj_res / self.pattern.shape
         self.fov = fov
         self.fov_y, self.fov_x = self.fov
-        self.viewport = Viewport(f'{fov}', proj=proj)
+        self.viewport = Viewport(proj_res, f'{fov}', proj=proj)
 
     def __str__(self):
         return str(self.pattern)
@@ -339,7 +339,7 @@ class Factors:
             proj_res = self.video.resolution if self.video else pattern
             tiling = Tiling(pattern=pattern,
                             proj_res=proj_res,
-                            proj=self.config.videos_list[self.video]['projection'],
+                            proj=self.config.videos_list[f'{self.video}']['projection'],
                             fov=self.config['fov'])
             self._tiling_list.append(tiling)
         return self._tiling_list
@@ -537,10 +537,10 @@ class ProjectPaths(Factors):
         return folder
 
     @property
-    def get_tiles_pickle(self) -> Path:
+    def get_tiles_json(self) -> Path:
         folder = self.project_path / self.get_tiles_folder
         folder.mkdir(parents=True, exist_ok=True)
-        filename = f'get_tiles_{self.dataset_name}_{self.video}.pickle'
+        filename = f'get_tiles_{self.dataset_name}_{self.video}_{self.tiling}.json'
         return folder / filename
 
     @property
@@ -564,6 +564,7 @@ class VideoContext(ProjectPaths):
         self.distributions: List[str] = self.config['distributions']
         self.rate_control: str = self.config['rate_control']
         self.original_quality: str = self.config['original_quality']
+        self.dataset_name: str = self.config['dataset_name']
 
     def __str__(self):
         factors = []

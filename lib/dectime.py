@@ -3382,69 +3382,110 @@ class MakeViewport(BaseTileDecodeBenchmark):
         function[role]()
 
     def nas_erp(self):
+        def rotate(frame, n_pix: int):
+            new_frame = np.roll(frame, n_pix, axis=1)
+            return new_frame
+
+        # database[video][user] = (yaw, pitch, roll)  # in rad
         database = load_json(self.database_json)
 
-        # viewport = Viewport('90x90', proj='erp')
-        erp = ERP('6x4', '576x288', '90x90')
-        height, width = erp.proj_res
+        rotation_map = {'cable_cam_nas': -265, 'drop_tower_nas': -180,
+                        'wingsuit_dubai_nas': -63, 'drone_chases_car_nas': -81}
 
-        for video in database:
+        for self.video_context.video in self.video_context.videos_list:
+            video = self.video_context.video.name.replace('_erp_nas', '_nas')
             if video == 'wild_elephants_nas': continue
-
             for user in database[video]:
-                # database[video][user] = (yaw, pitch, roll)  # in rad
-                output_video = self.workfolder / f'{video}_{user}.mp4'
-                if output_video.exists(): continue
-                self.writer = skvideo.io.FFmpegWriter(output_video,
-                                                      inputdict={'-r': '30'},
-                                                      outputdict={'-r': '30', '-pix_fmt': 'yuv420p'})
+                for self.video_context.tiling in self.video_context.tiling_list:
+                    yaw_pitch_roll_frames = database[video][user]
 
-                yaw_pitch_roll_frames = database[video][user]
-                self.reader = skvideo.io.FFmpegReader(f'{self.workfolder}/videos/{video}_erp_200x100_30.mp4')
+                    tiling = f'{self.video_context.tiling}'
+                    if tiling == '1x1': continue
 
-                #                          [ y ,  p ,   r]
-                # yaw_pitch_roll_frames = [[  0,   0,   0],
-                #                          [ 90,   0,   0],
-                #                          [-90,   0,   0],
-                #                          [  0,  45,   0],
-                #                          [  0, -45,   0],
-                #                          [  0,   0,  45],
-                #                          [  0,   0, -45],
-                #                          ]
+                    erp = ERP(tiling, '576x288', '90x90')
+                    height, width = erp.proj_res
 
-                count = 0
-                for frame_array, (yaw, pitch, roll) in zip(self.reader, yaw_pitch_roll_frames):
-                    frame_img = Image.fromarray(frame_array).resize((width, height))
-                    yaw, pitch, roll = np.deg2rad((yaw, pitch, roll))
-                    erp.set_vp(yaw, pitch, roll)
 
-                    # Draw all tiles
-                    erp.clear_image()
-                    erp.draw_tiles_borders(lum=200)
-                    cover = Image.new("RGB", (width, height), (255, 0, 0))
-                    frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+                    output_video = self.workfolder / f'{video}_{user}_{tiling}.mp4'
+                    if output_video.exists(): continue
+                    self.writer = skvideo.io.FFmpegWriter(output_video,
+                                                          inputdict={'-r': '30'},
+                                                          outputdict={'-r': '30', '-pix_fmt': 'yuv420p'})
 
-                    # Draw VP tiles
-                    erp.clear_image()
-                    erp.draw_vp_tiles(lum=200)
-                    cover = Image.new("RGB", (width, height), (0, 255, 0))
-                    frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+                    self.reader = skvideo.io.FFmpegReader(f'{self.workfolder}/videos/{video}_erp_200x100_30.mp4')
 
-                    # Draw viewport borders
-                    erp.clear_image()
-                    erp.draw_vp_borders(lum=255)
-                    cover = Image.new("RGB", (width, height), (0, 0, 0))
-                    frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
-                    # frame_img.show()
+                    #                          [ y ,  p ,   r]
+                    # yaw_pitch_roll_frames = [[  0,   0,   0],
+                    #                          [ 90,   0,   0],
+                    #                          [-90,   0,   0],
+                    #                          [  0,  45,   0],
+                    #                          [  0, -45,   0],
+                    #                          [  0,   0,  45],
+                    #                          [  0,   0, -45],
+                    #                          ]
+                    chunk = 0
+                    tiles_chunks = set()
+                    result_chunks = {}
+                    print('get tiles by chunk')
+                    for frame, (yaw, pitch, roll) in enumerate(yaw_pitch_roll_frames):
+                        yaw, pitch, roll = np.deg2rad((yaw, pitch, roll))
+                        erp.set_vp(yaw, pitch, roll)
+                        vptiles = erp.get_vptiles()
 
-                    # noinspection PyTypeChecker
-                    self.writer.writeFrame(np.array(frame_img))
-                    print(f'\r{video}-user{user}-frame{count}', end='')
-                    count += 1
-                    # todo: remove this
-                    # if count >= 30: break
-                print('')
-                self.writer.close()
+                    # get_tiles_data = load_json(self.video_context.get_tiles_json)
+                    # get_tiles = get_tiles_data['erp'][tiling][user]['tiles']
+                    # for frame, (vptiles) in enumerate(get_tiles):
+                        tiles_chunks.update(vptiles)
+                        if (frame+1) % 30 == 0:
+                            chunk += 1
+                            result_chunks[f'{chunk}'] = list(tiles_chunks)
+                            result_counter = result_counter + Counter(tiles_chunks)
+
+                            seen_tiles_chunk.append(list(tiles_chunks))
+                            result_tiles = set()
+                            print(f'\rchunk {frame // 30:02d}', end='')
+                        if frame >= 300: break
+
+                    print('\nDraw viewport')
+                    count = 0
+                    for frame_array, (yaw, pitch, roll) in zip(self.reader, yaw_pitch_roll_frames):
+                        if video in rotation_map:
+                            shift = -int(rotation_map[video] / 360 * frame_array.shape[1])
+                            frame_array = rotate(frame_array, shift)
+
+                        frame_img = Image.fromarray(frame_array).resize((width, height))
+                        yaw, pitch, roll = np.deg2rad((yaw, pitch, roll))
+                        erp.set_vp(yaw, pitch, roll)
+
+                        # Draw all tiles
+                        erp.clear_image()
+                        erp.draw_tiles_borders(lum=200)
+                        cover = Image.new("RGB", (width, height), (255, 0, 0))
+                        frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+
+                        # Draw VP tiles
+                        erp.clear_image()
+                        # erp.draw_vp_tiles(lum=200)
+                        for tile in seen_tiles_chunk[count // 30]:
+                            erp.draw_tiles_borders(idx=tile, lum=200)
+                        cover = Image.new("RGB", (width, height), (0, 255, 0))
+                        frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+
+                        # Draw viewport borders
+                        erp.clear_image()
+                        erp.draw_vp_borders(lum=255)
+                        cover = Image.new("RGB", (width, height), (0, 0, 0))
+                        frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+                        # frame_img.show()
+
+                        # noinspection PyTypeChecker
+                        self.writer.writeFrame(np.array(frame_img))
+                        print(f'\r{video}-tiling{tiling}-user{user}-frame{count}', end='')
+                        count += 1
+                        # todo: remove this
+                        if count >= 300: break
+                    print('')
+                    self.writer.close()
                 break
 
 
@@ -3589,14 +3630,11 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
             users_data = self.database[self.name]
 
             for self.tiling in self.tiling_list:
-                result_json_name = f'get_tiles_{self.dataset_name}_{self.video}_{self.tiling}.json'
-                self.get_tiles_json = self.get_tiles_path / result_json_name
-
+                get_tiles_json = self.get_tiles_path / f'get_tiles_{self.dataset_name}_{self.video}_{self.tiling}.json'
                 results = AutoDict()
-                if self.get_tiles_json.exists() and not overwrite:
-                    warning(f'\nThe file {self.get_tiles_json} exist. Loading.')
-                    results = load_json(self.get_tiles_json)
-
+                if get_tiles_json.exists() and not overwrite:
+                    warning(f'\nThe file {get_tiles_json} exist. Loading.')
+                    results = load_json(get_tiles_json)
 
                 # erp '144x72', '288x144','432x216','576x288'
                 # cmp '144x96', '288x192','432x288','576x384'
@@ -3618,11 +3656,13 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
                     for frame, (yaw, pitch, roll) in enumerate(yaw_pitch_roll_frames):
                         print(f'\r  {user} - {frame:04d} - ', end='')
 
-                        erp.set_vp(*map(np.deg2rad, (yaw, pitch, roll)))
-
-                        vptiles = erp.get_vptiles()
-
-                        result_tiles.append(vptiles)
+                        if results[self.vid_proj][self.tiling][user]['tiles'] == {}:
+                            yaw, pitch, roll = np.deg2rad((yaw, pitch, roll))
+                            erp.set_vp(yaw, pitch, roll)
+                            vptiles = erp.get_vptiles()
+                            result_tiles.append(vptiles)
+                        else:
+                            vptiles = results[self.vid_proj][self.tiling][user]['tiles'][frame]
 
                         tiles_chunks.update(vptiles)
 
@@ -3642,7 +3682,7 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
                     if results[self.vid_proj][self.tiling][user]['chunks'] == {}:
                         results[self.vid_proj][self.tiling][user]['chunks'] = result_chunks
 
-                save_json(results, self.get_tiles_json)
+                save_json(results, get_tiles_json)
 
     def finish_get_tiles(self):
         pass
