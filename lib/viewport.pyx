@@ -11,6 +11,7 @@ from .transform import rot_matrix, erp2cart, cart2erp, vp2cart, cart2hcs
 class Viewport:
     position: tuple
     projection: np.ndarray
+    mat: np.ndarray
     resolution: Res
     proj: str
     base_normals: list[tuple, tuple, tuple]
@@ -246,7 +247,11 @@ class ERP:
             m, n = cart2erp(x, y, z, (H, W))
             self.projection[n, m] = lum
 
-    def draw_tiles_borders(self, idx = None, lum=100):
+    def draw_tile_border(self, idx, lum=100):
+        for (m, n), (x, y, z) in self.get_tile_borders(idx):
+            self.projection[n, m] = lum
+
+    def draw_all_tiles_borders(self, lum=100):
         """
         Project border of tiles of the projection
         :param idx:
@@ -254,13 +259,8 @@ class ERP:
         :return: a numpy.ndarray with one deep color
         """
 
-        if idx is None:
-            for idx in self.tiles_position:
-                for (m, n), (x, y, z) in self.get_tile_borders(idx):
-                    self.projection[n, m] = lum
-        else:
-            for (m, n), (x, y, z) in self.get_tile_borders(idx):
-                self.projection[n, m] = lum
+        for idx in self.tiles_position:
+            self.draw_tile_border(idx, lum)
 
     def draw_vp_tiles(self, lum=100):
         """
@@ -268,8 +268,9 @@ class ERP:
         :param lum: Value to draw lines
         :return: a numpy.ndarray with one deep color
         """
+
         for tile in self.get_vptiles():
-            self.draw_tiles_borders(idx=tile, lum=lum)
+            self.draw_tile_border(idx=tile, lum=lum)
 
     def show(self):
         frame_img = Image.fromarray(self.projection)

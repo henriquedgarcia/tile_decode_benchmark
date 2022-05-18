@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+from reprlib import repr
 import datetime
 import json
 import time
@@ -3362,17 +3363,15 @@ class MakeViewport(BaseTileDecodeBenchmark):
                  ds_name: str,
                  overwrite=False):
         function = {'NAS_ERP': self.nas_erp,
-                    'USER_ANALISYS': self.user_analisys,}
+                    }
         self.config = Config(config)
         self.role = Role(name=role, deep=0, operation=function[role])
-        self.video_context = VideoContext(self.config, self.role.deep)
-
         self.overwrite = overwrite
         self.dataset_name = ds_name
-        self.database_folder = Path('datasets')
-        self.database_path = self.database_folder / ds_name
-        self.database_json = self.database_path / f'{ds_name}.json'
-        self.database_pickle = self.database_path / f'{ds_name}.pickle'
+
+        self.video_context = VideoContext(self.config, deep=0)
+
+        self.database_json = Path('datasets') / ds_name / f'{ds_name}.json'
 
         self.workfolder = self.video_context.viewport_folder / role.lower()
         self.workfolder_data = self.workfolder / 'data'
@@ -3381,37 +3380,29 @@ class MakeViewport(BaseTileDecodeBenchmark):
         function[role]()
 
     def nas_erp(self):
-        def rotate(frame, n_pix: int):
-            new_frame = np.roll(frame, n_pix, axis=1)
-            return new_frame
-
         # database[video][user] = (yaw, pitch, roll)  # in rad
         database = load_json(self.database_json)
-
-        rotation_map = {'cable_cam_nas': -265, 'drop_tower_nas': -180,
-                        'wingsuit_dubai_nas': -63, 'drone_chases_car_nas': -81}
 
         for self.video_context.video in self.video_context.videos_list:
             video = self.video_context.video.name.replace('_erp_nas', '_nas')
             if video == 'wild_elephants_nas': continue
             for user in database[video]:
+                yaw_pitch_roll_frames = database[video][user]
                 for self.video_context.tiling in self.video_context.tiling_list:
-                    yaw_pitch_roll_frames = database[video][user]
-
                     tiling = f'{self.video_context.tiling}'
                     if tiling == '1x1': continue
-
+                    get_tiles_json = self.video_context.get_tiles_json
+                    input_video = self.workfolder / f'videos/{video}_erp_200x100_30.mp4'
                     output_video = self.workfolder / f'{video}_{user}_{tiling}.mp4'
                     if output_video.exists(): continue
 
                     erp = ERP(tiling, '576x288', '90x90')
                     height, width = erp.proj_res
 
-                    self.writer = skvideo.io.FFmpegWriter(output_video,
-                                                          inputdict={'-r': '30'},
-                                                          outputdict={'-r': '30', '-pix_fmt': 'yuv420p'})
-
-                    self.reader = skvideo.io.FFmpegReader(f'{self.workfolder}/videos/{video}_erp_200x100_30.mp4')
+                    reader = skvideo.io.FFmpegReader(f'{input_video}')
+                    writer = skvideo.io.FFmpegWriter(output_video,
+                                                     inputdict={'-r': '30'},
+                                                     outputdict={'-r': '30', '-pix_fmt': 'yuv420p'})
 
                     #                          [ y ,  p ,   r]
                     # yaw_pitch_roll_frames = [[  0,   0,   0],
@@ -3422,51 +3413,30 @@ class MakeViewport(BaseTileDecodeBenchmark):
                     #                          [  0,   0,  45],
                     #                          [  0,   0, -45],
                     #                          ]
-                    chunk = 0
-                    tiles_chunks = set()
-                    result_chunks = {}
-                    seen_tiles_chunk = []
-                    print('get tiles by chunk')
-                    # for frame, (yaw, pitch, roll) in enumerate(yaw_pitch_roll_frames):
-                    #     yaw, pitch, roll = np.deg2rad((yaw, pitch, roll))
-                    #     erp.set_vp(yaw, pitch, roll)
-                    #     vptiles = erp.get_vptiles()
 
-                    get_tiles_data = load_json(self.video_context.get_tiles_json)
+                    get_tiles_data = load_json(get_tiles_json)
                     get_tiles = get_tiles_data['erp'][tiling][user]['tiles']
-                    get_tiles_chunks = get_tiles_data['erp'][tiling][user]['chunks']
-                    for frame, (vptiles) in enumerate(get_tiles):
-                        tiles_chunks.update(vptiles)
-                        if (frame+1) % 30 == 0:
-                            chunk += 1
-                            result_chunks[f'{chunk}'] = list(tiles_chunks)
-                            seen_tiles_chunk.append(list(tiles_chunks))
-                            tiles_chunks = set()
-                            print(f'\rchunk {frame // 30:02d}', end='')
-                        if frame >= 300: break
+                    seen_tiles_chunk = get_tiles_data['erp'][tiling][user]['chunks']
 
-                    print('\nDraw viewport')
+                    print('\nDrawing viewport')
                     count = 0
-                    for frame_array, (yaw, pitch, roll) in zip(self.reader, yaw_pitch_roll_frames):
-                        if video in rotation_map:
-                            shift = -int(rotation_map[video] / 360 * frame_array.shape[1])
-                            frame_array = rotate(frame_array, shift)
+                    for frame_array, (yaw, pitch, roll) in zip(reader, yaw_pitch_roll_frames):
 
                         frame_img = Image.fromarray(frame_array).resize((width, height))
                         yaw, pitch, roll = np.deg2rad((yaw, pitch, roll))
                         erp.set_vp(yaw, pitch, roll)
 
-                        # Draw all tiles
+                        # Draw all tiles border
                         erp.clear_image()
-                        erp.draw_tiles_borders(lum=200)
+                        erp.draw_all_tiles_borders(lum=200)
                         cover = Image.new("RGB", (width, height), (255, 0, 0))
                         frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
 
-                        # Draw VP tiles
+                        # Draw VP tiles by chunk
                         erp.clear_image()
-                        # erp.draw_vp_tiles(lum=200)
-                        for tile in seen_tiles_chunk[count // 30]:
-                            erp.draw_tiles_borders(idx=tile, lum=200)
+                        chunk_idx = str(1 + count // 30)
+                        for tile in seen_tiles_chunk[chunk_idx]:
+                            erp.draw_tile_border(idx=tile, lum=200)
                         cover = Image.new("RGB", (width, height), (0, 255, 0))
                         frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
 
@@ -3478,13 +3448,15 @@ class MakeViewport(BaseTileDecodeBenchmark):
                         # frame_img.show()
 
                         # noinspection PyTypeChecker
-                        self.writer.writeFrame(np.array(frame_img))
+                        writer.writeFrame(np.array(frame_img))
                         print(f'\r{video}-tiling{tiling}-user{user}-frame{count}', end='')
                         count += 1
-                        # todo: remove this
+
+                        # todo: remove this in the future
                         if count >= 300: break
+
                     print('')
-                    self.writer.close()
+                    writer.close()
                 break
 
 
@@ -3538,20 +3510,21 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
                                / self.video_context.get_tiles_folder)
         self.get_tiles_path.mkdir(parents=True, exist_ok=True)
 
-        self.run(**kwargs)
+        self.role.operation()
 
-    def process_nasrabadi(self, overwrite):
+    def process_nasrabadi(self):
+        print('Processing dataset.')
         database_json = self.database_json
+        rotation_map = {'cable_cam_nas': 265, 'drop_tower_nas': 180,
+                        'wingsuit_dubai_nas': 63, 'drone_chases_car_nas': 81}
 
-        if database_json.exists() and not overwrite:
+        if database_json.exists() and not self.overwrite:
             warning(f'The file {database_json} exist. Skipping.')
             return
 
         database = AutoDict()
         video_id_map = load_json(f'{self.database_path}/videos_map.json', object_hook=dict)
         user_map = {}
-        rotation_map = {10: np.deg2rad(-265), 17: np.deg2rad(-180),
-                        27: np.deg2rad(-63), 28: np.deg2rad(-81)}
 
         for csv_database_file in self.database_path.glob('*/*.csv'):
             # Parse filename in user_id and video_id
@@ -3612,6 +3585,11 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
                         print(f'\n{frame_counter=}, {yaw=}°')
                     if pitch > 90 or pitch < -90:
                         print(f'\n{frame_counter=}, {pitch=}°')
+
+                    if video_name in rotation_map:
+                        yaw -= rotation_map[video_name]
+                        yaw = (yaw + 180.) % 360 - 180
+
                     yaw_pitch_roll_frames.append((yaw, pitch, roll))
 
                     frame_counter += 1
@@ -3624,9 +3602,9 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
         print(f'\nFinish. Saving as {database_json}.')
         save_json(database, database_json)
 
-    def get_tiles(self, **kwargs):
+    def get_tiles(self):
+        print(f'Get Tiles.')
         self.database = load_json(self.database_json)
-        overwrite = kwargs['overwrite']
 
         for self.video in self.videos_list:
             users_data = self.database[self.name]
@@ -3635,7 +3613,7 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
                 get_tiles_json = self.get_tiles_path / f'get_tiles_{self.dataset_name}_{self.video}_{self.tiling}.json'
                 results = AutoDict()
 
-                if get_tiles_json.exists() and not overwrite:
+                if get_tiles_json.exists() and not self.overwrite:
                     warning(f'\nThe file {get_tiles_json} exist. Loading.')
                     results = load_json(get_tiles_json)
 
@@ -3649,7 +3627,7 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
 
                     yaw_pitch_roll_frames = users_data[user]
                     result: list[list[int, ...]]
-                    result_tiles  = []
+                    result_tiles = []
                     result_counter = Counter()
                     result_chunks = {}
 
@@ -3657,8 +3635,10 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
                     tiles_chunks = set()
 
                     for frame, (yaw, pitch, roll) in enumerate(yaw_pitch_roll_frames):
-                        print(f'\r  {user} - {frame:04d} - ', end='')
+                        if (frame + 1) % 30 == 0:
+                            print(f'\r  {user} - {frame:04d} - ', end='')
 
+                        # vptiles
                         if results[self.vid_proj][self.tiling][user]['tiles'] == {}:
                             yaw, pitch, roll = np.deg2rad((yaw, pitch, roll))
                             erp.set_vp(yaw, pitch, roll)
@@ -3667,15 +3647,18 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
                         else:
                             vptiles = results[self.vid_proj][self.tiling][user]['tiles'][frame]
 
+                        # Calcule vptiles by chunk
                         if results[self.vid_proj][self.tiling][user]['chunks'] == {}:
                             tiles_chunks.update(vptiles)
                             if (frame + 1) % 30 == 0:
-                                chunk += 1
+                                chunk += 1  # start from 1 gpac defined
                                 result_chunks[f'{chunk}'] = list(tiles_chunks)
-                                result_counter = result_counter + Counter(tiles_chunks)
+                                result_counter += Counter(tiles_chunks)
                                 tiles_chunks = set()
 
-                        print(f'{time.time() - start:.3f}s - {result_counter}          ', end='')
+                        if (frame + 1) % 30 == 0:
+                            print(f'{time.time() - start:.3f}s - {repr(result_counter)}          ', end='')
+
                     print('')
 
                     if results[self.vid_proj][self.tiling][user]['tiles'] == {}:
@@ -3685,9 +3668,11 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
                     if results[self.vid_proj][self.tiling][user]['chunks'] == {}:
                         results[self.vid_proj][self.tiling][user]['chunks'] = result_chunks
 
+                    # todo: remove this in the future
+                    break
                 save_json(results, get_tiles_json)
 
-    def user_analisys(self, **kwargs):
+    def user_analisys(self):
         counter_tiles_json = self.get_tiles_path / f'counter_tiles_{self.dataset_name}.json'
 
         if counter_tiles_json.exists():
