@@ -164,9 +164,9 @@ def splitx(string: str) -> tuple[int, ...]:
     """
     return tuple(map(int, string.split('x')))
 
-def idx2xy(idx: int, shape: Resolution):
-    tile_x = idx % shape.shape[1]
-    tile_y = idx // shape.shape[1]
+def idx2xy(idx: int, shape: tuple):
+    tile_x = idx % shape[1]
+    tile_y = idx // shape[1]
     return tile_x, tile_y
 
 def xy2idx(x, y, shape: Tuple[int, int]):

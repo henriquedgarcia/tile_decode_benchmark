@@ -36,7 +36,8 @@ def dectime_graphs(role_id):
 
 
 def make_viewport(role_id):
-    role_list = {0: ('NAS_ERP', 'nasrabadi_28videos')}
+    role_list = {0: ('NAS_ERP', 'nasrabadi_28videos'),
+                 1: ('USER_ANALYSIS', 'nasrabadi_28videos')}
     MakeViewport(config,
                  role=role_list[role_id][0], ds_name=role_list[role_id][1],
                  overwrite=False)
@@ -44,6 +45,8 @@ def make_viewport(role_id):
 
 def decode_time(role_id):
     role_list = ['PREPARE', 'COMPRESS', 'SEGMENT', 'DECODE', 'COLLECT_RESULTS']
+    'results\\nasrabadi_28videos_6q_8p_erp\\get_tiles\\get_tiles_nasrabadi_28videos_petite_anse_erp_nas_1x1.json'
+
     TileDecodeBenchmark(config, role_list[role_id], overwrite=False)
 
 
@@ -106,7 +109,7 @@ def get_tiles(role_id):
     :param role_id:
     :return:
     """
-    role_list = ['PREPARE', 'GET_TILES', 'JSON2PICKLE', 'REFACTOR']
+    role_list = ['PREPARE', 'GET_TILES', 'USER_ANALYSIS']
 
     GetTiles(config=config, role=role_list[role_id],
              overwrite=False, dataset_name='nasrabadi_28videos')

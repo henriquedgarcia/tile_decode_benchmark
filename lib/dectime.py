@@ -29,7 +29,7 @@ from .assets import AutoDict, Role
 from .transform import cart2hcs
 from .util import (run_command, check_video_gop, iter_frame, load_sph_file,
                    save_json, load_json, lin_interpol, save_pickle,
-                   load_pickle)
+                   load_pickle, splitx, idx2xy)
 from .video_state import Config, VideoContext
 from .viewport import ERP
 
@@ -3362,8 +3362,7 @@ class MakeViewport(BaseTileDecodeBenchmark):
                  ds_name: str,
                  overwrite=False):
         function = {'NAS_ERP': self.nas_erp,
-                    }
-
+                    'USER_ANALISYS': self.user_analisys,}
         self.config = Config(config)
         self.role = Role(name=role, deep=0, operation=function[role])
         self.video_context = VideoContext(self.config, self.role.deep)
@@ -3402,12 +3401,12 @@ class MakeViewport(BaseTileDecodeBenchmark):
                     tiling = f'{self.video_context.tiling}'
                     if tiling == '1x1': continue
 
+                    output_video = self.workfolder / f'{video}_{user}_{tiling}.mp4'
+                    if output_video.exists(): continue
+
                     erp = ERP(tiling, '576x288', '90x90')
                     height, width = erp.proj_res
 
-
-                    output_video = self.workfolder / f'{video}_{user}_{tiling}.mp4'
-                    if output_video.exists(): continue
                     self.writer = skvideo.io.FFmpegWriter(output_video,
                                                           inputdict={'-r': '30'},
                                                           outputdict={'-r': '30', '-pix_fmt': 'yuv420p'})
@@ -3476,7 +3475,7 @@ class MakeViewport(BaseTileDecodeBenchmark):
                         erp.draw_vp_borders(lum=255)
                         cover = Image.new("RGB", (width, height), (0, 0, 0))
                         frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
-                        frame_img.show()
+                        # frame_img.show()
 
                         # noinspection PyTypeChecker
                         self.writer.writeFrame(np.array(frame_img))
@@ -3518,7 +3517,11 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
                               init=None,
                               operation=self.get_tiles,
                               finish=None),
-        }
+            'USER_ANALISYS': Role(name='USER_ANALISYS', deep=0,
+                              init=None,
+                              operation=self.user_analisys,
+                              finish=None),
+            }
 
         self.config = Config(config)
         self.role = operations[role]
@@ -3626,12 +3629,12 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
         overwrite = kwargs['overwrite']
 
         for self.video in self.videos_list:
-
             users_data = self.database[self.name]
 
             for self.tiling in self.tiling_list:
                 get_tiles_json = self.get_tiles_path / f'get_tiles_{self.dataset_name}_{self.video}_{self.tiling}.json'
                 results = AutoDict()
+
                 if get_tiles_json.exists() and not overwrite:
                     warning(f'\nThe file {get_tiles_json} exist. Loading.')
                     results = load_json(get_tiles_json)
@@ -3684,20 +3687,59 @@ class GetTiles(BaseTileDecodeBenchmark, Graphs):
 
                 save_json(results, get_tiles_json)
 
-    def finish_get_tiles(self):
-        pass
+    def user_analisys(self, **kwargs):
+        counter_tiles_json = self.get_tiles_path / f'counter_tiles_{self.dataset_name}.json'
 
-    # def json2pickle(self, overwrite=False):
-    #     video_name = self.video_context.video.name
-    #     tiling = self.video_context.tiling
-    #     dbname = self.dataset_name
-    #
-    #     get_tiles_pickle = self.get_tiles_path / f'get_tiles_{dbname}_{video_name}_{self.video_context.video.projection}_{tiling}.pickle'
-    #     get_tiles_json = self.get_tiles_path / f'get_tiles_{dbname}_{video_name}_{self.video_context.video.projection}_{tiling}.json'
-    #
-    #     if get_tiles_json.exists() and not get_tiles_pickle.exists() and not overwrite:
-    #         result = load_json(get_tiles_json)
-    #         save_pickle(result, get_tiles_pickle)
+        if counter_tiles_json.exists():
+            result = load_json(counter_tiles_json)
+        else:
+            database = load_json(self.database_json, object_hook=dict)
+            result = {}
+            for self.tiling in self.tiling_list:
+                # Colect tiling count
+                tiles_counter = Counter()
+                print(f'{self.tiling=}')
+                nb_chunk = 0
+                for self.video in self.videos_list:
+                    users = database[self.name].keys()
+                    get_tiles_json = self.get_tiles_path / f'get_tiles_{self.dataset_name}_{self.video}_{self.tiling}.json'
+                    if not get_tiles_json.exists():
+                        print(dict(tiles_counter))
+                        break
+                    print(f'  - {self.video=}')
+                    get_tiles = load_json(get_tiles_json, object_hook=dict)
+                    for user in users:
+                        # hm = database[self.name][user]
+                        chunks = get_tiles[self.vid_proj][self.tiling][user]['chunks'].keys()
+                        for chunk in chunks:
+                            seen_tiles_by_chunk = get_tiles[self.vid_proj][self.tiling][user]['chunks'][chunk]
+                            tiles_counter = tiles_counter + Counter(seen_tiles_by_chunk)
+                            nb_chunk += 1
+
+                # normalize results
+                dict_tiles_counter = dict(tiles_counter)
+                column = []
+                for tile_id in range(len(dict_tiles_counter)):
+                    if not tile_id in dict_tiles_counter:
+                        column.append(0.)
+                    else:
+                        column.append(dict_tiles_counter[tile_id] / nb_chunk)
+                result[self.tiling] = column
+                print(result)
+
+            save_json(result, counter_tiles_json)
+
+        for self.tiling in self.tiling_list:
+            tiling_result = result[self.tiling]
+            shape = splitx(self.tiling)[::-1]
+            grade = np.asarray(tiling_result).reshape(shape)
+            fig, ax = plt.subplots()
+            im = ax.imshow(grade, cmap='jet', )
+            ax.set_title(f'Tiling {self.tiling}')
+            fig.colorbar(im, ax=ax, label='chunk frequency')
+            heatmap_tiling = self.get_tiles_path / f'heatmap_tiling_{self.dataset_name}_{self.tiling}.png'
+            fig.savefig(f'{heatmap_tiling}')
+            fig.show()
 
 
 class GetViewportQuality(BaseTileDecodeBenchmark):
