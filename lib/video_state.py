@@ -87,7 +87,7 @@ class Tile:
         """
         position: Position = self.position
         resolution: Resolution = self.resolution
-        vp = Viewport('1x1')
+        vp = Viewport('1x1','1x1')
         vp.resolution = proj_res
 
         x_i = position.x  # first row
@@ -431,6 +431,12 @@ class ProjectPaths(Factors):
     get_tiles_folder = Path('get_tiles')
 
     @property
+    def dataset_json(self) -> Path:
+        self.database_folder = Path('datasets') / self.dataset_name
+        database_json = self.database_folder / f'{self.dataset_name}.json'
+        return database_json
+
+    @property
     def basename(self):
         return Path(f'{self.video.name}_'
                     f'{self.video.resolution}_'
@@ -473,9 +479,36 @@ class ProjectPaths(Factors):
         return folder / f'tile{self.tile}_{chunk:03d}.log'
 
     @property
+    def quality_video_csv(self) -> Union[Path, None]:
+        folder = self.project_path / self.quality_folder / self.basename
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f'tile{self.tile}.csv'
+
+
+    @property
     def dectime_json_file(self) -> Path:
         folder = self.project_path / self.dectime_folder
-        return folder / f'dectime_{self.video}.json'
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f'times_{self.video}.json'
+
+    @property
+    def bitrate_json_file(self) -> Path:
+        folder = self.project_path / self.segment_folder
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f'rate_{self.video}.json'
+
+    @property
+    def get_tiles_json(self) -> Path:
+        folder = self.project_path / self.get_tiles_folder
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f'get_tiles_{self.dataset_name}_{self.video}_{self.tiling}.json'
+
+    @property
+    def quality_result_json(self) -> Union[Path, None]:
+        folder = self.project_path / self.quality_folder
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f'quality_{self.video}.json'
+
 
     @property
     def siti_results(self) -> Path:
@@ -507,18 +540,6 @@ class ProjectPaths(Factors):
         return folder / f'tile{self.tile}.mp4'
 
     @property
-    def quality_video_csv(self) -> Union[Path, None]:
-        folder = self.project_path / self.quality_folder / self.basename
-        folder.mkdir(parents=True, exist_ok=True)
-        return folder / f'tile{self.tile}.csv'
-
-    @property
-    def quality_result_json(self) -> Union[Path, None]:
-        return (self.project_path
-                / self.quality_folder
-                / f'quality_{self.video}.json')
-
-    @property
     def check_folder(self) -> Path:
         folder = self.project_path / self._check_folder
         folder.mkdir(parents=True, exist_ok=True)
@@ -535,21 +556,6 @@ class ProjectPaths(Factors):
         folder = self.project_path / self._viewport_folder
         folder.mkdir(parents=True, exist_ok=True)
         return folder
-
-    @property
-    def get_tiles_json(self) -> Path:
-        folder = self.project_path / self.get_tiles_folder
-        folder.mkdir(parents=True, exist_ok=True)
-        filename = f'get_tiles_{self.dataset_name}_{self.video}_{self.tiling}.json'
-        return folder / filename
-
-    @property
-    def dataset_pickle(self) -> Path:
-        self.database_folder = Path('datasets')
-        self.database_path = self.database_folder / self.dataset_name
-        self.database_path.mkdir(parents=True, exist_ok=True)
-        self.database_pickle = self.database_path / f'{self.dataset_name}.pickle'
-        return self.database_pickle
 
 
 class VideoContext(ProjectPaths):
