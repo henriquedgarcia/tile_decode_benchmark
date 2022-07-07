@@ -2066,15 +2066,15 @@ class DectimeGraphs:
                 pd.DataFrame(resume).to_csv(resumenamecsv)
 
     class ByVideoByPatternByTileByQualityByChunk(Worker, DectimeGraphsPaths):
-        ''' Série temporal
-        cada imagem é um vídeo e um tiling,
+        ''' Série temporal 1
+        cada imagem é uma métrica de um vídeo com um tiling,
         cada subplot é um tile.
         No mesmo subplot, cada linha é uma qualidade.
         O subplot tem o formato do tiling
         Os chunks é o eixo X.
         resultado: subplot = 5x1
 
-        --------
+        -------- 2
         cada imagem é um vídeo e um tiling,
         cada subplot é uma qualidade.
         No mesmo subplot, cada linha é um tile.
@@ -2098,7 +2098,7 @@ class DectimeGraphs:
 
         @property
         def workfolder(self) -> Path:
-            folder = self.project_path / self.graphs_folder / 'ByVideoByPatternByTileByChunk'
+            folder = self.project_path / self.graphs_folder / f'{self.__class__.__name__}'
             folder.mkdir(parents=True, exist_ok=True)
             return folder
 
@@ -2117,7 +2117,7 @@ class DectimeGraphs:
             self.corretations_bucket = defaultdict(list)
             self.data: Optional[Union[dict, AutoDict]] = None
 
-            self.get_data_bucket()
+            self.get_data_bucket(overwrite=False)
             # self.make_fit()
             # self.calc_stats()
 
@@ -2137,7 +2137,7 @@ class DectimeGraphs:
                     continue
 
                 # Get value for each tiling from videos json. tiling = [video, quality, tile, chunk]
-                data_series = AutoDict()
+                data_result = AutoDict()
                 for self.video in self.videos_list:
                     json_metrics = {'rate': self.bitrate_result_json,
                                     'time': self.dectime_result_json,
@@ -2145,18 +2145,16 @@ class DectimeGraphs:
                                     'PSNR': self.quality_result_json,
                                     'WS-PSNR': self.quality_result_json,
                                     'S-PSNR': self.quality_result_json}
-                    data =  load_json(json_metrics[self.metric], object_hook=dict)
+                    video_data =  load_json(json_metrics[self.metric], object_hook=dict)
 
                     for self.tiling in self.tiling_list:
-                        print(f'\r  {self.metric} - {self.vid_proj}  {self.name} {self.tiling} ... ', end='')
+                        print(f'\r  {self.metric} - {self.vid_proj}  {self.name} {self.tiling} {self.quality} ... ', end='')
 
-                        for self.tile in self.tile_list:
-                            samples = data_series[self.vid_proj][self.video][self.tiling][self.tile]
-
-                            for self.chunk in self.chunk_list:
-                                chunk_qualities = []
-                                for self.quality in self.quality_list:
-                                    value = data[self.vid_proj][self.tiling][self.quality][f'{self.tile}'][f'{self.chunk}']
+                        for self.quality in self.quality_list:
+                            for self.tile in self.tile_list:
+                                for self.chunk in self.chunk_list:
+                                    samples_result = data_result[self.vid_proj][self.name][self.tiling][self.quality][self.tile]
+                                    value = video_data[self.vid_proj][self.tiling][self.quality][f'{self.tile}'][f'{self.chunk}']
 
                                     # <editor-fold desc="Process value according the metric">
                                     if self.metric == 'time':
@@ -2169,205 +2167,216 @@ class DectimeGraphs:
                                         metric_value = value[self.metric]
                                         value = metric_value if float(metric_value) != float('inf') else 1000
                                     # </editor-fold>
-                                    chunk_qualities.append(value)
 
-                                value = np.average(chunk_qualities)
-                                try:
-                                    samples.append(value)
-                                except AttributeError:
-                                    samples = data_series[self.vid_proj][self.video][self.tiling][self.tile] = [value]
+                                    try:
+                                        samples_result.append(value)
+                                    except AttributeError:
+                                        data_result[self.vid_proj][self.name][self.tiling][self.quality][self.tile] = [value]
 
                         print('OK')
 
-                if remove_outliers: self.remove_outliers(data_series)
+                if remove_outliers: self.remove_outliers(data_result)
 
                 print(f'  Saving  {self.metric}... ', end='')
-                save_json(data_series, self.data_bucket_file)
+                save_json(data_result, self.data_bucket_file)
                 print(f'  Finished.')
 
-        def calc_stats(self, overwrite=False):
-            print(f'\n\n====== Making Statistics - Bins = {self.bins} ======')
-            # Check result file
-            if self.stats_file.exists() and not overwrite:
-                print(f'  stats_file found! Skipping.')
-            else:
-                for self.metric in self.metric_list:
-                    data_bucket = load_json(self.data_bucket_file, object_hook=dict)
-                    for self.proj in self.proj_list:
-                        for self.video in self.videos_list:
-                            for self.tiling in self.tiling_list:
-                                for self.tile in self.tile_list:
-                                    # Load data and fitter
-                                    samples = data_bucket[self.proj][self.video][self.tiling][self.tile]
-                                    fitter = load_pickle(self.fitter_pickle_file)
+        # <editor-fold desc="calc_stats">
+        # def calc_stats(self, overwrite=False):
+        #     print(f'\n\n====== Making Statistics - Bins = {self.bins} ======')
+        #     # Check result file
+        #     if self.stats_file.exists() and not overwrite:
+        #         print(f'  stats_file found! Skipping.')
+        #     else:
+        #         for self.metric in self.metric_list:
+        #             data_bucket = load_json(self.data_bucket_file, object_hook=dict)
+        #             for self.proj in self.proj_list:
+        #                 for self.video in self.videos_list:
+        #                     for self.tiling in self.tiling_list:
+        #                         for self.tile in self.tile_list:
+        #                             # Load data and fitter
+        #                             samples = data_bucket[self.proj][self.video][self.tiling][self.tile]
+        #                             fitter = load_pickle(self.fitter_pickle_file)
+        #
+        #                             # Calculate percentiles
+        #                             percentile = np.percentile(samples, [0, 25, 50, 75, 100]).T
+        #                             df_errors: pd.DataFrame = fitter.df_errors
+        #
+        #                             # Append info and stats on Dataframe
+        #                             self.stats[f'proj'].append(self.proj)
+        #                             self.stats[f'tiling'].append(self.tiling)
+        #                             self.stats[f'metric'].append(self.metric)
+        #                             self.stats[f'average'].append(np.average(samples))
+        #                             self.stats[f'std'].append(float(np.std(samples)))
+        #                             self.stats[f'min'].append(percentile[0])
+        #                             self.stats[f'quartile1'].append(percentile[1])
+        #                             self.stats[f'median'].append(percentile[2])
+        #                             self.stats[f'quartile3'].append(percentile[3])
+        #                             self.stats[f'max'].append(percentile[4])
+        #
+        #         pd.DataFrame(self.stats).to_csv(self.stats_file, index=False)
+        #
+        #     if self.correlations_file.exists() and not overwrite:
+        #         print(f'  correlations_file found! Skipping.')
+        #     else:
+        #         from itertools import combinations
+        #         corretations_bucket = defaultdict(list)
+        #         for metric1, metric2 in combinations(self.metric_list, r=2):
+        #             self.metric = metric1
+        #             data_bucket1 = load_json(self.data_bucket_file, object_hook=dict)
+        #             self.metric = metric2
+        #             data_bucket2 = load_json(self.data_bucket_file, object_hook=dict)
+        #
+        #             for self.proj in self.proj_list:
+        #                 for self.video in self.videos_list:
+        #                     for self.tiling in self.tiling_list:
+        #                         for self.tile in self.tile_list:
+        #                             samples1 = data_bucket1[self.proj][self.tiling]
+        #                             samples2 = data_bucket2[self.proj][self.tiling]
+        #                             corrcoef = np.corrcoef((samples1, samples2))[1][0]
+        #
+        #                             corretations_bucket[f'proj'].append(self.proj)
+        #                             corretations_bucket[f'tiling'].append(self.tiling)
+        #                             corretations_bucket[f'metric'].append(f'{metric1}_{metric2}')
+        #                             corretations_bucket[f'corr'].append(corrcoef)
+        #
+        #         pd.DataFrame(corretations_bucket).to_csv(self.correlations_file, index=False)
+        # </editor-fold>
 
-                                    # Calculate percentiles
-                                    percentile = np.percentile(samples, [0, 25, 50, 75, 100]).T
-                                    df_errors: pd.DataFrame = fitter.df_errors
-
-                                    # Append info and stats on Dataframe
-                                    self.stats[f'proj'].append(self.proj)
-                                    self.stats[f'tiling'].append(self.tiling)
-                                    self.stats[f'metric'].append(self.metric)
-                                    self.stats[f'average'].append(np.average(samples))
-                                    self.stats[f'std'].append(float(np.std(samples)))
-                                    self.stats[f'min'].append(percentile[0])
-                                    self.stats[f'quartile1'].append(percentile[1])
-                                    self.stats[f'median'].append(percentile[2])
-                                    self.stats[f'quartile3'].append(percentile[3])
-                                    self.stats[f'max'].append(percentile[4])
-
-                pd.DataFrame(self.stats).to_csv(self.stats_file, index=False)
-
-            if self.correlations_file.exists() and not overwrite:
-                print(f'  correlations_file found! Skipping.')
-            else:
-                from itertools import combinations
-                corretations_bucket = defaultdict(list)
-                for metric1, metric2 in combinations(self.metric_list, r=2):
-                    self.metric = metric1
-                    data_bucket1 = load_json(self.data_bucket_file, object_hook=dict)
-                    self.metric = metric2
-                    data_bucket2 = load_json(self.data_bucket_file, object_hook=dict)
-
-                    for self.proj in self.proj_list:
-                        for self.video in self.videos_list:
-                            for self.tiling in self.tiling_list:
-                                for self.tile in self.tile_list:
-                                    samples1 = data_bucket1[self.proj][self.tiling]
-                                    samples2 = data_bucket2[self.proj][self.tiling]
-                                    corrcoef = np.corrcoef((samples1, samples2))[1][0]
-
-                                    corretations_bucket[f'proj'].append(self.proj)
-                                    corretations_bucket[f'tiling'].append(self.tiling)
-                                    corretations_bucket[f'metric'].append(f'{metric1}_{metric2}')
-                                    corretations_bucket[f'corr'].append(corrcoef)
-
-                pd.DataFrame(corretations_bucket).to_csv(self.correlations_file, index=False)
 
         def make_plot_series1(self, overwrite=False):
             print(f'\n====== Make PlotSeries - Bins = {self.bins} ======')
-            folder = self.workfolder / 'plot_series'
+            folder = self.workfolder / 'plot_series1'
             folder.mkdir(parents=True, exist_ok=True)
 
-            row, columns = 1, 5
-            subplot_pos = [(row, columns, x) for x in range(1, columns * row + 1)]
-            colors = {'cmp': 'tab:green', 'erp': 'tab:blue'}
-            legend_handles = [mpatches.Patch(color=colors['erp'], label='ERP'),
-                              # mpatches.Patch(color=colors['cmp'], label='CMP'),
-                              ]
             # make an image for each metric and projection
             for self.metric in self.metric_list:
                 data_bucket = load_json(self.data_bucket_file, object_hook=dict)
-
                 for self.video in self.videos_list:
-                    print(f'\r  {self.metric} - {self.vid_proj}  {self.name} ... ', end='')
-                    img_file = folder / f'plot_{self.vid_proj}_{self.name}_{self.metric}.png'
-                    # Check image file by metric
-                    if img_file.exists() and not overwrite:
-                        warning(f'BoxPlot exist. Skipping')
-                        continue
+                    for self.tiling in self.tiling_list:
+                        print(f'\r  {self.metric} - {self.vid_proj}  {self.name} {self.tiling} ... ', end='')
+                        img_file = folder / f'plot_{self.vid_proj}_{self.name}_{self.tiling}_{self.metric}.png'
 
-                    # <editor-fold desc="Format plot">
-                    if self.metric == 'time':
-                        scilimits = (-3, -3)
-                        suptitle = f'Average Decoding {self.metric.capitalize()} (ms) - {self.name} ({self.vid_proj})'
-                    elif self.metric == 'time_std':
-                        scilimits = (-3, -3)
-                        suptitle = f'Std Dev - Decoding {self.metric.capitalize()} (ms) - {self.name} ({self.vid_proj})'
-                    elif self.metric == 'rate':
-                        scilimits = (6, 6)
-                        suptitle = f'Bit {self.metric.capitalize()} (Mbps) - {self.name} ({self.vid_proj})'
-                    else:
-                        scilimits = None
-                        suptitle = f'{self.metric} - {self.name} ({self.vid_proj})'
-                    # </editor-fold>
+                        # Check image file by metric
+                        if img_file.exists() and not overwrite:
+                            warning(f'BoxPlot exist. Skipping')
+                            continue
 
-                    fig_boxplot = plt.Figure(figsize=(12., 2.))
-                    fig_boxplot.suptitle(f'{suptitle}')
+                        # <editor-fold desc="Format plot">
+                        if self.metric == 'time':
+                            scilimits = (-3, -3)
+                            suptitle = f'Average Decoding {self.metric.capitalize()} (ms) - {self.name} {self.tiling} ({self.vid_proj})'
+                        elif self.metric == 'time_std':
+                            scilimits = (-3, -3)
+                            suptitle = f'Std Dev - Decoding {self.metric.capitalize()} (ms) - {self.name} {self.tiling} ({self.vid_proj})'
+                        elif self.metric == 'rate':
+                            scilimits = (6, 6)
+                            suptitle = f'Bit {self.metric.capitalize()} (Mbps) - {self.name} {self.tiling} ({self.vid_proj})'
+                        else:
+                            scilimits = None
+                            suptitle = f'{self.metric} - {self.name} {self.tiling} ({self.vid_proj})'
+                        # </editor-fold>
 
-                    for self.tiling, (nrows, ncols, index) in zip(self.tiling_list, subplot_pos):
-                        ax: axes.Axes = fig_boxplot.add_subplot(nrows, ncols, index)
+                        major = 0
+                        minor = float('inf')
 
-                        for self.tile in self.tile_list:
-                            # make a line
+                        nrows, ncols = splitx(self.tiling)
+                        fig = plt.Figure(figsize=(2.*nrows, 2.*ncols), dpi=200)
+                        fig.suptitle(f'{suptitle}')
 
-                            # Get data
-                            tiling_data = data_bucket[self.vid_proj][self.video][self.tiling][self.tile]
+                        for index, self.tile in enumerate(self.tile_list, 1):
+                            ax: axes.Axes = fig.add_subplot(nrows, ncols, index)
 
-                            if self.metric in [ 'PSNR', 'WS-PSNR', 'S-PSNR']:
-                                tiling_data = [data for data in tiling_data if data < 1000]
+                            for self.quality in self.quality_list:
+                                # Get data
+                                tiling_data = data_bucket[self.vid_proj][self.name][self.tiling][self.quality][self.tile]
 
-                            ax.plot(tiling_data, label=f'Tile {self.tile}')
+                                # <editor-fold desc="find max-min">
+                                a=max(tiling_data)
+                                if a > major:
+                                    major = a
+                                a=min(tiling_data)
+                                if a < minor:
+                                    minor = a
+                                # </editor-fold>
+
+                                # if self.metric in [ 'PSNR', 'WS-PSNR', 'S-PSNR']:
+                                #     tiling_data = [data for data in tiling_data if data < 1000]
+
+                                ax.plot(tiling_data, label=f'CRF {self.quality}')
 
                             # if index in [columns]:
-                        ax.ticklabel_format(axis='y', style='scientific', scilimits=scilimits)
-                        # ax.legend(loc='upper left', bbox_to_anchor=(1.01, 1.0), fontsize='small')
+                            ax.ticklabel_format(axis='y', style='scientific', scilimits=scilimits)
+                            ax.legend(loc='upper right', fontsize='small')
 
-                    print(f'  Saving the figure')
-                    fig_boxplot.savefig(img_file)
+                        for ax in fig.axes:
+                            ax.set_ylim(ymin=minor, ymax=major)
 
-        def make_plot_series2(self, overwrite=False):
-            print(f'\n====== Make PlotSeries - Bins = {self.bins} ======')
-            folder = self.workfolder / 'plot_series'
-            folder.mkdir(parents=True, exist_ok=True)
-
-            row, columns = 1, 5
-            subplot_pos = [(row, columns, x) for x in range(1, columns * row + 1)]
-            colors = {'cmp': 'tab:green', 'erp': 'tab:blue'}
-            legend_handles = [mpatches.Patch(color=colors['erp'], label='ERP'),
-                              # mpatches.Patch(color=colors['cmp'], label='CMP'),
-                              ]
-            # make an image for each metric and projection
-            for self.metric in self.metric_list:
-                data_bucket = load_json(self.data_bucket_file, object_hook=dict)
-
-                for self.video in self.videos_list:
-                    print(f'\r  {self.metric} - {self.vid_proj}  {self.name} ... ', end='')
-                    img_file = folder / f'plot_{self.vid_proj}_{self.name}_{self.metric}.png'
-                    # Check image file by metric
-                    if img_file.exists() and not overwrite:
-                        warning(f'BoxPlot exist. Skipping')
-                        continue
-
-                    # <editor-fold desc="Format plot">
-                    if self.metric == 'time':
-                        scilimits = (-3, -3)
-                        suptitle = f'Average Decoding {self.metric.capitalize()} (ms) - {self.name} ({self.vid_proj})'
-                    elif self.metric == 'time_std':
-                        scilimits = (-3, -3)
-                        suptitle = f'Std Dev - Decoding {self.metric.capitalize()} (ms) - {self.name} ({self.vid_proj})'
-                    elif self.metric == 'rate':
-                        scilimits = (6, 6)
-                        suptitle = f'Bit {self.metric.capitalize()} (Mbps) - {self.name} ({self.vid_proj})'
-                    else:
-                        scilimits = None
-                        suptitle = f'{self.metric} - {self.name} ({self.vid_proj})'
-                    # </editor-fold>
-
-                    fig_boxplot = plt.Figure(figsize=(12., 2.))
-                    fig_boxplot.suptitle(f'{suptitle}')
-
-                    for self.tiling, (nrows, ncols, index) in zip(self.tiling_list, subplot_pos):
-                        ax: axes.Axes = fig_boxplot.add_subplot(nrows, ncols, index)
-
-                        for self.tile in self.tile_list:
-                            # make a line
-
-                            # Get data
-                            tiling_data = data_bucket[self.vid_proj][self.video][self.tiling][self.tile]
-
-                            if self.metric in [ 'PSNR', 'WS-PSNR', 'S-PSNR']:
-                                tiling_data = [data for data in tiling_data if data < 1000]
-
-                            ax.plot(tiling_data, label=f'Tile {self.tile}')
-
-                            # if index in [columns]:
-                        ax.ticklabel_format(axis='y', style='scientific', scilimits=scilimits)
-                        # ax.legend(loc='upper left', bbox_to_anchor=(1.01, 1.0), fontsize='small')
-
-                    print(f'  Saving the figure')
-                    fig_boxplot.savefig(img_file)
+                        print(f'  Saving the figure')
+                        fig.tight_layout()
+                        fig.savefig(img_file)
+        #
+        # def make_plot_series2(self, overwrite=False):
+        #     print(f'\n====== Make PlotSeries - Bins = {self.bins} ======')
+        #     folder = self.workfolder / 'plot_series'
+        #     folder.mkdir(parents=True, exist_ok=True)
+        #
+        #     row, columns = 1, 5
+        #     subplot_pos = [(row, columns, x) for x in range(1, columns * row + 1)]
+        #     colors = {'cmp': 'tab:green', 'erp': 'tab:blue'}
+        #     legend_handles = [mpatches.Patch(color=colors['erp'], label='ERP'),
+        #                       # mpatches.Patch(color=colors['cmp'], label='CMP'),
+        #                       ]
+        #     # make an image for each metric and projection
+        #     for self.metric in self.metric_list:
+        #         data_bucket = load_json(self.data_bucket_file, object_hook=dict)
+        #
+        #         for self.video in self.videos_list:
+        #             print(f'\r  {self.metric} - {self.vid_proj}  {self.name} ... ', end='')
+        #             img_file = folder / f'plot_{self.vid_proj}_{self.name}_{self.metric}.png'
+        #             # Check image file by metric
+        #             if img_file.exists() and not overwrite:
+        #                 warning(f'BoxPlot exist. Skipping')
+        #                 continue
+        #
+        #             # <editor-fold desc="Format plot">
+        #             if self.metric == 'time':
+        #                 scilimits = (-3, -3)
+        #                 suptitle = f'Average Decoding {self.metric.capitalize()} (ms) - {self.name} ({self.vid_proj})'
+        #             elif self.metric == 'time_std':
+        #                 scilimits = (-3, -3)
+        #                 suptitle = f'Std Dev - Decoding {self.metric.capitalize()} (ms) - {self.name} ({self.vid_proj})'
+        #             elif self.metric == 'rate':
+        #                 scilimits = (6, 6)
+        #                 suptitle = f'Bit {self.metric.capitalize()} (Mbps) - {self.name} ({self.vid_proj})'
+        #             else:
+        #                 scilimits = None
+        #                 suptitle = f'{self.metric} - {self.name} ({self.vid_proj})'
+        #             # </editor-fold>
+        #
+        #             fig_boxplot = plt.Figure(figsize=(12., 2.))
+        #             fig_boxplot.suptitle(f'{suptitle}')
+        #
+        #             for self.tiling, (nrows, ncols, index) in zip(self.tiling_list, subplot_pos):
+        #                 ax: axes.Axes = fig_boxplot.add_subplot(nrows, ncols, index)
+        #
+        #                 for self.tile in self.tile_list:
+        #                     # make a line
+        #
+        #                     # Get data
+        #                     tiling_data = data_bucket[self.vid_proj][self.video][self.tiling][self.tile]
+        #
+        #                     if self.metric in [ 'PSNR', 'WS-PSNR', 'S-PSNR']:
+        #                         tiling_data = [data for data in tiling_data if data < 1000]
+        #
+        #                     ax.plot(tiling_data, label=f'Tile {self.tile}')
+        #
+        #                     # if index in [columns]:
+        #                 ax.ticklabel_format(axis='y', style='scientific', scilimits=scilimits)
+        #                 # ax.legend(loc='upper left', bbox_to_anchor=(1.01, 1.0), fontsize='small')
+        #
+        #             print(f'  Saving the figure')
+        #             fig_boxplot.savefig(img_file)
 
         def make_violinplot(self, overwrite=False):
             print(f'\n====== Make Violin - Bins = {self.bins} ======')
@@ -2467,7 +2476,6 @@ class DectimeGraphs:
             print(f'  Finished.')
             if resumenamecsv is not None:
                 pd.DataFrame(resume).to_csv(resumenamecsv)
-
 
     @staticmethod
     def find_dist(dist_name, params):

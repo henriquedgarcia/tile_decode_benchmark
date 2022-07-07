@@ -16,7 +16,7 @@ config = f'config/config_nas_erp.json'
 worker_list = {
     0: ['TileDecodeBenchmark', {0: 'PREPARE', 1: 'COMPRESS', 2: 'SEGMENT', 3: 'DECODE', 4: 'COLLECT_RESULTS'}],
     1: ['CheckTiles', {0: 'CHECK_ORIGINAL', 1: 'CHECK_LOSSLESS', 2: 'CHECK_COMPRESS', 3: 'CHECK_SEGMENT', 4: 'CLEAN'}],
-    2: ['DectimeGraphs', {0: 'BY_PATTERN', 1: 'BY_PATTERN_BY_QUALITY', 2: 'BY_VIDEO_BY_PATTERN_BY_QUALITY', 3: 'BY_PATTERN_FULL_FRAME', 4: 'BY_VIDEO_BY_PATTERN_BY_TILE_BY_CHUNK',}],
+    2: ['DectimeGraphs', {0: 'BY_PATTERN', 1: 'BY_PATTERN_BY_QUALITY', 2: 'BY_VIDEO_BY_PATTERN_BY_QUALITY', 3: 'BY_PATTERN_FULL_FRAME', 4: 'BY_VIDEO_BY_PATTERN_BY_TILE_BY_CHUNK', 5: 'BY_VIDEO_BY_PATTERN_BY_TILE_BY_QUALITY_BY_CHUNK',}],
     3: ['QualityAssessment', {0: 'ALL', 1: 'PSNR', 2: 'WSPSNR', 3: 'SPSNR', 4: 'RESULTS'}],
     4: ['MakeViewport', {0: 'NAS_ERP', 1: 'USER_ANALYSIS'}],
     5: ['Dashing', {0: 'PREPARE', 1: 'COMPRESS', 2: 'DASH', 3: 'MEASURE_CHUNKS'}],
