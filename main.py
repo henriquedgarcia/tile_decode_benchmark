@@ -11,6 +11,7 @@ logging.basicConfig(level=logging.WARNING)
 # config_list = [f'config/config_ffmpeg_crf_12videos_60s.json']
 # config_list = [f'config/config_nas_erp_cmp.json']
 # config_list = [f'config/config_nas_cmp.json']
+# config_list = config_nas_erp_qp.json
 config = f'config/config_nas_erp.json'
 
 worker_list = {
@@ -21,7 +22,8 @@ worker_list = {
     4: ['MakeViewport', {0: 'NAS_ERP', 1: 'USER_ANALYSIS'}],
     5: ['Dashing', {0: 'PREPARE', 1: 'COMPRESS', 2: 'DASH', 3: 'MEASURE_CHUNKS'}],
     6: ['QualityAssessment', {0: 'PREPARE', 1: 'GET_TILES', 2: 'USER_ANALYSIS'}],
-    7: ['Siti', {0: 'SITI'}]
+    7: ['Siti', {0: 'SITI'}],
+    8: ['UserDectime', {0: 'USERS_METRICS'}, {1: 'VIEWPORT_METRICS'}],
 }
 
 help_txt = 'Dectime Testbed.\n'
