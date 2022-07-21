@@ -33,6 +33,7 @@ from .util import (check_video_gop, iter_frame, load_sph_file,
                    load_pickle, splitx, idx2xy)
 from .video_state import Config, VideoContext
 from .viewport import ERP
+from .nfov import NFOV
 from itertools import combinations
 
 
@@ -4571,7 +4572,6 @@ class UserDectime:
 
         def make_quality(self, overwrite=False):
             result = AutoDict()
-            import
             for self.video in self.videos_list:
                 frame_height, frame_width = self.video_shape
                 nfov = NFOV(frame_width, frame_height)
@@ -4579,7 +4579,7 @@ class UserDectime:
                 for self.tiling in self.tiling_list:
                     get_tiles_data = load_json(self.get_tiles_result_json, object_hook=dict)
                     users_list = get_tiles_data[self.vid_proj][self.tiling].keys()
-                    tiling_shape =list(splitx(self.tiling))[::-1]
+                    tiling_shape =tuple(splitx(self.tiling))[::-1]
 
                     M, N = splitx(self.tiling)
                     tw, th = int(pw / M), int(ph / N)
@@ -4596,7 +4596,8 @@ class UserDectime:
                                 psnr_chunk: list[float] = []
                                 for _ in range(30):
                                     for self.tile in tiles_reader:
-                                        tx, ty = int(self.tile) * tw, int(self.tile) * th
+                                        tile_x, tile_y = idx2xy(int(self.tile), tiling_shape)
+                                        tx, ty = tile_x * tw, tile_y * th
 
                                         tile_frame = next(tiles_reader[self.tile])
                                         tile_frame_ref = next(tiles_reader_ref[self.tile])
