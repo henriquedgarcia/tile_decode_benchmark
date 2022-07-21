@@ -11,8 +11,7 @@ logging.basicConfig(level=logging.WARNING)
 # config_list = [f'config/config_ffmpeg_crf_12videos_60s.json']
 # config_list = [f'config/config_nas_erp_cmp.json']
 # config_list = [f'config/config_nas_cmp.json']
-# config_list = config_nas_erp_qp.json
-config = f'config/config_nas_erp.json'
+config = f'config/config_nas_erp_qp.json'
 
 worker_list = {
     0: ['TileDecodeBenchmark', {0: 'PREPARE', 1: 'COMPRESS', 2: 'SEGMENT', 3: 'DECODE', 4: 'COLLECT_RESULTS'}],
