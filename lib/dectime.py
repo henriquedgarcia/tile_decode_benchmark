@@ -1244,7 +1244,7 @@ class DectimeGraphs:
                     for self.tiling in self.tiling_list:
                         yield
 
-        def __init__(self, config):
+        def __init__(self, config:Config):
             self.config = config
             self.print_resume()
             self.n_dist = 6
