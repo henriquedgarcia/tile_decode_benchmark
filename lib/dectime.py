@@ -8,7 +8,7 @@ from builtins import PermissionError, object
 from collections import Counter, defaultdict
 from logging import warning, debug, fatal
 from pathlib import Path
-from subprocess import run, DEVNULL, STDOUT
+from subprocess import run, DEVNULL, STDOUT, PIPE
 from typing import Any, Union, Dict, Optional, Generator
 
 import scipy.stats
@@ -27,11 +27,20 @@ from fitter import Fitter
 
 from .assets import AutoDict, Role
 from .transform import cart2hcs
-from .util import (run_command, check_video_gop, iter_frame, load_sph_file,
+# from .util import (run_command, check_video_gop, iter_frame, load_sph_file,
+from .util import (check_video_gop, iter_frame, load_sph_file,
                    save_json, load_json, lin_interpol, save_pickle,
                    load_pickle, splitx)
 from .video_state import Config, VideoContext
 from .viewport import ERP
+
+
+def run_command(command: str, log_file: Path = None):
+    print(command)
+    process = run(command, shell=True, stderr=STDOUT, encoding='utf-8')
+    if process.returncode != 0: warning(f'SUBPROCESS ERROR: Return {process.returncode} to video {log_file}. Continuing.')
+    log_file.write_text(command + '\n')
+    log_file.write_text(process.stdout + '\n')
 
 
 class Factors:
@@ -269,7 +278,7 @@ class Worker(ABC, GlobalPaths):
         return len(['' for line in content if 'utime' in line])
 
     @staticmethod
-    def run_command(command: str, log_file: Union[str, Path] = None, mode: str = None):
+    def run_command(command: str, log_file: Path = None, mode: str = None):
         """
         Run a shell command with subprocess module with realtime output.
         :param command: A command string to run.
@@ -277,27 +286,20 @@ class Worker(ABC, GlobalPaths):
         :param mode: The write mode: 'w' or 'a'.
         :return: stdout.
         """
-        log_file = Path(log_file)
+        # Run
+        process = run(command, shell=True, stdout=PIPE, stderr=STDOUT, encoding='utf-8', )
+        if process.returncode != 0: warning(f'SUBPROCESS ERROR: Return {process.returncode} to video {log_file}. Continuing.')
 
-        ## Check logfile
-        if log_file.exists() and mode.lower() == 'w':
-            try:
-                log_file.unlink(missing_ok=True)
-            except PermissionError:
-                warning(f'SUBPROCESS ERROR: run_command() can\'t delete old logfile {log_file}.')
-
-        ## Run
-        process = run(command, shell=True, capture_output=True, stderr=STDOUT, encoding='utf-8')
-
-        if process.returncode != 0:
-            warning(f'SUBPROCESS ERROR: Return {process.returncode} to video {log_file}. Continuing.')
-
-        ## Write in Logfile
+        # Write in Logfile
+        # Check logfile
         try:
-            log_file.write_text(command + '\n')
-            log_file.write_text(process.stdout)
+            log_file.unlink(missing_ok=True)
         except PermissionError:
-            warning(f'SUBPROCESS ERROR: run_command() can\'t write to logfile {log_file}.')
+            print(f'run_command() can\'t delete old logfile {log_file} (PermissionError).')
+            return
+
+        log_file.write_text(command + '\n')
+        log_file.write_text(process.stdout + '\n')
 
     def print_resume(self):
         print('=' * 70)
@@ -374,7 +376,7 @@ class TileDecodeBenchmark:
                       'COLLECT_RESULTS': self.Prepare}
 
         operations[role](Config(config))
-        print(f'\n====== The end of {self.role.name} ======')
+        print(f'\n====== The end of {role} ======')
 
     # PREPARE
     class Prepare(Worker, TileDecodeBenchmarkPaths):
@@ -382,16 +384,24 @@ class TileDecodeBenchmark:
             for self.video in self.videos_list:
                 yield
 
-        def work(self, overwrite=False):
-            lossless_log:Path = self.lossless_file.with_suffix('.log')
-            print(f'Preparing {self.lossless_file=}', end = '')
+        def __init__(self, config:Config):
+            self.config = config
+            self.print_resume()
+            for _ in self.video_context():
+                self.work(overwrite=False)
 
-            if self.lossless_file.exists() and not overwrite:
-                warning(f'  The file {self.lossless_file=} exist. Skipping.')
+        def work(self, overwrite=False):
+            original_file: Path = self.original_file
+            lossless_file: Path = self.lossless_file
+            lossless_log: Path = self.lossless_file.with_suffix('.log')
+            print(f'Preparing {self.lossless_file=}', end='')
+
+            if lossless_file and not overwrite:
+                warning(f'  The file {lossless_file=} exist. Skipping.')
                 return
 
-            if not self.original_file.exists():
-                warning(f'  The file {self.original_file=} not exist. Skipping.')
+            if not original_file.exists():
+                warning(f'  The file {original_file=} not exist. Skipping.')
                 return
 
             resolution_ = splitx(self.resolution)
@@ -400,13 +410,13 @@ class TileDecodeBenchmark:
             cmd = f'ffmpeg '
             cmd += f'-hide_banner -y '
             cmd += f'-ss {self.offset} '
-            cmd += f'-i {self.original_file} '
+            cmd += f'-i {original_file} '
             cmd += f'-crf 0 '
             cmd += f'-t {self.duration} '
             cmd += f'-r {self.fps} '
             cmd += f'-map 0:v '
             cmd += f'-vf "scale={self.resolution},setdar={dar}" '
-            cmd += f'{self.lossless_file}'
+            cmd += f'{lossless_file}'
 
             print(cmd)
             run_command(cmd, lossless_log, 'w')
@@ -422,44 +432,52 @@ class TileDecodeBenchmark:
             for self.video in self.videos_list:
                 for self. tiling in self.tiling_list:
                     for self.quality in self.quality_list:
-                        for self.tile in self.tiling_list:
+                        for self.tile in self.tile_list:
                             yield
 
+        def __init__(self, config: Config):
+            self.config = config
+            self.print_resume()
+            self.work(overwrite=False)
+
         def work(self, overwrite=False):
+            commands_list = []
+            for self.video in self.videos_list:
+                for self. tiling in self.tiling_list:
+                    for self.quality in self.quality_list:
+                        for self.tile in self.tile_list:
+                            print(f'\r{self.compressed_file}', end='')
+                            if self.compressed_file.exists() and not overwrite:
+                                warning(f'The file {self.compressed_file} exist. Skipping.')
+                                return
 
-            debug(f'==== Processing {self.compressed_file} ====')
+                            if not self.lossless_file.exists():
+                                warning(f'The file {self.lossless_file} not exist. Skipping.')
+                                return
 
-            if self.compressed_file.exists() and not overwrite:
-                warning(f'The file {self.compressed_file} exist. Skipping.')
-                return 'skip'
+                            pw, ph = splitx(self.resolution)
+                            M, N = splitx(self.tiling)
+                            tw, th = int(pw / M), int(ph / N)
+                            tx, ty = int(self.tile) * tw, int(self.tile) * th
+                            factor = self.config["rate_control"]
 
-            if not self.lossless_file.exists():
-                warning(f'The file {self.lossless_file} not exist. Skipping.')
-                return 'skip'
-
-            pw, ph = splitx(self.resolution)
-            M, N = splitx(self.tiling)
-            tw, th = int(pw / M), int(ph / N)
-            tx, ty = int(self.tile) * tw, int(self.tile) * th
-
-            cmd = ['ffmpeg -hide_banner -y -psnr']
-            cmd += [f'-i {self.lossless_file}']
-            cmd += [f'-crf {self.quality} -tune "psnr"']
-            cmd += [f'-c:v libx265']
-            cmd += [f'-x265-params']
-            cmd += [f'"keyint={self.gop}:'
-                    f'min-keyint={self.gop}:'
-                    f'open-gop=0:'
-                    f'scenecut=0:'
-                    f'info=0"']
-            cmd += [f'-vf "crop='
-                    f'w={tw}:h={th}:'
-                    f'x={tx}:y={ty}"']
-            cmd += [f'{self.compressed_file}']
-            cmd = ' '.join(cmd)
-
-            compressed_log = self.compressed_file.with_suffix('.log')
-            self.run_command(cmd, compressed_log, 'w')
+                            cmd = ['bin/ffmpeg -hide_banner -y -psnr']
+                            cmd += [f'-i {self.lossless_file}']
+                            cmd += [f'-c:v libx265']
+                            cmd += [f'-{factor} {self.quality} -tune "psnr"']
+                            cmd += [f'-x265-params']
+                            cmd += [f'"keyint={self.gop}:'
+                                    f'min-keyint={self.gop}:'
+                                    f'open-gop=0:'
+                                    f'scenecut=0:'
+                                    f'info=0"']
+                            cmd += [f'-vf "crop='
+                                    f'w={tw}:h={th}:'
+                                    f'x={tx}:y={ty}"']
+                            cmd += [f'{self.compressed_file}']
+                            cmd = ' '.join(cmd)
+                            compressed_log = self.compressed_file.with_suffix('.log')
+                            self.run_command(cmd, compressed_log, 'w')
 
     # SEGMENT
     class Segment(Worker, TileDecodeBenchmarkPaths):
