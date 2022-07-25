@@ -113,8 +113,8 @@ class Factors:
 
     @property
     def video_shape(self) -> tuple:
-        w, h = map(int, splitx(self.videos_list[self.video]['scale']))
-        return h, w
+        w, h = splitx(self.videos_list[self.video]['scale'])
+        return h, w, 3
 
     @property
     def original(self) -> str:
@@ -185,6 +185,7 @@ class GlobalPaths(Factors):
         folder = self.project_path / self.segment_folder
         folder.mkdir(parents=True, exist_ok=True)
         return folder / f'rate_{self.video}.json'
+
     @property
     def get_tiles_result_json(self) -> Path:
         folder = self.project_path / self.get_tiles_folder
@@ -376,7 +377,7 @@ class TileDecodeBenchmarkPaths(GlobalPaths):
 
         @property
         def basename(self):
-            return Path(f'{self.video}_'
+            return Path(f'{self.name}_'
                         f'{self.resolution}_'
                         f'{self.config["fps"]}_'
                         f'{self.tiling}_'
@@ -3997,35 +3998,6 @@ class UserDectime:
         stats: dict[str, list] = None
         seen_tiles_data = None
 
-        # <editor-fold desc="MultiIndex Test">
-        # def video_context(self):
-        #     lv1 = []
-        #     lv2 = []
-        #     lv3 = []
-        #     lv4 = []
-        #     lv5 = []
-        #     for self.video in self.videos_list:
-        #         for self. tiling in self.tiling_list:
-        #             for self.quality in self.quality_list:
-        #                 for self.tile in self.tile_list:
-        #                     for self.chunk in self.chunk_list:
-        #                         lv1.append(self.video)
-        #                         lv2.append(self.tiling)
-        #                         lv3.append(self.quality)
-        #                         lv4.append(self.tile)
-        #                         lv5.append(self.chunk)
-        #     index = pd.MultiIndex.from_tuples(zip(tuple(lv1), tuple(lv2), tuple(lv3), tuple(lv4), tuple(lv5)),
-        #                                       names=["video", "tiling", 'quality', 'tile', 'chunk'])
-        #     save_json([lv1, lv2, lv3, lv4, lv5],'index.json')
-        #     yield
-        # </editor-fold>
-
-        def video_context(self):
-            for self.metric in self.metric_list:
-                for self.proj in ['erp']:
-                    for self.tiling in self.tiling_list:
-                        yield
-
         def __init__(self, config):
             self.config = config
             self.print_resume()
@@ -4569,43 +4541,48 @@ class UserDectime:
         def __init__(self, config):
             self.config = config
             self.print_resume()
+            self.make_quality()
 
         def make_quality(self, overwrite=False):
             result = AutoDict()
+            database = load_json(self.dataset_json)
             for self.video in self.videos_list:
-                frame_height, frame_width = self.video_shape
+                frame_height, frame_width, n_channels = self.video_shape
                 nfov = NFOV(frame_width, frame_height)
                 pw, ph = splitx(self.resolution)
+                users_data = database[self.name]
                 for self.tiling in self.tiling_list:
+                    if self.tiling == '1x1': continue
                     get_tiles_data = load_json(self.get_tiles_result_json, object_hook=dict)
                     users_list = get_tiles_data[self.vid_proj][self.tiling].keys()
-                    tiling_shape =tuple(splitx(self.tiling))[::-1]
 
                     M, N = splitx(self.tiling)
                     tw, th = int(pw / M), int(ph / N)
 
                     for user in users_list:
-                        for self.chunk in self.chunk_list:
-                            get_tiles_val: list[int] = get_tiles_data[self.vid_proj][self.tiling][user]['chunks'][self.chunk]
-                            for self.quality in self.quality_list:
+                        for self.quality in self.quality_list:
+                            yaw_pitch_roll_frames = iter(users_data[user])
+                            for self.chunk in self.chunk_list:
+                                get_tiles_val: list[int] = get_tiles_data[self.vid_proj][self.tiling][user]['chunks'][self.chunk]
                                 tiles_reader: dict[str, skvideo.io.FFmpegReader] = {str(self.tile): skvideo.io.FFmpegReader(f'{self.segment_file}').nextFrame() for self.tile in get_tiles_val}
-                                tiles_reader_ref: dict[str, skvideo.io.FFmpegReader] = {self.tile: skvideo.io.FFmpegReader(f'{self.reference_segment}').nextFrame() for self.tile in get_tiles_val}
-                                img_proj = np.zeros(self.video_shape)
-                                img_proj_ref = np.zeros(self.video_shape)
-
+                                tiles_reader_ref: dict[str, skvideo.io.FFmpegReader] = {str(self.tile): skvideo.io.FFmpegReader(f'{self.reference_segment}').nextFrame() for self.tile in get_tiles_val}
+                                img_proj = np.zeros(self.video_shape, dtype='uint8')
+                                img_proj_ref = np.zeros(self.video_shape, dtype='uint8')
                                 psnr_chunk: list[float] = []
                                 for _ in range(30):
+                                    yaw, pitch, roll = next(yaw_pitch_roll_frames)
+                                    # Build projection frame
                                     for self.tile in tiles_reader:
-                                        tile_x, tile_y = idx2xy(int(self.tile), tiling_shape)
+                                        tile_x, tile_y = idx2xy(int(self.tile), (N, M))
                                         tx, ty = tile_x * tw, tile_y * th
 
                                         tile_frame = next(tiles_reader[self.tile])
                                         tile_frame_ref = next(tiles_reader_ref[self.tile])
 
-                                        img_proj[tx:tx + tw, ty:ty + th, :] = tile_frame
-                                        img_proj_ref[tx:tx + tw, ty:ty + th, :] = tile_frame_ref
+                                        img_proj[ty:ty + th, tx:tx + tw, :] = tile_frame
+                                        img_proj_ref[ty:ty + th, tx:tx + tw, :] = tile_frame_ref
 
-                                    center_point = np.array([0.5, .5])  # camera center point (valid range [0,1])
+                                    center_point = np.array([np.deg2rad(yaw), np.deg2rad(pitch)])  # camera center point (valid range [0,1])
                                     fov_video = nfov.toNFOV(img_proj, center_point)
                                     fov_ref = nfov.toNFOV(img_proj_ref, center_point)
 
