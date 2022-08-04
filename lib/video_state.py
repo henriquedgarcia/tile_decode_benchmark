@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .assets import Resolution, Position
-from .viewport import Viewport, erp2cart
+from .viewport import Viewport
 from .util import load_json, AutoDict
 
 
