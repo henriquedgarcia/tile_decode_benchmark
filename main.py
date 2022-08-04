@@ -2,7 +2,7 @@
 import argparse
 import logging
 
-from lib.dectime import (TileDecodeBenchmark,DectimeGraphs, UserDectime)
+from lib.dectime import (TileDecodeBenchmark,DectimeGraphs, UserDectime, UserDectimeOptions)
                          # ,CheckTiles, QualityAssessment, MakeViewport, Dashing, QualityAssessment, Siti)
 
 logging.basicConfig(level=logging.WARNING)
@@ -23,14 +23,17 @@ worker_list = {
     5: ['Dashing', {0: 'PREPARE', 1: 'COMPRESS', 2: 'DASH', 3: 'MEASURE_CHUNKS'}],
     6: ['QualityAssessment', {0: 'PREPARE', 1: 'GET_TILES', 2: 'USER_ANALYSIS'}],
     7: ['Siti', {0: 'SITI'}],
-    8: ['UserDectime', {0: 'USERS_METRICS', 1: 'VIEWPORT_METRICS'}],
+    8: [UserDectime, UserDectimeOptions],
 }
 
 help_txt = 'Dectime Testbed.\n'
 help_txt += f'\nWORKER_ID  {"Worker Name":19}   {{ROLE_ID: \'Role Name\', ...}}'
 help_txt += '\n' + '-'*9 + '  ' + '-'*19 + '   ' + '-'*95
 for key in worker_list:
-    help_txt += f'\n{str(key):>9}: {worker_list[key][0]:19} - {str(worker_list[key][1]):19}'
+    try:
+        help_txt += f'\n{str(key):>9}: {worker_list[key][0]:19} - {str(worker_list[key][1]):19}'
+    except:
+        help_txt += f'\n{str(key):>9}: {worker_list[key][0].__name__:19} - {str(list(worker_list[key][1].__members__.keys())):19}'
 
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
                                  description=help_txt)
@@ -44,8 +47,13 @@ if args.c is not None:
     config = args.c
 
 worker_id, role_id = map(int, args.r)
-worker = eval(worker_list[worker_id][0])
-role = worker_list[worker_id][1][role_id]
+
+if worker_id == 8:
+    worker = worker_list[worker_id][0]
+    role = worker_list[worker_id][1](role_id)
+else:
+    worker = eval(worker_list[worker_id][0])
+    role = worker_list[worker_id][1][role_id]
 
 worker(config=config, role=role)
 
