@@ -1,5 +1,5 @@
 import numpy as np
-
+from typing import Union
 
 def ______basic_____(): ...
 
@@ -16,7 +16,7 @@ def cart2hcs(x, y, z) -> tuple[float, float]:
     elevation = np.arcsin(y / r)
     return azimuth, elevation
 
-def hcs2cart(azimuth: float, elevation: float) -> tuple[float, float, float]:
+def hcs2cart(azimuth: np.ndarray, elevation: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Convert from horizontal coordinate system  in radians to cartesian system.
     ISO/IEC JTC1/SC29/WG11/N17197l: Algorithm descriptions of projection format conversion and video quality metrics in 360Lib Version 5
@@ -24,9 +24,9 @@ def hcs2cart(azimuth: float, elevation: float) -> tuple[float, float, float]:
     :param float azimuth: In rad
     :return: (x, y, z)
     """
-    x = np.cos(elevation) * np.cos(azimuth)
-    y = np.sin(elevation)
-    z = np.cos(elevation) * np.sin(azimuth)
+    z = np.cos(elevation) * np.cos(azimuth)
+    y = -np.sin(elevation)
+    x = np.cos(elevation) * np.sin(azimuth)
     return x, y, z
 
 def vp2cart(m, n, shape, fov_shape):
@@ -59,7 +59,25 @@ def vp2cart(m, n, shape, fov_shape):
 
 def ______erp_____(): ...
 
-def erp2cart(n: int, m: int, shape: tuple[int, int]) -> tuple[float, float, float]:
+def nm2xyv(n_m_coord: np.ndarray, shape: np.ndarray) -> np.ndarray:
+    """
+    ERP specífic.
+
+    :param n_m_coord: [(n, m], ...]
+    :param shape: (H, W)
+    :return:
+    """
+    v_u = (n_m_coord + (0.5, 0.5)) / shape
+    elevation, azimuth = ((v_u - (0.5, 0.5)) * (-np.pi, 2 * np.pi)).T
+
+    z = np.cos(elevation) * np.cos(azimuth)
+    y = -np.sin(elevation)
+    x = np.cos(elevation) * np.sin(azimuth)
+    return np.array([x, y, z]).T
+
+def erp2cart(n: Union[np.ndarray, int],
+             m:Union[np.ndarray, int],
+             shape: Union[np.ndarray, tuple[int, int]]) -> np.ndarray:
     """
 
     :param m: horizontal pixel coordinate
@@ -69,15 +87,14 @@ def erp2cart(n: int, m: int, shape: tuple[int, int]) -> tuple[float, float, floa
     """
     azimuth, elevation = erp2hcs(n, m, shape)
     x, y, z = hcs2cart(azimuth, elevation)
-    return x, y, z
+    return np.array(x, y, z)
 
 def cart2erp(x, y, z, shape):
     azimuth, elevation = cart2hcs(x, y, z)
     m, n = hcs2erp(azimuth, elevation, shape)
     return m, n
 
-
-def erp2hcs(n: int, m: int, shape: tuple[int, int]) -> tuple[float, float]:
+def erp2hcs(n: Union[np.ndarray, int], m: Union[np.ndarray, int], shape: Union[np.ndarray, tuple[int, int]]) -> Union[np.ndarray, tuple[float, float]]:
     """
 
     :param m: horizontal pixel coordinate
@@ -153,49 +170,46 @@ def cmp2cart(n: int, m: int, shape: tuple[int, int], f: int = 0) -> tuple[float,
 
 def ______utils_____(): ...
 
-def rot_matrix(yaw: float, pitch: float, roll: float) -> np.array:
+def rot_matrix(yaw_pitch_roll) -> np.array:
     """
     Create rotation matrix using Tait–Bryan angles in Z-Y-X order.
     See Wikipedia. Use:
 
     Examples
     --------
-    >> z, x, y = point
+    >> x, y, z = point
     >> mat = rot_matrix(yaw, pitch, roll)
-    >> mat @ (z, y, x)
+    >> mat @ (x, y, z)
 
-    :param yaw: A new position (yaw, pitch, roll).
-    :param pitch: A new position (yaw, pitch, roll).
-    :param roll: A new position (yaw, pitch, roll).
+    :param yaw_pitch_roll: the rotation (yaw, pitch, roll) in rad.
     :return: A 3x3 matrix of rotation for (z,y,x) vector
     """
 
-    cp = np.cos(pitch)
-    sp = np.sin(pitch)
-    cy = np.cos(yaw)
-    sy = np.sin(yaw)
-    cr = np.cos(roll)
-    sr = np.sin(roll)
+    cos_rot = np.cos(yaw_pitch_roll)
+    sin_rot = np.sin(yaw_pitch_roll)
 
-    # roll
+    # pitch
     mat_x = np.array(
         [[1, 0, 0],
-         [0, cr, -sr],
-         [0, sr, cr]])
+         [0, cos_rot[1], -sin_rot[1]],
+         [0, sin_rot[1], cos_rot[1]]]
+    )
 
     # yaw
     mat_y = np.array(
-        [[cy, 0, -sy],
+        [[cos_rot[0], 0, sin_rot[0]],
          [0, 1, 0],
-         [sy, 0, cy]])
+         [-sin_rot[0], 0, cos_rot[0]]]
+    )
 
-    # pitch
+    # roll
     mat_z = np.array(
-        [[cp, -sp, 0],
-         [sp, cp, 0],
-         [0, 0, 1]])
+        [[cos_rot[2], -sin_rot[2], 0],
+         [sin_rot[2], cos_rot[2], 0],
+         [0, 0, 1]]
+    )
 
-    return mat_y @ mat_z @ mat_x
+    return mat_y @ mat_x @ mat_z
 
 def check_deg(axis_name: str, value: float) -> float:
     """
