@@ -4163,9 +4163,6 @@ class UserDectime:
                         print('')
                         get_tiles_value['frame'].append(result_frames)
                         get_tiles_value['chunks'].append(result_chunks)
-                    exit(0)
-                        # todo: remove this in the future
-                        # break
                 print(f'Saving {self.get_tiles_json}')
                 save_json(results, self.get_tiles_json)
 
