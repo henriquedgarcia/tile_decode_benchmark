@@ -1,17 +1,18 @@
+import pickle
 import json
 import os
-import pickle
 import subprocess
 from logging import debug, error, warning
 from pathlib import Path
 from subprocess import run
-from typing import Any, Dict, Hashable, Tuple, Union
+from typing import Any, Dict, Hashable, Iterable, Tuple, Union
 
 import numpy as np
+import pandas as pd
 import skvideo.io
 from scipy import ndimage
 
-from lib.assets import AutoDict, Resolution
+from lib.assets import AutoDict, StatsData, PointHCS, Resolution, Point, Pixel
 
 ################    QUALITY    ################
 def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
@@ -22,6 +23,7 @@ def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
     :param shape:
     :return:
     """
+
     iter_file = sph_file.read_text().splitlines()
 
     sph_points = []
@@ -32,23 +34,25 @@ def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
     if shape is not None:
         sph_points_mask = np.zeros(shape)
 
-    # for each line (sample), convert to cartesian system and horizontal system
     for idx, line in enumerate(iter_file[1:]):
         point = list(map(float, line.strip().split()))
         hcs_point = dict(azimuth=np.deg2rad(point[1]),
                          elevation=np.deg2rad(point[0]))
         sph_points.append(hcs_point)
 
-        ccs_point = dict(x=np.sin(hcs_point['elevation']) * np.cos(hcs_point['azimuth']),
+        ccs_point = dict(x=np.sin(hcs_point['elevation'])
+                           * np.cos(hcs_point['azimuth']),
                          y=np.sin(hcs_point['azimuth']),
-                         z=-np.cos(hcs_point['elevation']) * np.cos(hcs_point['azimuth']))
+                         z=-np.cos(hcs_point['elevation'])
+                           * np.cos(hcs_point['azimuth']))
         cart_coord.append(ccs_point)
 
         if shape is not None:
             height, width = shape
-            # convert to erp image coordinate
-            x = np.ceil((hcs_point['azimuth'] + np.pi) * width / (2 * np.pi) - 1)
-            y = np.floor((hcs_point['elevation'] - np.pi / 2) * height / np.pi + height)
+            x = np.ceil((hcs_point['azimuth'] + np.pi)
+                        * width / (2 * np.pi) - 1)
+            y = np.floor((hcs_point['elevation'] - np.pi / 2)
+                         * height / np.pi + height)
             if y >= height: y = height - 1
             ics_point = dict(x=int(x), y=int(y))
             sph_points_img.append(ics_point)
@@ -59,16 +63,79 @@ def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
 def mse2psnr(mse: float, pixel_max=255) -> float:
     return 10 * np.log10((pixel_max ** 2 / mse))
 
-################    Util    ################
-def lin_interpol(t: float, times: tuple[float, float], values: tuple[tuple, tuple]) -> tuple:
-    t_f, t_i = times
-    v_f, v_i = values
-    m: tuple = ((v_f[0] - v_i[0]) / (t_f - t_i),
-                (v_f[1] - v_i[1]) / (t_f - t_i),
-                (v_f[2] - v_i[2]) / (t_f - t_i))
-    v: tuple = (m[0] * (t - t_i) + v_i[0],
-                m[1] * (t - t_i) + v_i[1],
-                m[2] * (t - t_i) + v_i[2])
+################    PROJECTIONS    ################
+# ------------------ erp2sph ------------------
+def erp2hcs(pixel: Pixel, res: Resolution) -> PointHCS:
+    """
+    Convert a 2D point of ERP projection coordinates to Horizontal Coordinate
+    System in rad. Only ERP Projection
+    :param Pixel pixel: A point in ERP projection
+    :param Resolution res: The resolution of the projection
+    :return: A 3D Point on the sphere
+    """
+    azimuth = ((pixel[0] + 0.5) / res.shape[1] - 0.5) * 2 * np.pi
+    elevation = -((pixel[1] + 0.5) / res.shape[0] - 0.5) * np.pi
+    return PointHCS(azimuth, elevation)
+
+def hcs2xyz(hcs_point: PointHCS) -> Point:
+    """
+    Horizontal Coordinate system to Cartesian coordinates.
+    ISO/IEC JTC1/SC29/WG11/N17197l: Algorithm descriptions of projection format conversion and video quality metrics in 360Lib Version 5
+    :param PointHCS hcs_point: The coordinates in Horizontal Coordinate System
+    :return: A Point3d in cartesian coordinates
+    """
+    x = np.cos(hcs_point[0]) * np.cos(hcs_point[1])
+    y = np.sin(hcs_point[1])
+    z = -np.cos(hcs_point[1]) * np.sin(hcs_point[0])
+
+    return Point(x, y, z)
+
+# ------------------ sph2erp ------------------
+def xyz2hcs(x, y, z) -> tuple[float, float]:
+    """
+    Convert from cartesian system to horizontal coordinate system in radians
+    :param float x: Coordinate from X axis
+    :param float y: Coordinate from Y axis
+    :param float z: Coordinate from Z axis
+    :return: (azimuth, elevation)
+    """
+    azimuth = np.arctan2(-z, x)
+    elevation = np.arctan2(y, np.sqrt(x * x + y * y + z * z))
+    return PointHCS(azimuth, elevation)
+
+def sph2erp(theta, phi, shape: tuple) -> tuple[int, int]:
+    return uv2img(*sph2uv(theta, phi), shape)
+
+def sph2uv(theta, phi):
+    PI = np.pi
+    while True:
+        if theta >= PI:
+            theta -= 2 * PI
+            continue
+        elif theta < -PI:
+            theta += 2 * PI
+            continue
+        if phi < -PI / 2:
+            phi = -PI - phi
+            continue
+        elif phi > PI / 2:
+            phi = PI - phi
+            continue
+        break
+    u = theta / (2 * PI) + 0.5
+    v = -phi / PI + 0.5
+    return u, v
+
+def uv2img(u, v, shape: tuple):
+    m = round(u * shape[1] - 0.5)
+    n = round(v * shape[0] - 0.5)
+    return m, n
+
+# ------------------ Util ------------------
+def lin_interpol(t: float, t_f: float, t_i: float, v_f: pd.Serie,
+                 v_i: pd.Serie) -> pd.Serie:
+    m: pd.Serie = (v_f - v_i) / (t_f - t_i)
+    v: pd.Serie = m * (t - t_i) + v_i
     return v
 
 def iter_frame(video_path, gray=True, dtype='float32'):
@@ -84,9 +151,7 @@ def check_video_gop(video_file: Path) -> tuple:
                f'-of default=nk=1:nw=1 '
                f'-show_entries frame=pict_type '
                f'"{video_file}"')
-
     process = run(command, shell=True, capture_output=True, encoding='utf-8')
-
     if process.returncode != 0:
         warning(f'FFPROBE ERROR: Return {process.returncode} to video '
                 f'{video_file}')
@@ -135,7 +200,7 @@ def run_command(command: str, log_to_save: Union[str, Path], mode: str = 'w'):
     if not p.returncode == 0:
         error(f'run error in {command}. Continuing.')
 
-def save_json(data: Union[dict, AutoDict, list], filename: Union[str, Path],
+def save_json(data: Union[dict, AutoDict], filename: Union[str, Path],
               separators=(',', ':'),
               indent=None):
     with open(filename, 'w', encoding='utf-8') as f:
@@ -164,12 +229,50 @@ def splitx(string: str) -> tuple[int, ...]:
     """
     return tuple(map(int, string.split('x')))
 
-def idx2xy(idx: int, shape: tuple):
-    tile_x = idx % shape[1]
-    tile_y = idx // shape[1]
+def rot_matrix(new_position: tuple):
+    """
+    Create rotation matrix using Tait–Bryan angles in Z-Y-X order.
+    See Wikipedia.
+    :param tuple new_position: A new position (yaw, pitch, roll).
+    :return:
+    """
+    yaw, pitch, roll = new_position
+
+    cp = np.cos(pitch)
+    sp = np.sin(pitch)
+    cy = np.cos(yaw)
+    sy = np.sin(yaw)
+    cr = np.cos(roll)
+    sr = np.sin(roll)
+
+    # pitch
+    mat_z = np.array(
+        [[cp, -sp, 0],
+         [sp, cp, 0],
+         [0, 0, 1]])
+
+    # yaw
+    mat_y = np.array(
+        [[cy, 0, sy],
+         [0, 1, 0],
+         [-sy, 0, cy]])
+
+    # roll
+    mat_x = np.array(
+        [[1, 0, 0],
+         [0, cr, -sr],
+         [0, sr, cr]])
+
+    return mat_y @ mat_z @ mat_x
+
+def idx2xy(idx: int, shape: Resolution):
+    tile_x = idx % shape.shape[1]
+    tile_y = idx // shape.shape[1]
     return tile_x, tile_y
 
-def xy2idx(x, y, shape: Tuple[int, int]):
+def xy2idx(coord: Tuple[int, int], shape: Tuple[int, int]):
+    x = coord[1]
+    y = coord[0]
     idx = x + y * shape[1]
     return idx
 
@@ -242,6 +345,41 @@ def menu2(options_dict: Dict[int, Any]):
     while c not in options:
         c = input(text)
     return c
+
+def rem_file(file) -> None:
+    if os.path.isfile(file):
+        os.remove(file)
+
+def calc_stats(data1: Iterable, data2: Iterable) \
+        -> Tuple[StatsData, StatsData]:
+    # Percentiles & Correlation
+    per = [0, 25, 50, 75, 100]
+    corr = np.corrcoef((data1, data2))[1][0]
+
+    # Struct statistics results
+    percentile_data1 = np.percentile(data1, per).T
+    stats_data1 = StatsData(average=np.average(data1),
+                            std=float(np.std(data1)),
+                            correlation=corr,
+                            min=percentile_data1[0],
+                            quartile1=percentile_data1[1],
+                            median=percentile_data1[2],
+                            quartile3=percentile_data1[3],
+                            max=percentile_data1[4],
+                            )
+
+    percentile_data2 = np.percentile(data2, per).T
+    stats_data2 = StatsData(average=np.average(data2),
+                            std=float(np.std(data2)),
+                            correlation=corr,
+                            min=percentile_data2[0],
+                            quartile1=percentile_data2[1],
+                            median=percentile_data2[2],
+                            quartile3=percentile_data2[3],
+                            max=percentile_data2[4],
+                            )
+
+    return stats_data1, stats_data2
 
 def grouper(iterable, n, fillvalue=None):
     """

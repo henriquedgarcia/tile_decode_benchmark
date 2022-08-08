@@ -2,10 +2,5 @@ from setuptools import setup
 from Cython.Build import cythonize
 
 setup(
-    ext_modules=cythonize(["lib/util.pyx",
-                           "lib/transform.pyx",
-                           # "lib/viewport.pyx",
-                           # "lib/nfov.pyx"
-                           ],
-                          language_level=3),
+    ext_modules=cythonize(["viewport2.pyx", "util.pyx"]),
 )

@@ -10,14 +10,7 @@ projections/
 datasets/
 *.c
 *.pyd
-*.lnk
-*.png
 build/
 *.so
 .vs
 .vscode
-bin/
-/datasets
-/lossless
-/original
-/projections
