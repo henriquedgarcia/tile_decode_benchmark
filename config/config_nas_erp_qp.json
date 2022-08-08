@@ -1,7 +1,7 @@
 {
   "project": "nasrabadi_28videos_6q_8p_erp",
   "dataset_name": "nasrabadi_28videos",
-  "videos_file": "videos_28videos_nas_erp.json",
+  "videos_file": "videos_28videos_nas_erp_qp.json",
   "plot_config": "graphs_nas_erp_cmp.json",
   "error_metric": "rmse",
   "decoding_num": 3,
@@ -22,7 +22,7 @@
     "halfnorm",
     "expon"
   ],
-  "rate_control": "crf",
+  "rate_control": "qp",
   "original_quality": "0",
   "quality_list": [
     "0",

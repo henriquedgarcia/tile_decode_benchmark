@@ -7,9 +7,9 @@ from typing import (Any, List, Union, Optional)
 import matplotlib.pyplot as plt
 import numpy as np
 
-from lib.assets import Resolution, Position
+from .assets import Resolution, Position
+from .viewport import Viewport
 from .util import load_json, AutoDict
-from .viewport2 import Viewport
 
 
 @dataclass
@@ -83,13 +83,12 @@ class Tile:
         """
 
         :param proj_res:
-        :return:
+        :return: (pix_x, pix_y), (
         """
-        position = self.position
-        resolution = self.resolution
-        vp = Viewport('1x1')
+        position: Position = self.position
+        resolution: Resolution = self.resolution
+        vp = Viewport('1x1','1x1')
         vp.resolution = proj_res
-        convert = vp.pix2cart
 
         x_i = position.x  # first row
         x_f = position.x + resolution.W  # last row
@@ -100,13 +99,13 @@ class Tile:
         yi_yf = range(int(y_i), int(y_f))
 
         for x in xi_xf:
-            yield (x, y_i), convert(x, y_i)
+            yield (x, y_i), erp2cart(y_i, x, resolution.shape)
         for x in xi_xf:
-            yield (x, y_f - 1), convert(x, y_f - 1)
+            yield (x, y_f - 1), erp2cart(y_f - 1, x, resolution.shape)
         for y in yi_yf:
-            yield (x_i, y), convert(x_i, y)
+            yield (x_i, y), erp2cart(y, x_i, resolution.shape)
         for y in yi_yf:
-            yield (x_f - 1, y), convert(x_f - 1, y)
+            yield (x_f - 1, y), erp2cart(y, x_f - 1, resolution.shape)
 
 
 class Tiling:
@@ -119,7 +118,8 @@ class Tiling:
 
     def __init__(self,
                  pattern: Union[str, Resolution],
-                 proj_res: Union[str, Resolution], 
+                 proj_res: Union[str, Resolution],
+                 proj: str = 'erp',
                  fov: str = '1x1'):
 
         """
@@ -129,10 +129,10 @@ class Tiling:
         """
         self.pattern = pattern
         self.proj_res = proj_res
-        self.tile_res = proj_res / self.pattern.shape
+        self.tile_res = self.proj_res / self.pattern.shape
         self.fov = fov
         self.fov_y, self.fov_x = self.fov
-        self.viewport = Viewport(f'{fov}')
+        self.viewport = Viewport(proj_res, f'{fov}', proj=proj)
 
     def __str__(self):
         return str(self.pattern)
@@ -176,15 +176,15 @@ class Tiling:
 
         self.n_tiles = self._pattern.W * self._pattern.H
 
-    def get_vptiles(self, position: tuple):
+    def get_vptiles(self, yaw, pitch, roll):
         viewport = self.viewport
-        viewport.set_rotation(position)
+        viewport.rotate(yaw, pitch, roll)
 
         tiles = []
 
         for tile in self.tiles_list:
-            for (pixel, point_3d) in tile.get_border(self.proj_res):
-                if viewport.is_viewport(point_3d):
+            for (pixel, (x, y, z)) in tile.get_border(self.proj_res):
+                if viewport.is_viewport(x, y, z):
                     tiles.append(tile.idx)
                     break
 
@@ -193,6 +193,7 @@ class Tiling:
         #     for (pixel, point_3d) in tile.get_border(self.proj_res):
         #         self.viewport.projection[pixel.y, pixel.x] = 100
         # self.viewport.show()
+
         return tiles
 
     def draw_borders(self):
@@ -214,7 +215,6 @@ class Tiling:
             self._proj_res = resolution
         elif isinstance(resolution, str):
             self._proj_res = Resolution(resolution)
-
 
     @property
     def tile_res(self) -> Resolution:
@@ -339,6 +339,7 @@ class Factors:
             proj_res = self.video.resolution if self.video else pattern
             tiling = Tiling(pattern=pattern,
                             proj_res=proj_res,
+                            proj=self.config.videos_list[f'{self.video}']['projection'],
                             fov=self.config['fov'])
             self._tiling_list.append(tiling)
         return self._tiling_list
@@ -422,11 +423,18 @@ class ProjectPaths(Factors):
     segment_folder = Path('segment')
     dectime_folder = Path('dectime')
     stats_folder = Path('stats')
-    _graphs_folder = Path('graphs')
+    _viewport_folder = Path('viewport')
     siti_folder = Path('siti')
+    _graphs_folder = Path('graphs')
     _check_folder = Path('check')
     quality_folder = Path('quality')
     get_tiles_folder = Path('get_tiles')
+
+    @property
+    def dataset_json(self) -> Path:
+        self.database_folder = Path('datasets') / self.dataset_name
+        database_json = self.database_folder / f'{self.dataset_name}.json'
+        return database_json
 
     @property
     def basename(self):
@@ -471,21 +479,48 @@ class ProjectPaths(Factors):
         return folder / f'tile{self.tile}_{chunk:03d}.log'
 
     @property
+    def quality_video_csv(self) -> Union[Path, None]:
+        folder = self.project_path / self.quality_folder / self.basename
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f'tile{self.tile}.csv'
+
+
+    @property
     def dectime_json_file(self) -> Path:
         folder = self.project_path / self.dectime_folder
-        return folder / 'dectime.json'
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f'times_{self.video}.json'
+
+    @property
+    def bitrate_json_file(self) -> Path:
+        folder = self.project_path / self.segment_folder
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f'rate_{self.video}.json'
+
+    @property
+    def get_tiles_json(self) -> Path:
+        folder = self.project_path / self.get_tiles_folder
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f'get_tiles_{self.dataset_name}_{self.video}_{self.tiling}.json'
+
+    @property
+    def quality_result_json(self) -> Union[Path, None]:
+        folder = self.project_path / self.quality_folder
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f'quality_{self.video}.json'
+
 
     @property
     def siti_results(self) -> Path:
         folder = self.project_path / self.siti_folder
         folder.mkdir(parents=True, exist_ok=True)
-        return folder / f'{self.video.name}_siti_results.csv'
+        return folder / f'{self.video}_siti_results.csv'
 
     @property
     def siti_movie(self) -> Path:
         folder = self.project_path / self.siti_folder
         folder.mkdir(parents=True, exist_ok=True)
-        return folder / f'{self.video.name}_siti_movie.mp4'
+        return folder / f'{self.video}_siti_movie.mp4'
 
     @property
     def siti_stats(self) -> Path:
@@ -505,24 +540,6 @@ class ProjectPaths(Factors):
         return folder / f'tile{self.tile}.mp4'
 
     @property
-    def quality_video_csv(self) -> Union[Path, None]:
-        folder = self.project_path / self.quality_folder / self.basename
-        folder.mkdir(parents=True, exist_ok=True)
-        return folder / f'tile{self.tile}.csv'
-
-    @property
-    def quality_result_pickle(self) -> Union[Path, None]:
-        folder = self.project_path / self.quality_folder
-        folder.mkdir(parents=True, exist_ok=True)
-        return folder / f'Quality_metrics.pickle'
-
-    @property
-    def quality_result_json(self) -> Union[Path, None]:
-        return (self.project_path
-                / self.quality_folder
-                / 'compressed_quality_result.json')
-
-    @property
     def check_folder(self) -> Path:
         folder = self.project_path / self._check_folder
         folder.mkdir(parents=True, exist_ok=True)
@@ -535,21 +552,10 @@ class ProjectPaths(Factors):
         return folder
 
     @property
-    def get_tiles_pickle(self) -> Path:
-        folder = self.project_path / self.get_tiles_folder
+    def viewport_folder(self) -> Path:
+        folder = self.project_path / self._viewport_folder
         folder.mkdir(parents=True, exist_ok=True)
-        name = str(self.video).replace('_cmp', '')
-        name = str(name).replace('_erp', '')
-        filename = f'get_tiles_{self.dataset_name}_{name}_{self.video.projection}_{self.tiling}.pickle'
-        return folder / filename
-
-    @property
-    def dataset_pickle(self) -> Path:
-        self.database_folder = Path('datasets')
-        self.database_path = self.database_folder / self.dataset_name
-        self.database_path.mkdir(parents=True, exist_ok=True)
-        self.database_pickle = self.database_path / f'{self.dataset_name}.pickle'
-        return self.database_pickle
+        return folder
 
 
 class VideoContext(ProjectPaths):
@@ -564,6 +570,7 @@ class VideoContext(ProjectPaths):
         self.distributions: List[str] = self.config['distributions']
         self.rate_control: str = self.config['rate_control']
         self.original_quality: str = self.config['original_quality']
+        self.dataset_name: str = self.config['dataset_name']
 
     def __str__(self):
         factors = []

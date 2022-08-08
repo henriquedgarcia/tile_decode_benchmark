@@ -1,157 +1,60 @@
 #!/usr/bin/env python3.9
 import argparse
-from lib.dectime import (TileDecodeBenchmark, CheckTiles,
-                         QualityAssessment, GetTiles, DectimeGraphs)
 import logging
+
+from lib.dectime import (TileDecodeBenchmark,DectimeGraphs, UserDectime, UserDectimeOptions)
+                         # ,CheckTiles, QualityAssessment, MakeViewport, Dashing, QualityAssessment, Siti)
 
 logging.basicConfig(level=logging.WARNING)
 
-config_list = []
-config_list += [f'config/config_nas_cmp.json']
-# config_list += [f'config/config_nas_erp.json']
-# config_list += [f'config/config_nas_erp_cmp.json']
-# config_list += [f'config/config_test.json']
-# config_list += [f'config/config_ffmpeg_crf_12videos_60s.json']
+# config_list = [f'config/config_test.json']
+# config_list = [f'config/config_ffmpeg_crf_12videos_60s.json']
+# config_list = [f'config/config_nas_erp_cmp.json']
+# config_list = [f'config/config_nas_cmp.json']
+# config = f'config/config_nas_erp_qp.json'
+config = f'config/config_nas_erp.json'
 
-def main():
-    Main.decode_time(5)  # 1-pre, 2-com, 3-seg, 4-dec, 5-collect
-    # Main.check_files(7)  # 1-ori, 2-loss, 3-comp, 4-seg, 5-clean, 6-dec, 7-res
-    # Main.siti(2)
-    # Main.dectime_graphs(3)  # "1-PATTERN,2-PAT_QUAL,3-B_PAT_QUAL,4-PAT_F,5-B_PAT_F"
-    # Main.quality(5)  # 1-all, 2-psnr, 3-wspsnr, 4-spsnr, 5-results
-    # Main.tiles_from_dataset(2)  # 1-prepare, 2-get_tile
-    # Main.tiles_from_dataset(2)  # 1-prepare, 2-get_tile
+worker_list = {
+    0: ['TileDecodeBenchmark', {0: 'PREPARE', 1: 'COMPRESS', 2: 'SEGMENT', 3: 'DECODE', 4: 'COLLECT_RESULTS'}],
+    1: ['CheckTiles', {0: 'CHECK_ORIGINAL', 1: 'CHECK_LOSSLESS', 2: 'CHECK_COMPRESS', 3: 'CHECK_SEGMENT', 4: 'CLEAN'}],
+    2: ['DectimeGraphs', {0: 'BY_PATTERN', 1: 'BY_PATTERN_BY_QUALITY', 2: 'BY_VIDEO_BY_PATTERN_BY_QUALITY', 3: 'BY_PATTERN_FULL_FRAME', 4: 'BY_VIDEO_BY_PATTERN_BY_TILE_BY_CHUNK', 5: 'BY_VIDEO_BY_PATTERN_BY_TILE_BY_QUALITY_BY_CHUNK',}],
+    3: ['QualityAssessment', {0: 'ALL', 1: 'PSNR', 2: 'WSPSNR', 3: 'SPSNR', 4: 'RESULTS'}],
+    4: ['MakeViewport', {0: 'NAS_ERP', 1: 'USER_ANALYSIS'}],
+    5: ['Dashing', {0: 'PREPARE', 1: 'COMPRESS', 2: 'DASH', 3: 'MEASURE_CHUNKS'}],
+    6: ['QualityAssessment', {0: 'PREPARE', 1: 'GET_TILES', 2: 'USER_ANALYSIS'}],
+    7: ['Siti', {0: 'SITI'}],
+    8: [UserDectime, UserDectimeOptions],
+}
 
+help_txt = 'Dectime Testbed.\n'
+help_txt += f'\nWORKER_ID  {"Worker Name":19}   {{ROLE_ID: \'Role Name\', ...}}'
+help_txt += '\n' + '-'*9 + '  ' + '-'*19 + '   ' + '-'*95
+for key in worker_list:
+    try:
+        help_txt += f'\n{str(key):>9}: {worker_list[key][0]:19} - {str(worker_list[key][1]):19}'
+    except:
+        help_txt += f'\n{str(key):>9}: {worker_list[key][0].__name__:19} - {str(list(worker_list[key][1].__members__.keys())):19}'
 
-class Main:
-    @staticmethod
-    def decode_time(role_ini, role_end=None):
-        opt = {
-            1: ('PREPARE', dict(overwrite=False)),
-            2: ('COMPRESS', dict(overwrite=False)),
-            3: ('SEGMENT', dict(overwrite=False)),
-            4: ('DECODE', dict(overwrite=False)),
-            5: ('COLLECT_RESULTS', dict(overwrite=True)),
-        }
-        Main.start(opt, TileDecodeBenchmark, role_ini, role_end)
+parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 description=help_txt)
+parser.add_argument('-c', default=None, nargs=1,metavar='CONFIG_FILE',
+                    help='The path to config file')
+parser.add_argument('-r', default=None, nargs=2, metavar=('WORKER_ID','ROLE_ID'),
+                    help=f'Two int separated by space.')
+args = parser.parse_args()
 
-    @staticmethod
-    def dectime_graphs(role_ini, role_end=None):
-        opt = {
-            1: ('HIST_BY_PATTERN', dict(overwrite=False,
-                                        role_folder='HistByPattern',
-                                        bins=['custom'],
-                                        # bins=['auto'],
-                                        # bins=['fd', 'rice', 'sturges', 'sqrt', 'doane', 'scott'],
-                                        # bins=['fd', 'rice', 'sturges', 'sqrt', 'doane', 'scott', 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80],
-                                        # bins=np.linspace(15, 80, 14, dtype=int),
-                                        )),
-            2: ('HIST_BY_PATTERN_BY_QUALITY', dict(overwrite=False,
-                                                   role_folder='HistByPatternByQuality',
-                                                   bins=['custom'],
-                                                   )),
-            3: ('BAR_BY_PATTERN_BY_QUALITY', dict(overwrite=False,
-                                                  role_folder='BarByPatternByQuality',
-                                                  bins=[60],
-                                                  )),
-            4: ('HIST_BY_PATTERN_FULL_FRAME', dict(overwrite=False,
-                                                   role_folder='HistByPattern_full',
-                                                   bins=[60],
-                                                   )),
-            5: ('BAR_BY_PATTERN_FULL_FRAME', dict(overwrite=False,
-                                                  role_folder='BarByPatternFull',
-                                                  bins=[60],
-                                                  )),
-        }
-        Main.start(opt, DectimeGraphs, role_ini, role_end)
+if args.c is not None:
+    config = args.c
 
-    @staticmethod
-    def check_files(role_ini, role_end=None):
-        opt = {
-            1: ('CHECK_ORIGINAL', dict(only_error=True, check_video=True,
-                                       check_log=True, clean=False)),
-            2: ('CHECK_LOSSLESS', dict(only_error=True, check_video=True,
-                                       deep_check=True, clean=False)),
-            3: ('CHECK_COMPRESS', dict(only_error=True, check_log=True,
-                                       check_video=True, check_gop=False,
-                                       clean=False)),
-            4: ('CHECK_SEGMENT', dict(only_error=True, check_video=True,
-                                      deep_check=False, clean=False)),
-            5: ('CLEAN', dict(only_error=True, clean_log=True,
-                              clean_video=True, video_of_log=False,
-                              table_of_check=('CHECK_COMPRESS-table-2021-09'
-                                              '-30 15:54:29.901483.csv'),
-                              )),
-            6: ('CHECK_DECODE', dict(only_error=True, clean=False)),
-            7: ('CHECK_RESULTS', dict(only_error=True)),
-        }
-        Main.start(opt, CheckTiles, role_ini, role_end)
-    
-    @staticmethod
-    def dashing(role_ini, role_end=None):
-        opt = {
-            1: ('PREPARE', dict(overwrite=False)),
-            2: ('COMPRESS', dict(overwrite=False)),
-            3: ('DASH', dict(overwrite=False)),
-            4: ('MEASURE_CHUNKS', dict(overwrite=False)),
-        }
-        Main.start(opt, TileDecodeBenchmark, role_ini, role_end)
-    
-    @staticmethod
-    def siti(role_ini, role_end=None):
-        opt = {
-            # Measure normal SITI
-            1: ('SITI', dict(overwrite=False, animate_graph=False,
-                             save=True)),
-        }
-        Main.start(opt, TileDecodeBenchmark, role_ini, role_end)
-    
-    @staticmethod
-    def quality(role_ini, role_end=None):
-        opt = {
-            1: ('ALL', dict(overwrite=False)),
-            2: ('PSNR', dict(overwrite=False)),
-            3: ('WSPSNR', dict(overwrite=False)),
-            4: ('SPSNR', dict(overwrite=False)),
-            5: ('RESULTS', dict(overwrite=False)),
-        }
-        Main.start(opt, QualityAssessment, role_ini, role_end)
+worker_id, role_id = map(int, args.r)
 
-    @staticmethod
-    def tiles_from_dataset(role_ini, role_end=None):
-        opt = {
-            # Measure normal SITI
-            1: ('PREPARE', dict(overwrite=False,
-                                dataset_name='nasrabadi_28videos')),
-            2: ('GET_TILES', dict(overwrite=False,
-                                  dataset_name='nasrabadi_28videos',
-                                  )),
-            3: ('JSON2PICKLE', dict(overwrite=False,
-                                    dataset_name='nasrabadi_28videos')),
-            0: ('REFACTOR', dict(dataset_name='nasrabadi_28videos')),
-        }
-        Main.start(opt, GetTiles, role_ini, role_end)
+if worker_id == 8:
+    worker = worker_list[worker_id][0]
+    role = worker_list[worker_id][1](role_id)
+else:
+    worker = eval(worker_list[worker_id][0])
+    role = worker_list[worker_id][1][role_id]
 
-    @staticmethod
-    def start(opt, cls, role_ini, role_end = None):
-        role_end = role_end if role_end else role_ini
-        for i in range(role_ini, role_end + 1):
-            role = opt[role_ini][0]
-            kwargs = opt[role_ini][1]
-            cls(config=config, role=role, **kwargs)
+worker(config=config, role=role)
 
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Dectime Testbed')
-    parser.add_argument('-c', '--config', default=config_list, nargs='*',
-                        help='The path to config file',
-                        )
-    parser.add_argument('-r', '--role', default=None, nargs=2,
-                        help='ROLE opt',
-                        )
-    args = parser.parse_args()
-
-    for config in args.config:
-        main()
-
-    print('## Finished. ##')
+print('## Finished. ##')

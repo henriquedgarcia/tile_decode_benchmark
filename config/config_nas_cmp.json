@@ -1,5 +1,7 @@
 {
   "project": "nasrabadi_28videos_6q_8p_cmp",
+  "videos_file": "videos_28videos_nas_cmp.json"
+  "plot_config": "graphs_nas_erp_cmp.json",
   "error_metric": "rmse",
   "decoding_num": 3,
   "fov": "100x90",
@@ -37,6 +39,5 @@
     "6x4",
     "9x6",
     "12x8"
-  ],
-  "videos_file": "videos_28videos_nas_cmp.json"
+  ]
 }
