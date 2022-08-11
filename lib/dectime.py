@@ -4084,7 +4084,6 @@ class UserDectime:
             print('Processing dataset.')
             database_json = self.dataset_json
 
-
             if overwrite or not database_json.exists():
                 pi = np.pi
                 pi2 = np.pi * 2
@@ -4103,7 +4102,7 @@ class UserDectime:
                     elif timestamp > frame_timestamp:
                         # Linear Interpolation
                         old_timestamp, old_x, old_y, old_z = previous_line
-                        x, y, z = lin_interpol(frame_timestamp, (timestamp, old_timestamp), ((x, y, z), (old_x, old_y, old_z)))
+                        x, y, z = lin_interpol(frame_timestamp, timestamp, old_timestamp, np.array(x, y, z), np.array(old_x, old_y, old_z))
 
                     yaw, pitch = map(round, cart2hcs(x, y, z), (6, 6))
                     roll = 0
@@ -4214,7 +4213,7 @@ class UserDectime:
                                 result_chunks[f'{chunk}'] = list(tiles_chunks)
                                 tiles_chunks = set()
                                 print(f'{time.time() - start:.3f}s - {tiles_chunks}          ', end='')
-                        exit(0)
+                        exit(0)  # todo: remover
                         print('')
                         get_tiles_value['frame'].append(result_frames)
                         get_tiles_value['chunks'].append(result_chunks)
@@ -4843,7 +4842,7 @@ class UserDectime:
                                     video_writer.writeFrame(fov_ref)
 
                                 video_writer.close()
-                                exit()
+                                exit()  # todo: remover
                             print('')
                             video_writer.close()
 
@@ -4978,6 +4977,8 @@ class Dashing:
         self.video_context = VideoContext(self.config, self.role.deep)
 
         self.run(**kwargs)
+
+    def run(self): ...
 
     def dash(self): pass
 

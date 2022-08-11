@@ -13,20 +13,24 @@
 # limitations under the License.
 
 from math import pi
-import numpy as np
+
 import cv2
+import numpy as np
+
+
 class NFOV():
     frame: np.ndarray
 
-    def __init__(self, proj_width, proj_height, FOV=(110, 90)):
-        self.FOV_norm = FOV / np.array([360, 180])
+    def __init__(self, proj_shape, FOV=(110, 90)):
+        self.FOV = np.deg2rad(FOV)[::-1]
+        self.FOV_norm = self.FOV / (pi, 2*pi)
         self.PI = pi
         self.PI_2 = pi * 0.5
         self.PI2 = pi * 2.0
-        self.frame_width = proj_width
-        self.frame_height = proj_height
-        self.vp_width = round(self.FOV_norm[0] * proj_width)
-        self.vp_height = round(self.FOV_norm[1] * proj_height)
+        self.proj_shape = proj_shape
+        self.vp_shape = np.round(self.FOV_norm * proj_shape)
+        self.frame_height, self.frame_width = self.proj_shape
+        self.vp_height, self.vp_width = self.vp_shape
 
         xx, yy = np.meshgrid(np.linspace(-pi, pi, self.vp_width, dtype=np.float32),
                              np.linspace(-pi/2, pi/2, self.vp_height, dtype=np.float32))
@@ -70,6 +74,20 @@ class NFOV():
         self.frame[right[0], right[1], :] = 0
         return out
 
+    def spherical2rectilinear(self, m, n):
+        tan_fov_2 = np.tan(self.FOV/2)
+        image = np.zeros(self.vp_shape)
+
+        vp_coord_x, vp_coord_y = np.meshgrid(np.linspace(-tan_fov_2[1], tan_fov_2[1], self.vp_width, endpoint=False),
+                                             np.linspace(tan_fov_2[0], -tan_fov_2[0], self.vp_height, endpoint=True))
+        vp_coord_z = np.zeros(self.vp_shape)
+        vp_coord_xyz_ =np.array(vp_coord_x,vp_coord_y,vp_coord_z)
+
+        sqr = np.sum(vp_coord_xyz_ * vp_coord_xyz_, axis=1)
+        r = np.sqrt(sqr)
+
+        self.vp_coord_xyz = vp_coord_xyz_ / r
+
     def get_viewport(self, frame: np.ndarray, center_point: np.ndarray):
         self.frame = frame
         self.frame_height = frame.shape[0]
@@ -80,6 +98,28 @@ class NFOV():
 
         return self.spherical2gnomonic()
 
+def main(cp=(0,0), fov=(110,90)):
+    # cp = (longitude, latitude) in rad
+    # fov = (horizontal, vertical) in rad
+    cp = np.deg2rad(cp)
+    cp = np.array(cp)  # camera center point (valid range [0,1])
+
+    # img = im.imread('lib/images/360.jpg')
+    # img = im.imread("lib\\images\\erp1.jpg")
+    img = im.imread("lib\\images\\erp_mili.jpg")
+
+    height, width,_ = img.shape
+
+    start = time.time()
+    result = NFOV(proj_shape=(height, width), FOV=fov)
+    result = result.get_viewport(img, cp)
+    print(f'total time {time.time() - start} s')
+    print(f'proj shape "{img.shape}"')
+    print(f'vp shape "{result.shape}"')
+
+    plt.imshow(result)
+    # plt.imshow(img)
+    plt.show()
 
 # test the class
 if __name__ == '__main__':
@@ -87,16 +127,4 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     import time
 
-    center_point = np.array([0,pi/2])  # camera center point (valid range [0,1])
-
-    img = im.imread('images/360.jpg')
-    height, width,_ = img.shape
-    result = NFOV(proj_width=width, proj_height=height)
-
-    start = time.time()
-    result = result.get_viewport(img, center_point)
-    print(f'total time {time.time() - start} s')
-
-    plt.imshow(result)
-    # plt.imshow(img)
-    plt.show()
+    main()

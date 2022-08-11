@@ -75,9 +75,9 @@ class Role:
 
 
 class Position(NamedTuple):
-    x: float
-    y: float
-    z: float = None
+    x: Union[float, int]
+    y: Union[float, int]
+    z: Optional[Union[float, int]] = None
 
     def __str__(self):
         string = f'({self.x}, {self.y}'
@@ -92,21 +92,23 @@ class Resolution:
     H: int
     shape: Tuple[int]
 
-    def __init__(self, resolution: Union[str, tuple]):
+    def __init__(self, resolution: Union[str, tuple, 'Resolution']):
         if isinstance(resolution, str):
-            w, h = resolution.split('x')
-            self.shape = h, w
+            self.W, self.H = resolution.split('x')
+            self.shape = self.H, self.W
         elif isinstance(resolution, tuple):
             self.shape = resolution
+        elif isinstance(resolution, Resolution):
+            self.shape = resolution.shape
 
     @property
     def shape(self) -> tuple:
         return self.H, self.W
 
     @shape.setter
-    def shape(self, shape: tuple):
-        self.H = round(float(shape[0]))
-        self.W = round(float(shape[1]))
+    def shape(self, value: tuple):
+        self.H = round(float(value[0]))
+        self.W = round(float(value[1]))
 
     def __iter__(self):
         return iter((self.H, self.W))
@@ -117,10 +119,11 @@ class Resolution:
     def __repr__(self):
         return f'{self.W}x{self.H}'
 
-    def __truediv__(self, shape: tuple):
-        if isinstance(shape, tuple) and len(shape) == 2:
+    def __truediv__(self, shape: Union[tuple, 'Resolution']):
+        if isinstance(shape, Resolution):
+            return Resolution((self.H / shape.H, self.W / shape.W))
+        elif (isinstance(shape, tuple) and len(shape) == 2):
             return Resolution((self.H / shape[0], self.W / shape[1]))
-
 
 class Fov(Resolution):
     ...

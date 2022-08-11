@@ -1,33 +1,41 @@
+from math import pi
+from typing import Union
+
+import cv2
 import numpy as np
 from PIL import Image
 from matplotlib import pyplot as plt
 
 from transform import rot_matrix, cart2hcs
 from util import splitx
-from typing import Union
 
 
 class Viewport:
     position: tuple
     projection: np.ndarray
+    vp_coord_xyz: np.ndarray
     mat: np.ndarray
     resolution: np.ndarray
     base_normals: np.ndarray
     rotated_normals: np.ndarray
 
-    def __init__(self, resolution: np.ndarray, fov: np.ndarray, proj: str = 'erp'):
+    def __init__(self, proj_shape: np.ndarray, fov: np.ndarray, proj_name: str = 'erp'):
         """ self.tiling, self.fov, 'erp'
         Viewport Class used to extract view pixels in projections.
         :param frame resolution: (600, 800) for 800x600px
         :param fov: in rad. Ex: "np.array((pi/2, pi/2))" for (90°x90°)
-        :param proj: 'erp' is default
+        :param proj_name: 'erp' is default
         """
         # self.resolution = Res(resolution)
         # self.fov = Res(fov)
-        self.frame_shape = resolution
+        self.proj_shape = proj_shape
         self.fov = fov
-        self.proj = proj
+        # self.proj_name = proj_name
+
+        self.vp_shape = np.round(self.fov * self.proj_shape / (pi, 2*pi))
+
         self._make_base_normals()
+        self._make_vp_coord()
         # self.frame_borders = self.get_borders(self.frame_shape)  # [(y,x),...]
 
         # self.y = self.frame_borders.T[0]
@@ -76,7 +84,22 @@ class Viewport:
                                       [np.sin(fov_x + pi_2), 0, np.cos(fov_x + pi_2)],  # left
                                       [np.sin(-fov_x - pi_2), 0, np.cos(-fov_x - pi_2)]])  # right
 
-    def rotate(self, yaw, pitch, roll):
+    def _make_vp_coord(self):
+        vp_height, vp_width = self.vp_shape
+        tan_fov_2 = np.tan(self.fov/2)
+        image = np.zeros(self.vp_shape)
+
+        vp_coord_x, vp_coord_y = np.meshgrid(np.linspace(-tan_fov_2[1], tan_fov_2[1], vp_width, endpoint=False),
+                                             np.linspace(tan_fov_2[0], -tan_fov_2[0], vp_height, endpoint=True))
+        vp_coord_z = np.zeros(self.vp_shape)
+        vp_coord_xyz_ =np.array(vp_coord_x,vp_coord_y,vp_coord_z)
+
+        sqr = np.sum(vp_coord_xyz_ * vp_coord_xyz_, axis=1)
+        r = np.sqrt(sqr)
+
+        self.vp_coord_xyz = vp_coord_xyz_ / r
+
+    def rotate(self, yaw_pitch_roll: np.ndarray):
         """
         Set a new position to viewport using aerospace's body coordinate system
         and make the projection. Rotate the normal planes of viewport using matrix of rotation and Tait–Bryan
@@ -93,7 +116,7 @@ class Viewport:
 
         # For each plane in view
         # self.rotated_normals = [self.mat @ normal for normal in self.base_normals]
-        self.cp = yaw, pitch
+        self.cp = yaw, pitch, roll
         self.mat = rot_matrix((yaw, pitch, roll))
         self.rotated_normals = (self.mat @ self.base_normals.T).T
 
@@ -104,9 +127,7 @@ class Viewport:
         If True, the "point" is on the viewport
         Obs: is_in só retorna true se todas as expressões forem verdadeiras
 
-        :param x: A 3D Point in the space (x, y, z).
-        :param y: A 3D Point in the space (x, y, z).
-        :param z: A 3D Point in the space (x, y, z).
+        :param x_y_z: A 3D Point in the space (x, y, z).
         :return: A boolean         belong = np.all(inner_product <= 0, axis=0).reshape(self.shape)
 
         """
@@ -114,19 +135,19 @@ class Viewport:
         px_in_vp = np.all(inner_prod <= 0, axis=0)
         return np.any(px_in_vp)
 
-    def get_vp_borders(self, shape):
-        shape = self.frame_shape
+    def get_vp_borders(self):
+        proj_shape = self.proj_shape
 
         hfovy, hfovx = np.tan(self.fov / 2)
-        x_y_z = np.ones((shape[0] * shape[1], 3))
+        x_y_z = np.ones((proj_shape[0] * proj_shape[1], 3))
 
-        border = get_borders(self.frame_shape)
+        border = get_borders(proj_shape)
 
-        v_u = (border + 0.5) * 2 * (np.tan(hfovy) / shape[0], np.tan(hfovx) / shape[1])
+        v_u = (border + 0.5) * 2 * (np.tan(hfovy) / proj_shape[0], np.tan(hfovx) / proj_shape[1])
         y_z = -v_u + (np.tan(hfovy), np.tan(hfovx))
         x_y_z[:, 1:] = y_z
         r = np.sqrt(np.sum(x_y_z ** 2, axis=1))
-        x_y_z_norm = x_y_z / r.reshape(shape[0] * shape[1], 1)
+        x_y_z_norm = x_y_z / r.reshape(proj_shape[0] * proj_shape[1], 1)
 
         r = np.ones(len(x_y_z_norm))
         azimuth = np.arctan2(x_y_z_norm[:, 2], x_y_z_norm[:, 0])
@@ -143,8 +164,8 @@ class Viewport:
 
         u = azimuth / (2 * np.pi) + 0.5
         v = -elevation / np.pi + 0.5
-        m = np.round(u * shape[1] - 0.5).astype(int)
-        n = np.round(v * shape[0] - 0.5).astype(int)
+        m = np.round(u * proj_shape[1] - 0.5).astype(int)
+        n = np.round(v * proj_shape[0] - 0.5).astype(int)
         m_n = np.unique(np.array([m, n]).T, axis=0)
 
         return m_n
@@ -189,7 +210,6 @@ class Viewport:
     def show(self):
         frame_img = Image.fromarray(self.projection)
         frame_img.show()
-
 
 class ERP:
     n_tiles: int
@@ -286,6 +306,65 @@ class ERP:
         n, m = self.viewport.get_vp_borders(self.shape)
 
         # self.projection[n, m] = lum
+
+    def get_viewport(self, frame: np.ndarray, center_point: np.ndarray):
+        self.frame = frame
+        self.frame_height = frame.shape[0]
+        self.frame_width = frame.shape[1]
+        self.frame_channel = frame.shape[2]
+
+        self.cp = center_point
+
+        self.vp_image = self.spherical2gnomonic()
+        return
+
+    def initialize_vp(self, proj_width, proj_height):
+        self.FOV_norm = self.fov / np.array([180, 360])
+        self.vp_width = round(self.FOV_norm[1] * proj_width)
+        self.vp_height = round(self.FOV_norm[0] * proj_height)
+        xx, yy = np.meshgrid(np.linspace(-pi, pi, self.vp_width, dtype=np.float32),
+                             np.linspace(-pi/2, pi/2, self.vp_height, dtype=np.float32))
+
+        self.x = xx * self.FOV_norm[1]
+        self.y = yy * self.FOV_norm[0]
+        self.rou = np.sqrt(self.x ** 2 + self.y ** 2)
+        atan_rou = np.arctan(self.rou)
+        self.sin_atan_rou = np.sin(atan_rou)
+        self.cos_atan_rou = np.cos(atan_rou)
+        self.y_sin_atan_rou = self.y * self.sin_atan_rou
+        self.x_sin_atan_rou = self.x * self.sin_atan_rou
+        self.rou_cos_atan_rou = self.rou * self.cos_atan_rou
+
+    def spherical2gnomonic(self):
+        lat = np.arcsin(self.cos_atan_rou * np.sin(-self.cp[1])
+                        + (self.y_sin_atan_rou * np.cos(-self.cp[1]))
+                        / self.rou)
+        lon = self.cp[0] + np.arctan2(self.x_sin_atan_rou,
+                                      self.rou_cos_atan_rou * np.cos(-self.cp[1])
+                                      - self.y_sin_atan_rou * np.sin(-self.cp[1]))
+
+        map_x = (lon / 2 * pi + 0.5) * self.frame_width
+        map_y = (lat / pi + 0.5) * self.frame_height
+
+        out = cv2.remap(self.frame,
+                        map_x,
+                        map_y,
+                        interpolation=cv2.INTER_LINEAR,
+                        borderMode=cv2.BORDER_WRAP)
+        self.view = out
+
+    def draw_border(self,map_x, map_y):
+        # Border
+        top = np.round(np.mod([map_y[:10, :], map_x[:10, :]], self.frame_width - 1)).astype(int)
+        botton = np.round(np.mod([map_y[-10:, :], map_x[-10:, :]], self.frame_width - 1)).astype(int)
+        left = np.round(np.mod([map_y[:, :10], map_x[:, :10]], self.frame_width - 1)).astype(int)
+        right = np.round(np.mod([map_y[:, -10:], map_x[:, -10:]], self.frame_width - 1)).astype(int)
+        self.frame[top[0], top[1], :] = 0
+        self.frame[botton[0], botton[1], :] = 0
+        self.frame[left[0], left[1], :] = 0
+        self.frame[right[0], right[1], :] = 0
+
+        return out
 
     def show(self):
         show1(self.projection)
@@ -398,17 +477,12 @@ def nm2xyv(n_m_coord, shape):
 
 
 def get_borders(shape: Union[tuple, np.ndarray]):
-    # border = [[0, x] for x in range(shape[1])]
-    # border += [[y, 0] for y in range(shape[0])]
-    # border += [[shape[0] - 1, x] for x in range(shape[1])]
-    # border += [[y, shape[1] - 1] for y in range(shape[0])]
-    # border = np.array(border)
+    border = [[0, x] for x in range(shape[1])]
+    border += [[y, 0] for y in range(shape[0])]
+    border += [[shape[0] - 1, x] for x in range(shape[1])]
+    border += [[y, shape[1] - 1] for y in range(shape[0])]
+    border = np.array(border)
 
-    border = np.array([((0               , x               ),
-                        (y               , shape[1] - 1    ),
-                        (shape[0] - 1    , shape[1] - 1 - x),
-                        (shape[0] - 1 - y, 0               ))
-                       for y, x in zip(range(shape[0]), range(shape[1]))])
     return border.reshape(-1, 2)
 
 
@@ -445,3 +519,4 @@ if __name__ == '__main__':
     cover = Image.new("RGB", (width, height), (200, 200, 200))
     frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
     frame_img.show()
+
