@@ -9,7 +9,7 @@ import numpy as np
 
 from lib.assets import Resolution, Position
 from .util import load_json, AutoDict
-from .viewport2 import Viewport
+from .viewport import Viewport
 
 
 @dataclass
