@@ -1,9 +1,11 @@
 #!/usr/bin/env python3.9
 import argparse
 import logging
+from typing import Union, Callable
+from enum import Enum
 
-from lib.dectime import (TileDecodeBenchmark,DectimeGraphs, UserDectime, UserDectimeOptions)
-                         # ,CheckTiles, QualityAssessment, MakeViewport, Dashing, QualityAssessment, Siti)
+from lib.dectime import (TileDecodeBenchmark, DectimeGraphs, UserDectime, UserDectimeOptions,
+                         CheckTiles, MakeViewport, Dashing, QualityAssessment, Siti)
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -14,17 +16,18 @@ logging.basicConfig(level=logging.WARNING)
 # config = f'config/config_nas_erp_qp.json'
 config = f'config/config_nas_erp.json'
 
-worker_list = {
-    0: ['TileDecodeBenchmark', {0: 'PREPARE', 1: 'COMPRESS', 2: 'SEGMENT', 3: 'DECODE', 4: 'COLLECT_RESULTS'}],
-    1: ['CheckTiles', {0: 'CHECK_ORIGINAL', 1: 'CHECK_LOSSLESS', 2: 'CHECK_COMPRESS', 3: 'CHECK_SEGMENT', 4: 'CLEAN'}],
-    2: ['DectimeGraphs', {0: 'BY_PATTERN', 1: 'BY_PATTERN_BY_QUALITY', 2: 'BY_VIDEO_BY_PATTERN_BY_QUALITY', 3: 'BY_PATTERN_FULL_FRAME', 4: 'BY_VIDEO_BY_PATTERN_BY_TILE_BY_CHUNK', 5: 'BY_VIDEO_BY_PATTERN_BY_TILE_BY_QUALITY_BY_CHUNK',}],
-    3: ['QualityAssessment', {0: 'ALL', 1: 'PSNR', 2: 'WSPSNR', 3: 'SPSNR', 4: 'RESULTS'}],
-    4: ['MakeViewport', {0: 'NAS_ERP', 1: 'USER_ANALYSIS'}],
-    5: ['Dashing', {0: 'PREPARE', 1: 'COMPRESS', 2: 'DASH', 3: 'MEASURE_CHUNKS'}],
-    6: ['QualityAssessment', {0: 'PREPARE', 1: 'GET_TILES', 2: 'USER_ANALYSIS'}],
-    7: ['Siti', {0: 'SITI'}],
+worker_list: dict[int, list[Union[dict[int, str], Callable, Enum]]] = {
+    0: [TileDecodeBenchmark, {0: 'PREPARE', 1: 'COMPRESS', 2: 'SEGMENT', 3: 'DECODE', 4: 'COLLECT_RESULTS'}],
+    1: [CheckTiles, {0: 'CHECK_ORIGINAL', 1: 'CHECK_LOSSLESS', 2: 'CHECK_COMPRESS', 3: 'CHECK_SEGMENT', 4: 'CLEAN'}],
+    2: [DectimeGraphs, {0: 'BY_PATTERN', 1: 'BY_PATTERN_BY_QUALITY', 2: 'BY_VIDEO_BY_PATTERN_BY_QUALITY', 3: 'BY_PATTERN_FULL_FRAME', 4: 'BY_VIDEO_BY_PATTERN_BY_TILE_BY_CHUNK', 5: 'BY_VIDEO_BY_PATTERN_BY_TILE_BY_QUALITY_BY_CHUNK',}],
+    3: [QualityAssessment, {0: 'ALL', 1: 'PSNR', 2: 'WSPSNR', 3: 'SPSNR', 4: 'RESULTS'}],
+    4: [MakeViewport, {0: 'NAS_ERP', 1: 'USER_ANALYSIS'}],
+    5: [Dashing, {0: 'PREPARE', 1: 'COMPRESS', 2: 'DASH', 3: 'MEASURE_CHUNKS'}],
+    6: [QualityAssessment, {0: 'PREPARE', 1: 'GET_TILES', 2: 'USER_ANALYSIS'}],
+    7: [Siti, {0: 'SITI'}],
     8: [UserDectime, UserDectimeOptions],
 }
+
 
 def make_help_txt():
     help_txt = 'Dectime Testbed.\n'
@@ -33,10 +36,11 @@ def make_help_txt():
 
     for key in worker_list:
         try:
-            help_txt += f'\n{str(key):>9}: {worker_list[key][0]:19} - {str(worker_list[key][1]):19}'
+            help_txt += f'\n{str(key):>9}: {worker_list[key][0].__name__:19} - {str(worker_list[key][1]):19}'
         except:
             help_txt += f'\n{str(key):>9}: {worker_list[key][0].__name__:19} - {str(list(worker_list[key][1].__members__.keys())):19}'
     return help_txt
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=make_help_txt())
@@ -47,11 +51,10 @@ if __name__ == '__main__':
     worker_id, role_id = map(int, args.r)
     config = args.c if args.c is not None else config
 
+    worker = worker_list[worker_id][0]
     if worker_id == 8:
-        worker = worker_list[worker_id][0]
         role = worker_list[worker_id][1](role_id)
     else:
-        worker = eval(worker_list[worker_id][0])
         role = worker_list[worker_id][1][role_id]
 
     worker(config=config, role=role)
