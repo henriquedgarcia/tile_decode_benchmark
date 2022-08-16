@@ -6,8 +6,8 @@ import numpy as np
 from PIL import Image
 from matplotlib import pyplot as plt
 
-from transform import rot_matrix
-from util import splitx
+from .transform import rot_matrix
+from .util import splitx
 
 
 class Viewport:
