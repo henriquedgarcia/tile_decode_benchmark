@@ -186,7 +186,7 @@ class GlobalPaths(Factors):
 
     @property
     def dataset_json(self) -> Path:
-        self.database_folder = Path('datasets') / self.config['dataset_name']
+        self.database_folder = Path('datasets') / self.config["dataset_name"]
         return self.database_folder / f'{self.config["dataset_name"]}.json'
 
 
@@ -4028,7 +4028,7 @@ class DectimeGraphs:
 
 class ____ByUser____: ...
 
-class GetTilesPath(GlobalPaths, TileDecodeBenchmarkPaths):
+class GetTilesPath(TileDecodeBenchmarkPaths):
     @property
     def workfolder(self) -> Path:
         folder = self.project_path / self.get_tiles_folder / f'{self.__class__.__name__}'
@@ -4176,7 +4176,6 @@ class UserDectime:
                     dataset_json = load_json(self.dataset_json)
                     users_data = dataset_json[self.name]
 
-
                 results = AutoDict()
 
                 for self.tiling in self.tiling_list:
@@ -4202,7 +4201,7 @@ class UserDectime:
                                 print(f'\r  {user} - {frame:04d} - ', end='')
 
                             # vptiles
-                            erp.rotate(*np.deg2rad((yaw, pitch, roll)))
+                            erp.viewport.rotate(np.deg2rad((yaw, pitch, roll)))
                             vptiles: list[int] = erp.get_vptiles()
                             result_frames.append(vptiles)
 
@@ -4211,9 +4210,9 @@ class UserDectime:
                             if (frame + 1) % 30 == 0:
                                 chunk += 1  # start from 1 gpac defined
                                 result_chunks[f'{chunk}'] = list(tiles_chunks)
-                                tiles_chunks = set()
                                 print(f'{time.time() - start:.3f}s - {tiles_chunks}          ', end='')
-                        exit(0)  # todo: remover
+                                tiles_chunks = set()
+                        # exit(0)  # todo: remover
                         print('')
                         get_tiles_value['frame'].append(result_frames)
                         get_tiles_value['chunks'].append(result_chunks)
