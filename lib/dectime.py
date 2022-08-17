@@ -1388,7 +1388,7 @@ class DectimeGraphs:
 
             for self.metric in self.metric_list:
                 for self.video in self.videos_list:
-                    data =  load_json(json_metrics(self.metric), object_hook=dict)
+                    data = load_json(json_metrics(self.metric), object_hook=dict)
                     for self.tiling in self.tiling_list:
                         tiling_data = data[self.vid_proj][self.tiling]
                         print(f'\r  {self.metric} - {self.vid_proj}  {self.name} {self.tiling} ... ', end='')
@@ -1878,7 +1878,7 @@ class DectimeGraphs:
 
             for self.metric in self.metric_list:
                 for self.video in self.videos_list:
-                    data =  load_json(json_metrics(self.metric), object_hook=dict)
+                    data = load_json(json_metrics(self.metric), object_hook=dict)
 
                     for self.tiling in self.tiling_list:
                         tiling_data = data[self.vid_proj][self.tiling]
@@ -2525,7 +2525,7 @@ class DectimeGraphs:
 
             for self.metric in self.metric_list:
                 for self.video in self.videos_list:
-                    data =  load_json(json_metrics(self.metric), object_hook=dict)
+                    data = load_json(json_metrics(self.metric), object_hook=dict)
                     for self.tiling in self.tiling_list:
                         tiling_data = data[self.vid_proj][self.tiling]
                         print(f'\r  {self.metric} - {self.vid_proj}  {self.name} {self.tiling} ... ', end='')
@@ -2849,7 +2849,7 @@ class DectimeGraphs:
                                     'PSNR': self.quality_result_json,
                                     'WS-PSNR': self.quality_result_json,
                                     'S-PSNR': self.quality_result_json}
-                    video_data =  load_json(json_metrics[self.metric], object_hook=dict)
+                    video_data = load_json(json_metrics[self.metric], object_hook=dict)
 
                     for self.tiling in self.tiling_list:
                         print(f'\r  {self.metric} - {self.vid_proj}  {self.name} {self.tiling} {self.quality} ... ', end='')
@@ -4277,16 +4277,13 @@ class UserDectime:
         def test_viewport_video(self, overwrite=False):
             workfolder = self.workfolder / 'video_teste'
             workfolder.mkdir(parents=True, exist_ok=True)
-            dataset_json = None
-            get_tiles_data = None
+            dataset_data = load_json(self.dataset_json)
             erp_list = {self.tiling: ERP(self.tiling, '576x288', '110x90') for self.tiling in self.tiling_list}
 
             for self.video in self.videos_list:
-                try:
-                    users_data = dataset_json[self.name]
-                except (TypeError, NameError):
-                    dataset_json = load_json(self.dataset_json)
-                    users_data:list = dataset_json[self.name]
+                get_tiles_data = load_json(self.get_tiles_json)
+
+                users_data = list(dataset_data[self.name].keys())
 
                 for tiling in self.tiling_list:
                     if tiling == '1x1': continue
@@ -4296,7 +4293,7 @@ class UserDectime:
                     self.tile = '0'
 
                     for user in users_data:
-                        if users_data.index(user) == 1: break
+                        if list(users_data).index(user) == 1: break
                         print(f'{self.name} - tiling {tiling} - User {user}')
 
                         input_video = self.compressed_file
@@ -4310,15 +4307,10 @@ class UserDectime:
                                                          inputdict={'-r': '30'},
                                                          outputdict={'-r': '30', '-pix_fmt': 'yuv420p'})
 
-                        try:
-                            get_tiles = get_tiles_data[self.vid_proj][self.name][tiling][user]
-                        except TypeError:
-                            get_tiles_data = load_json(self.get_tiles_json)
-                            get_tiles = get_tiles_data[self.vid_proj][self.name][tiling][user]
+                        get_tiles_chunk, = get_tiles_data[self.vid_proj][self.name][tiling][user]['chunks']
 
-                        # get_tiles_frame = get_tiles['frame']
-                        get_tiles_chunk = get_tiles['chunks']
-                        reader_users_data = zip(reader.nextFrame(), users_data[user])
+                        reader_users_data = zip(reader.nextFrame(),
+                                                dataset_data[self.name][user])
 
                         for frame_id, (proj_frame, yaw_pitch_roll) in enumerate(reader_users_data):
                             yaw_pitch_roll = np.deg2rad(yaw_pitch_roll)
@@ -4328,8 +4320,8 @@ class UserDectime:
                             chunk = frame_id // 30 + 1
 
                             print(f'\rDrawing viewport. Frame {frame_id:04d} ', end='')
-
                             frame_img = Image.fromarray(proj_frame).resize((width, height))
+
                             # Draw all tiles border
                             erp.clear_projection()
                             erp.draw_all_tiles_borders(lum=255)
@@ -4344,7 +4336,7 @@ class UserDectime:
 
                             # Draw VP tiles by chunk
                             erp.clear_projection()
-                            for tile in get_tiles_chunk[0][str(chunk)]:
+                            for tile in get_tiles_chunk[str(chunk)]:
                                 erp.draw_tile_border(idx=tile, lum=255)
                             cover = Image.new("RGB", (width, height), (0, 255, 0))
                             frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
@@ -4495,7 +4487,7 @@ class UserDectime:
 
             for self.metric in self.metric_list:
                 for self.video in self.videos_list:
-                    data =  load_json(json_metrics(self.metric), object_hook=dict)
+                    data = load_json(json_metrics(self.metric), object_hook=dict)
                     for self.tiling in self.tiling_list:
                         tiling_data = data[self.vid_proj][self.tiling]
                         print(f'\r  {self.metric} - {self.vid_proj}  {self.name} {self.tiling} ... ', end='')
@@ -5049,7 +5041,7 @@ class UserDectime:
 
             for self.metric in self.metric_list:
                 for self.video in self.videos_list:
-                    data =  load_json(json_metrics(self.metric), object_hook=dict)
+                    data = load_json(json_metrics(self.metric), object_hook=dict)
                     for self.tiling in self.tiling_list:
                         tiling_data = data[self.vid_proj][self.tiling]
                         print(f'\r  {self.metric} - {self.vid_proj}  {self.name} {self.tiling} ... ', end='')
