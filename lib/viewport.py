@@ -125,9 +125,14 @@ class Viewport:
         :param yaw_pitch_roll: a new head position. shape==(3,). (optional)
         :return: None
         """
+
+
         if yaw_pitch_roll is not None:
+            if self.yaw_pitch_roll == yaw_pitch_roll:
+                return
             self.mat = rot_matrix(yaw_pitch_roll)
             self.yaw_pitch_roll = yaw_pitch_roll
+
         H, W = self.vp_shape[:2]
         vp_coord_xyz_list = self.vp_coord_xyz.reshape(-1, 3).T
         vp_rotated_xyz_list = (self.mat @ vp_coord_xyz_list).T
@@ -184,7 +189,7 @@ class ERP:
                  if self.viewport.is_viewport(self.nm2xyz(self.get_tile_borders(tile), shape=self.shape))]
         return tiles
 
-    def get_viewport(self, frame: np.ndarray, yaw_pitch_roll: np.ndarray) -> np.ndarray:
+    def get_viewport(self, frame: np.ndarray, yaw_pitch_roll: np.ndarray = None) -> np.ndarray:
         self.vp_image = self.viewport.get_vp(frame=frame, xyz2nm=self.xyz2nm, yaw_pitch_roll=yaw_pitch_roll)
         return self.vp_image
 
@@ -403,7 +408,7 @@ def main():
     yaw_pitch_roll = np.deg2rad((-30, 20, -10))
 
     erp.viewport.rotate(yaw_pitch_roll)
-    vp_image = erp.get_viewport(np.asarray(frame_img), yaw_pitch_roll)
+    vp_image = erp.get_viewport(np.asarray(frame_img))
 
     # Draw all tiles border
     erp.clear_projection()
