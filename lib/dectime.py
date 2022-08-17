@@ -1,33 +1,33 @@
 from __future__ import print_function
-from enum import Enum
 
 import datetime
 import json
 import time
 from abc import ABC, abstractmethod
-from builtins import PermissionError, object
+from builtins import PermissionError
 from collections import Counter, defaultdict
+from enum import Enum
+from itertools import combinations
 from logging import warning, debug, fatal
 from pathlib import Path
 from subprocess import run, DEVNULL, STDOUT, PIPE
-from typing import Any, Union, Dict, Optional, Generator, overload
+from typing import Any, Union, Dict, Optional, Generator
 
-import matplotlib.axes
-import scipy.stats
 import matplotlib.axes as axes
 import matplotlib.figure as figure
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
-import matplotlib.gridspec as gridspec
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import scipy.stats
 import skvideo.io
 from PIL import Image
 from cycler import cycler
 from fitter import Fitter
 
 from .assets import AutoDict, Role
+from .nfov import NFOV
 from .transform import cart2hcs
 # from .util import (run_command, check_video_gop, iter_frame, load_sph_file,
 from .util import (check_video_gop, iter_frame, load_sph_file,
@@ -35,8 +35,6 @@ from .util import (check_video_gop, iter_frame, load_sph_file,
                    load_pickle, splitx, idx2xy)
 from .video_state import Config, VideoContext
 from .viewport import ERP
-from .nfov import NFOV
-from itertools import combinations
 
 
 def run_command(command: str, log_file: Path = None):
@@ -4031,7 +4029,7 @@ class ____ByUser____: ...
 class GetTilesPath(TileDecodeBenchmarkPaths):
     @property
     def workfolder(self) -> Path:
-        folder = self.project_path / self.get_tiles_folder / f'{self.__class__.__name__}'
+        folder = self.project_path / self.get_tiles_folder
         folder.mkdir(parents=True, exist_ok=True)
         return folder
 
@@ -4077,7 +4075,8 @@ class UserDectime:
             self.dataset_name = config['dataset_name']
             self.print_resume()
             # self.process_nasrabadi(overwrite=False)
-            self.get_tiles(overwrite=False)
+            # self.get_tiles(overwrite=False)
+            self.test_viewport_video(overwrite=False)
             # self.user_analisys(overwrite=False)
 
         def process_nasrabadi(self, overwrite=False):
@@ -4165,6 +4164,7 @@ class UserDectime:
             print(f'Get Tiles.')
             dataset_json = None
             erp_list = {self.tiling: ERP(self.tiling, '576x288', '110x90') for self.tiling in self.tiling_list}
+
             for self.video in self.videos_list:
                 if self.get_tiles_json.exists() and not overwrite:
                     warning(f'\nThe file {self.get_tiles_json} exist. Loading.')
@@ -4213,6 +4213,7 @@ class UserDectime:
                                 print(f'{time.time() - start:.3f}s - {tiles_chunks}          ', end='')
                                 tiles_chunks = set()
                         # exit(0)  # todo: remover
+
                         print('')
                         get_tiles_value['frame'].append(result_frames)
                         get_tiles_value['chunks'].append(result_chunks)
@@ -4272,6 +4273,125 @@ class UserDectime:
                 heatmap_tiling = self.get_tiles_path / f'heatmap_tiling_{self.dataset_name}_{self.tiling}.png'
                 fig.savefig(f'{heatmap_tiling}')
                 fig.show()
+
+        def test_viewport_video(self, overwrite=False):
+            workfolder = self.workfolder / 'video_teste'
+            workfolder.mkdir(parents=True, exist_ok=True)
+            dataset_json = None
+            get_tiles_data = None
+            erp_list = {self.tiling: ERP(self.tiling, '576x288', '110x90') for self.tiling in self.tiling_list}
+
+            for self.video in self.videos_list:
+                try:
+                    users_data = dataset_json[self.name]
+                except (TypeError, NameError):
+                    dataset_json = load_json(self.dataset_json)
+                    users_data = dataset_json[self.name]
+
+                for tiling in self.tiling_list:
+                    if tiling == '1x1': continue
+                    erp = erp_list[tiling]
+                    self.tiling='1x1'
+                    self.quality = '28'
+                    self.tile = '0'
+
+                    for user in users_data:
+                        print(f'{self.name} - tiling {tiling} - User {user}')
+
+                        input_video = self.compressed_file
+                        output_video = workfolder / f'{self.name}_{user}_{tiling}.mp4'
+
+                        if not input_video.exists(): continue
+                        if output_video.exists(): continue
+
+                        reader = skvideo.io.FFmpegReader(f'{input_video}')
+                        writer = skvideo.io.FFmpegWriter(output_video,
+                                                         inputdict={'-r': '30'},
+                                                         outputdict={'-r': '30', '-pix_fmt': 'yuv420p'})
+
+                        try:
+                            get_tiles = get_tiles_data[self.vid_proj][self.name][tiling][user]
+                        except TypeError:
+                            get_tiles_data = load_json(self.get_tiles_json)
+                            get_tiles = get_tiles_data[self.vid_proj][self.name][tiling][user]
+
+                        # get_tiles_frame = get_tiles['frame']
+                        get_tiles_chunk = get_tiles['chunks']
+                        reader_users_data = zip(reader.nextFrame(), users_data[user])
+
+                        for frame_id, (proj_frame, yaw_pitch_roll) in enumerate(reader_users_data):
+                            yaw_pitch_roll = np.deg2rad(yaw_pitch_roll)
+                            erp.viewport.rotate(yaw_pitch_roll)
+                            height, width = erp.shape
+                            vp_height, vp_width = erp.vp_shape
+                            chunk = frame_id // 30 + 1
+
+                            print(f'\rDrawing viewport. Frame {frame_id:04d} ', end='')
+
+                            frame_img = Image.fromarray(proj_frame).resize((width, height))
+                            # Draw all tiles border
+                            erp.clear_projection()
+                            erp.draw_all_tiles_borders(lum=255)
+                            cover = Image.new("RGB", (width, height), (255, 0, 0))
+                            frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+
+                            # # Draw tiles in viewport
+                            # erp.clear_projection()
+                            # erp.draw_vp_tiles(lum=255)
+                            # cover = Image.new("RGB", (width, height), (0, 255, 0))
+                            # frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+
+                            # Draw VP tiles by chunk
+                            erp.clear_projection()
+                            for tile in get_tiles_chunk[0][str(chunk)]:
+                                erp.draw_tile_border(idx=tile, lum=255)
+                            cover = Image.new("RGB", (width, height), (0, 255, 0))
+                            frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+
+                            # Draw viewport
+                            erp.clear_projection()
+                            erp.draw_vp(lum=200)
+                            cover = Image.new("RGB", (width, height), (200, 200, 200))
+                            frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+
+                            # Draw viewport borders
+                            erp.clear_projection()
+                            erp.draw_vp_borders(lum=255)
+                            cover = Image.new("RGB", (width, height), (0, 0, 255))
+                            frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+
+                            print(f'The tiles {erp.get_vptiles()} have pixel in viewport.')
+                            vp_image = erp.get_viewport(np.asarray(proj_frame))
+
+                            vp_height = vp_height
+                            vp_width = int(np.round(height * vp_width / vp_height))
+                            vp_image = Image.fromarray(vp_image).resize((vp_width, height))
+
+                            new_im = Image.new('RGB', (width + vp_width + 4, height), (255, 255, 255))
+                            new_im.paste(frame_img, (0, 0))
+                            # new_im.paste(frame_img2, (width + 2, 0))
+                            new_im.paste(vp_image, ((width + 2), 0))
+
+                            # new_im.show()
+                            writer.writeFrame(np.asarray(new_im))
+                            # todo: remove this in the future
+                            if frame_id >= 30: break
+                        print('')
+                        writer.close()
+
+                    # return
+
+                        ###########################################
+                        #                          [ y ,  p ,   r]
+                        # yaw_pitch_roll_frames = [[  0,   0,   0],
+                        #                          [ 90,   0,   0],
+                        #                          [-90,   0,   0],
+                        #                          [  0,  45,   0],
+                        #                          [  0, -45,   0],
+                        #                          [  0,   0,  45],
+                        #                          [  0,   0, -45],
+                        #                          ]
+
 
     class UsersMetrics(Worker, DectimeGraphsPaths):
         def __init__(self, config):
