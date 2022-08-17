@@ -4286,7 +4286,7 @@ class UserDectime:
                     users_data = dataset_json[self.name]
                 except (TypeError, NameError):
                     dataset_json = load_json(self.dataset_json)
-                    users_data = dataset_json[self.name]
+                    users_data:list = dataset_json[self.name]
 
                 for tiling in self.tiling_list:
                     if tiling == '1x1': continue
@@ -4296,6 +4296,7 @@ class UserDectime:
                     self.tile = '0'
 
                     for user in users_data:
+                        if users_data.index(user) == 1: break
                         print(f'{self.name} - tiling {tiling} - User {user}')
 
                         input_video = self.compressed_file
@@ -4375,7 +4376,7 @@ class UserDectime:
                             # new_im.show()
                             writer.writeFrame(np.asarray(new_im))
                             # todo: remove this in the future
-                            if frame_id >= 30: break
+                            # if frame_id >= 30: break
                         print('')
                         writer.close()
 
