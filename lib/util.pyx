@@ -135,7 +135,7 @@ def save_json(data: Union[dict, AutoDict, list], filename: Union[str, Path],
     with open(filename, 'w', encoding='utf-8') as f:
         json.dump(data, f, separators=separators, indent=indent)
 
-def load_json(filename, object_hook=AutoDict):
+def load_json(filename, object_hook=dict):
     with open(filename, 'r', encoding='utf-8') as f:
         results = json.load(f, object_hook=object_hook)
     return results
