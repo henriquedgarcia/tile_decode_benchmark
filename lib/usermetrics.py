@@ -66,7 +66,7 @@ class GetTilesPath(TileDecodeBenchmarkPaths, ABC):
 
     @property
     def get_tiles_json(self) -> Path:
-        path = self.get_tiles_path / f'get_tiles_{self.config["dataset_name"]}_{self.vid_proj}_{self.name}.json'
+        path = self.get_tiles_path / f'get_tiles_{self.config["dataset_name"]}_{self.vid_proj}_{self.name}_fov{self.fov}.json'
         return path
 
     @property
@@ -169,58 +169,71 @@ class GetTiles(GetTilesPath):
     erp_list: dict
     dataset: dict
     results: AutoDict
+    _video: str
 
-    def videos_iterator(self, overwrite=False):
-        self.erp_list = {self.tiling: ERP(self.tiling, '576x288', '110x90') for self.tiling in self.tiling_list}
+    @property
+    def video(self):
+        return self._video
+
+    @video.setter
+    def video(self, value):
+        self._video = value
+        self.results = AutoDict()
+
+    def loop(self, overwrite=False):
+        self.erp_list = {self.tiling: ERP(self.tiling, '576x288', self.fov) for self.tiling in self.tiling_list}
         self.dataset = load_json(self.dataset_json)
 
         for self.video in self.videos_list:
-            if self.get_tiles_json.exists() and not overwrite:
-                warning(f'\nThe file {self.get_tiles_json} exist. Loading.')
-                continue
-
-            self.results = AutoDict()
+            if self.output_exist(): continue
 
             for self.tiling in self.tiling_list:
                 for self.user in self.dataset[self.name]:
-                    print(f'{self.name} - tiling {self.tiling} - User {self.user}')
                     yield
 
             print(f'Saving {self.get_tiles_json}')
             save_json(self.results, self.get_tiles_json)
 
     def work(self):
+        print(f'{self.name} - tiling {self.tiling} - User {self.user}')
+
         if self.tiling == '1x1':
             self.results[self.vid_proj][self.name][self.tiling][self.user]['frame'] = [0] * 1800
-            self.results[self.vid_proj][self.name][self.tiling][self.user]['chunks'] = [0] * 60
+            self.results[self.vid_proj][self.name][self.tiling][self.user]['chunks'] = {i: 0 for i in range(1, 61)}
             return
 
         erp = self.erp_list[self.tiling]
         result_frames = []
         result_chunks = {}
         chunk = 0
-        tiles_chunks = set()
+        tiles_in_chunk = set()
         start = time.time()
 
-        for frame, (yaw, pitch, roll) in enumerate(self.dataset[self.name][self.user]):
+        for frame, (yaw_pitch_roll) in enumerate(self.dataset[self.name][self.user]):
             # vptiles
-            erp.viewport.rotate(np.deg2rad((yaw, pitch, roll)))
+            erp.viewport.rotate(yaw_pitch_roll)
             vptiles: list[int] = erp.get_vptiles()
             result_frames.append(vptiles)
 
             # vptiles by chunk
-            tiles_chunks.update(vptiles)
+            tiles_in_chunk.update(vptiles)
+
             if (frame + 1) % 30 == 0:
-                print(f'\r  {self.user} - {frame:04d} - ', end='')
                 chunk += 1  # start from 1 gpac defined
-                result_chunks[f'{chunk}'] = list(tiles_chunks)
-                print(f'{time.time() - start:.3f}s - {tiles_chunks}          ', end='')
-                tiles_chunks = set()
+                result_chunks[f'{chunk}'] = list(tiles_in_chunk)
+                print(f'\r  {self.user} - {frame:04d} - {time.time() - start:.3f}s - {str(tiles_in_chunk)[:25]: >25}', end='')
+                tiles_in_chunk.clear()
 
         print('')
         self.results[self.vid_proj][self.name][self.tiling][self.user]['frame'] = result_frames
         self.results[self.vid_proj][self.name][self.tiling][self.user]['chunks'] = result_chunks
 
+
+    def output_exist(self):
+        if self.get_tiles_json.exists() and not self.overwrite:
+            warning(f'The file {self.get_tiles_json} exist. Skipping.')
+            return True
+        return False
 
 # class Heatmap(GetTilesPath):
 #     def user_analisys(self, overwrite=False):
@@ -421,7 +434,7 @@ class ViewportPSNR(GetTilesPath):
                     print(f'Skipping 1x1 for {self.name}')
                     continue  # Remover depois
 
-                erp = ERP(self.tiling, self.resolution, self.config['fov'])
+                erp = ERP(self.tiling, self.resolution, self.fov)
                 (proj_h, proj_w), n_channels = erp.shape, 3
                 tile_h, tile_w = erp.vp_shape[:2]
 
