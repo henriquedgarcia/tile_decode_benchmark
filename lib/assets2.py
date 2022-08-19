@@ -61,6 +61,10 @@ class Factors:
 
     # <editor-fold desc="Main lists">
     @property
+    def fov(self) -> str:
+        return self.config['fov']
+
+    @property
     def videos_list(self) -> dict[str, dict[str, Union[int, float, str]]]:
         return self.config.videos_list
 
