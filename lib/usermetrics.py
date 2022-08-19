@@ -1,0 +1,662 @@
+import time
+from abc import ABC
+from enum import IntEnum
+from logging import warning
+from pathlib import Path
+from typing import Iterable
+from typing import Union
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import skvideo.io
+from PIL import Image
+
+from .assets2 import Base
+from .qualityassessment import QualityAssessmentPaths
+from .tiledecodebenchmark import TileDecodeBenchmarkPaths
+from .util2 import load_json, save_json, splitx, AutoDict, cart2hcs, lin_interpol, idx2xy
+from .viewport import ERP
+
+pi = np.pi
+pi2 = np.pi * 2
+
+# "Videos 10,17,27,28 were rotated 265, 180,63,81 degrees to right,
+# respectively, to reorient during playback." - Author
+# Videos 'cable_cam_nas','drop_tower_nas','wingsuit_dubai_nas','drone_chases_car_nas'
+# rotation = rotation_map[video_nas_id] if video_nas_id in [10, 17, 27, 28] else 0
+rotation_map = {'cable_cam_nas': 265 / 180 * pi, 'drop_tower_nas': 180 / 180 * pi,
+                'wingsuit_dubai_nas': 63 / 180 * pi, 'drone_chases_car_nas': 81 / 180 * pi}
+
+
+class GetTilesPath(TileDecodeBenchmarkPaths, ABC):
+    dataset_folder: Path
+    video_id_map:dict
+    user_map:dict
+
+    @property
+    def workfolder(self) -> Path:
+        """
+        Need None
+        :return:
+        """
+        folder = self.project_path / self.get_tiles_folder / f'{self.__class__.__name__}'
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+    @property
+    def dataset_folder(self) -> Path:
+        return Path('datasets') / self.config["dataset_name"]
+
+    @property
+    def dataset_json(self) -> Path:
+        return self.dataset_folder / f'{self.config["dataset_name"]}.json'
+
+    @property
+    def get_tiles_path(self) -> Path:
+        folder = self.project_path / self.get_tiles_folder
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+    @property
+    def seen_metrics_json(self) -> Path:
+        folder = self.project_path / 'seen_metrics'
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f'seen_metrics_{self.config["dataset_name"]}_{self.vid_proj}_{self.name}.json'
+
+    @property
+    def get_tiles_json(self) -> Path:
+        path = self.get_tiles_path / f'get_tiles_{self.config["dataset_name"]}_{self.vid_proj}_{self.name}.json'
+        return path
+
+    @property
+    def dataset_name(self):
+        return self.config['dataset_name']
+
+    @property
+    def csv_dataset_file(self) -> Path:
+        return self._csv_dataset_file
+
+    @csv_dataset_file.setter
+    def csv_dataset_file(self, value):
+        self._csv_dataset_file = value
+        user_nas_id, video_nas_id = self.csv_dataset_file.stem.split('_')
+        self.video_name = self.video_id_map[video_nas_id]
+        self.user_id = self.user_map[user_nas_id]
+
+        names = ['timestamp', 'Qx', 'Qy', 'Qz', 'Qw', 'Vx', 'Vy', 'Vz']
+        self.head_movement = pd.read_csv(self.csv_dataset_file, names=names)
+
+
+class ProcessNasrabadi(GetTilesPath):
+    csv_dataset_file: Path
+    user: int
+    user_map = {}
+    dataset_final = AutoDict()
+    _csv_dataset_file: Path
+    previous_line: tuple
+
+    def loop(self):
+        print(f'Processing dataset {self.dataset_folder}.')
+
+        # if self.output_exist(): return
+
+        self.video_id_map = load_json(f'{self.dataset_json.parent}/videos_map.json')
+        self.user_map = load_json(f'{self.dataset_json.parent}/usermap.json')
+
+        for self.csv_dataset_file in self.dataset_json.parent.glob('*/*.csv'):
+            self.frame_counter = 0
+            yield
+
+        print(f'\nFinish. Saving as {self.dataset_json}.')
+        save_json(self.dataset_final, self.dataset_json)
+
+    def work(self, overwrite=False):
+        # For each  csv_file
+        yaw_pitch_roll_frames = []
+        start_time = time.time()
+        n = 0
+
+        print(f'\rUser {self.user_id} - {self.video_name} - ', end='')
+        for n, line in enumerate(self.head_movement.itertuples(index=False, name=None)):
+            timestamp, Qx, Qy, Qz, Qw, Vx, Vy, Vz = map(float, line)
+            xyz = np.array([Vz, Vy, Vx])  # Based on gitHub code of author
+
+            try:
+                yaw_pitch_roll = self.process_vectors((timestamp, xyz))
+                yaw_pitch_roll_frames.append(list(yaw_pitch_roll))
+                self.frame_counter += 1
+                if self.frame_counter == 1800: break
+            except ValueError:
+                pass
+            self.previous_line = timestamp, xyz
+
+        yaw_pitch_roll_frames += [yaw_pitch_roll_frames[-1]] * (1800 - len(yaw_pitch_roll_frames))
+
+        self.dataset_final[self.video_name][self.user_id] = yaw_pitch_roll_frames
+        print(f'Samples {n:04d} - {self.frame_counter=} - {time.time() - start_time:0.3f} s.')
+
+    def output_exist(self):
+        if self.dataset_json.exists() and not self.overwrite:
+            warning(f'The file {self.dataset_json} exist. Skipping.')
+            return True
+        return False
+
+    def process_vectors(self, actual_line):
+        timestamp, xyz = actual_line
+        frame_timestamp = self.frame_counter / 30
+
+        if timestamp < frame_timestamp:
+            # Skip. It's not the time.
+            raise ValueError
+        elif timestamp > frame_timestamp:
+            # Linear Interpolation
+            old_timestamp, old_xyz = self.previous_line
+            xyz = lin_interpol(frame_timestamp, timestamp, old_timestamp, np.array(xyz), np.array(old_xyz))
+
+        yaw, pitch = cart2hcs(xyz).T
+        roll = [0] * len(yaw) if isinstance(yaw, np.ndarray) else 0
+
+        if self.video_name in rotation_map:
+            yaw -= rotation_map[self.video_name]
+
+        yaw = np.mod(yaw + pi, pi2) - pi
+        return np.round([yaw, pitch, roll], 6).T
+
+
+class GetTiles(GetTilesPath):
+    user: int = None
+    erp_list: dict
+    dataset: dict
+    results: AutoDict
+
+    def videos_iterator(self, overwrite=False):
+        self.erp_list = {self.tiling: ERP(self.tiling, '576x288', '110x90') for self.tiling in self.tiling_list}
+        self.dataset = load_json(self.dataset_json)
+
+        for self.video in self.videos_list:
+            if self.get_tiles_json.exists() and not overwrite:
+                warning(f'\nThe file {self.get_tiles_json} exist. Loading.')
+                continue
+
+            self.results = AutoDict()
+
+            for self.tiling in self.tiling_list:
+                for self.user in self.dataset[self.name]:
+                    print(f'{self.name} - tiling {self.tiling} - User {self.user}')
+                    yield
+
+            print(f'Saving {self.get_tiles_json}')
+            save_json(self.results, self.get_tiles_json)
+
+    def work(self):
+        if self.tiling == '1x1':
+            self.results[self.vid_proj][self.name][self.tiling][self.user]['frame'] = [0] * 1800
+            self.results[self.vid_proj][self.name][self.tiling][self.user]['chunks'] = [0] * 60
+            return
+
+        erp = self.erp_list[self.tiling]
+        result_frames = []
+        result_chunks = {}
+        chunk = 0
+        tiles_chunks = set()
+        start = time.time()
+
+        for frame, (yaw, pitch, roll) in enumerate(self.dataset[self.name][self.user]):
+            # vptiles
+            erp.viewport.rotate(np.deg2rad((yaw, pitch, roll)))
+            vptiles: list[int] = erp.get_vptiles()
+            result_frames.append(vptiles)
+
+            # vptiles by chunk
+            tiles_chunks.update(vptiles)
+            if (frame + 1) % 30 == 0:
+                print(f'\r  {self.user} - {frame:04d} - ', end='')
+                chunk += 1  # start from 1 gpac defined
+                result_chunks[f'{chunk}'] = list(tiles_chunks)
+                print(f'{time.time() - start:.3f}s - {tiles_chunks}          ', end='')
+                tiles_chunks = set()
+
+        print('')
+        self.results[self.vid_proj][self.name][self.tiling][self.user]['frame'] = result_frames
+        self.results[self.vid_proj][self.name][self.tiling][self.user]['chunks'] = result_chunks
+
+
+# class Heatmap(GetTilesPath):
+#     def user_analisys(self, overwrite=False):
+#         self.dataset = load_json(self.dataset_json)
+#         counter_tiles_json = self.get_tiles_path / f'counter_tiles_{self.dataset_name}.json'
+#
+#         if counter_tiles_json.exists():
+#             result = load_json(counter_tiles_json)
+#         else:
+#             database = load_json(self.dataset_json, object_hook=dict)
+#             result = {}
+#             for self.tiling in self.tiling_list:
+#                 # Collect tiling count
+#                 tiles_counter = Counter()
+#                 print(f'{self.tiling=}')
+#                 nb_chunk = 0
+#                 for self.video in self.videos_list:
+#                     users = database[self.name].keys()
+#                     get_tiles_json = self.get_tiles_path / f'get_tiles_{self.dataset_name}_{self.video}_{self.tiling}.json'
+#                     if not get_tiles_json.exists():
+#                         print(dict(tiles_counter))
+#                         break
+#                     print(f'  - {self.video=}')
+#                     get_tiles = load_json(get_tiles_json, object_hook=dict)
+#                     for user in users:
+#                         # hm = database[self.name][user]
+#                         chunks = get_tiles[self.vid_proj][self.tiling][user]['chunks'].keys()
+#                         for chunk in chunks:
+#                             seen_tiles_by_chunk = get_tiles[self.vid_proj][self.tiling][user]['chunks'][chunk]
+#                             tiles_counter = tiles_counter + Counter(seen_tiles_by_chunk)
+#                             nb_chunk += 1
+#
+#                 # normalize results
+#                 dict_tiles_counter = dict(tiles_counter)
+#                 column = []
+#                 for tile_id in range(len(dict_tiles_counter)):
+#                     if not tile_id in dict_tiles_counter:
+#                         column.append(0.)
+#                     else:
+#                         column.append(dict_tiles_counter[tile_id] / nb_chunk)
+#                 result[self.tiling] = column
+#                 print(result)
+#
+#             save_json(result, counter_tiles_json)
+#
+#         # Create heatmap
+#         for self.tiling in self.tiling_list:
+#             tiling_result = result[self.tiling]
+#             shape = splitx(self.tiling)[::-1]
+#             grade = np.asarray(tiling_result).reshape(shape)
+#             fig, ax = plt.subplots()
+#             im = ax.imshow(grade, cmap='jet', )
+#             ax.set_title(f'Tiling {self.tiling}')
+#             fig.colorbar(im, ax=ax, label='chunk frequency')
+#             heatmap_tiling = self.get_tiles_path / f'heatmap_tiling_{self.dataset_name}_{self.tiling}.png'
+#             fig.savefig(f'{heatmap_tiling}')
+#             fig.show()
+
+
+class TestViewport(GetTilesPath):
+    def videos_iterator(self):
+        for self.video in self.videos_list:
+            for self.tiling in self.tiling_list:
+                for self.quality in self.quality_list:
+                    for turn in range(self.decoding_num):
+                        for self.tile in self.tiling_list:
+                            for self.chunk in self.chunk_list:
+                                print(f'Decoding {self.segment_file=}. {turn = }', end='')
+                                yield
+
+    def work(self):
+        workfolder = self.workfolder / 'video_teste_by_chunk'
+        workfolder.mkdir(parents=True, exist_ok=True)
+        dataset_data = load_json(self.dataset_json)
+        erp_list = {self.tiling: ERP(self.tiling, '576x288', '110x90') for self.tiling in self.tiling_list}
+
+        for self.video in self.videos_list:
+            get_tiles_data = load_json(self.get_tiles_json)
+
+            users_list = list(dataset_data[self.name].keys())
+
+            for tiling in self.tiling_list:
+                if tiling == '1x1': continue
+                erp = erp_list[tiling]
+                self.tiling = '1x1'
+                self.quality = '28'
+                self.tile = '0'
+
+                for user in users_list:
+                    if users_list.index(user) == 1: break
+                    print(f'{self.name} - tiling {tiling} - User {user}')
+
+                    input_video = self.compressed_file
+                    output_video = workfolder / f'{self.name}_{user}_{tiling}.mp4'
+
+                    if not input_video.exists(): continue
+                    if output_video.exists(): continue
+
+                    reader = skvideo.io.FFmpegReader(f'{input_video}')
+                    writer = skvideo.io.FFmpegWriter(output_video,
+                                                     inputdict={'-r': '30'},
+                                                     outputdict={'-r': '30', '-pix_fmt': 'yuv420p'})
+                    try:
+                        # get_tiles_frame, = get_tiles_data[self.vid_proj][self.name][tiling][user]['frame']
+                        get_tiles_chunk, = get_tiles_data[self.vid_proj][self.name][tiling][user]['chunks']
+                    except ValueError:
+                        # Unpack Error
+                        # get_tiles_frame = get_tiles_data[self.vid_proj][self.name][tiling][user]['frame']
+                        get_tiles_chunk = get_tiles_data[self.vid_proj][self.name][tiling][user]['chunks']
+
+                    reader_users_data = zip(reader.nextFrame(),
+                                            dataset_data[self.name][user])
+
+                    for frame_id, (proj_frame, yaw_pitch_roll) in enumerate(reader_users_data):
+                        yaw_pitch_roll = np.deg2rad(yaw_pitch_roll)
+                        erp.viewport.rotate(yaw_pitch_roll)
+                        height, width = erp.shape
+                        vp_height, vp_width = erp.vp_shape
+                        chunk = frame_id // 30 + 1
+
+                        print(f'\rDrawing viewport. Frame {frame_id:04d} ', end='')
+                        frame_img = Image.fromarray(proj_frame).resize((width, height))
+
+                        # Draw all tiles border
+                        erp.clear_projection()
+                        erp.draw_all_tiles_borders(lum=255)
+                        cover = Image.new("RGB", (width, height), (255, 0, 0))
+                        frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+
+                        # # Draw VP tiles by frame
+                        # erp.clear_projection()
+                        # for tile in get_tiles_frame[frame_id]:
+                        #     erp.draw_tile_border(idx=tile, lum=255)
+                        # cover = Image.new("RGB", (width, height), (0, 255, 0))
+                        # frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+
+                        # Draw VP tiles by chunk
+                        erp.clear_projection()
+                        for tile in get_tiles_chunk[str(chunk)]:
+                            erp.draw_tile_border(idx=tile, lum=255)
+                        cover = Image.new("RGB", (width, height), (0, 255, 0))
+                        frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+
+                        # Draw viewport
+                        erp.clear_projection()
+                        erp.draw_vp(lum=200)
+                        cover = Image.new("RGB", (width, height), (200, 200, 200))
+                        frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+
+                        # Draw viewport borders
+                        erp.clear_projection()
+                        erp.draw_vp_borders(lum=255)
+                        cover = Image.new("RGB", (width, height), (0, 0, 255))
+                        frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+
+                        print(f'The tiles {erp.get_vptiles()} have pixel in viewport.')
+                        vp_image = erp.get_viewport(np.asarray(proj_frame))
+
+                        vp_height = vp_height
+                        vp_width = int(np.round(height * vp_width / vp_height))
+                        vp_image = Image.fromarray(vp_image).resize((vp_width, height))
+
+                        new_im: Union[Iterable, Image.Image] = Image.new('RGB', (width + vp_width + 4, height), (255, 255, 255))
+                        new_im.paste(frame_img, (0, 0))
+                        # new_im.paste(frame_img2, (width + 2, 0))
+                        new_im.paste(vp_image, ((width + 2), 0))
+
+                        # new_im.show()
+                        writer.writeFrame(np.asarray(new_im))
+                        # todo: remove this in the future
+                        # if frame_id >= 30: break
+                    print('')
+                    writer.close()
+
+
+class ViewportPSNR(GetTilesPath):
+    def videos_iterator(self):
+        for self.video in self.videos_list:
+            for self.tiling in self.tiling_list:
+                for self.quality in self.quality_list:
+                    for turn in range(self.decoding_num):
+                        for self.tile in self.tiling_list:
+                            for self.chunk in self.chunk_list:
+                                print(f'Decoding {self.segment_file=}. {turn = }', end='')
+                                yield
+
+    def work(self, overwrite=False):
+        workfolder = self.workfolder / 'psnr_from_viewport'
+        workfolder.mkdir(parents=True, exist_ok=True)
+        dataset = load_json(self.dataset_json)
+        quality_list = ['0'] + self.quality_list
+
+        for self.video in self.videos_list:
+            get_tiles_data = load_json(self.get_tiles_json)
+
+            for self.tiling in self.tiling_list:
+                if self.tiling == '1x1':
+                    print(f'Skipping 1x1 for {self.name}')
+                    continue  # Remover depois
+
+                erp = ERP(self.tiling, self.resolution, self.config['fov'])
+                (proj_h, proj_w), n_channels = erp.shape, 3
+                tile_h, tile_w = erp.vp_shape[:2]
+
+                folder = workfolder / f'{self.vid_proj}_{self.name}_{self.tiling}'
+                folder.mkdir(parents=True, exist_ok=True)
+
+                for user in dataset[self.name].keys():
+                    for self.quality in quality_list:
+
+                        output_video = folder / f"user{user}_CRF{self.quality}.mp4"
+                        if not overwrite and output_video.exists():
+                            print(f'The output video {output_video} exist. Skipping')
+                            continue
+
+                        user_yaw_pitch_roll_iterator = iter(dataset[self.name][user])
+                        video_writer = skvideo.io.FFmpegWriter(output_video, inputdict={'-r': '30'},
+                                                               outputdict={'-crf': '0', '-r': '30',
+                                                                           '-pix_fmt': 'yuv420p'})
+
+                        for self.chunk in self.chunk_list:
+                            # Foi um erro colocar isso na forma de lista. Remover o [0] um dia
+                            tiles_seen_during_chunk: list[int] = get_tiles_data[self.vid_proj][self.name][self.tiling][user]['chunks'][0][self.chunk]
+                            dict_video_reader_for_each_seen_tiles = {str(self.tile): skvideo.io.FFmpegReader(f'{self.segment_file}').nextFrame()
+                                                                     for self.tile in tiles_seen_during_chunk}
+
+                            for _ in range(30):  # 30 frames per chunk
+                                proj_frame = np.zeros((proj_h, proj_w, n_channels), dtype='uint8')
+
+                                # <editor-fold desc="Build projection frame">
+                                start = time.time()
+                                for self.tile in map(str, tiles_seen_during_chunk):
+                                    tile_frame = next(dict_video_reader_for_each_seen_tiles[self.tile])
+
+                                    tile_y, tile_x = erp.tiles_position(int(self.tile))
+                                    proj_frame[tile_y:tile_y + tile_h, tile_x:tile_x + tile_w, :] = tile_frame
+
+                                print(f'Time to mount 1 frame {time.time() - start: 0.3f} s')
+                                # </editor-fold>
+
+                                start = time.time()
+                                yaw_pitch_roll = next(user_yaw_pitch_roll_iterator)
+                                viewport_frame = erp.get_viewport(proj_frame, yaw_pitch_roll)  # .astype('float64')
+                                print(f'time to extract vp =  {time.time() - start: 0.3f} s')
+
+                                video_writer.writeFrame(viewport_frame)
+
+                            video_writer.close()
+                            exit()  # todo: remover
+                        print('')
+                        video_writer.close()
+
+
+class ViewportMetrics(GetTilesPath, QualityAssessmentPaths):
+    seen_tiles_data: AutoDict
+    _video: str = None
+    users: list = None
+    user: int = None
+
+    def output_exist(self):
+        if self.seen_metrics_json.exists() and not self.overwrite:
+            print(f'  The data file "{self.get_tiles_json}" exist. Loading date.')
+            return True
+        return False
+
+    @property
+    def video(self):
+        return self._video
+
+    @video.setter
+    def video(self, value):
+        self._video = value
+        self.time_data = load_json(self.dectime_result_json, object_hook=dict)
+        self.rate_data = load_json(self.bitrate_result_json, object_hook=dict)
+        self.qlt_data = load_json(self.quality_result_json, object_hook=dict)
+
+    @property
+    def tiling(self):
+        return self._tiling
+
+    @tiling.setter
+    def tiling(self, value):
+        self._tiling = value
+        if self.video is None:
+            warning('self.video is not assigned.')
+        else:
+            self.get_tiles_data = load_json(self.get_tiles_json, object_hook=dict)
+            self.users = list(self.get_tiles_data[self.vid_proj][self.name][self.tiling].keys())
+
+    def loop(self):
+        print('\n====== Get tiles data ======')
+
+        self.seen_tiles_data = AutoDict()
+
+        for self.video in self.videos_list:
+            if self.output_exist(): return
+
+            for self.tiling in self.tiling_list:
+                print(f'\r  Get Tiles - {self.vid_proj}  {self.name} {self.tiling} - {len(self.users)} users ... ', end='')
+                for self.user in self.users:
+                    for self.chunk in self.chunk_list:
+                        for self.quality in self.quality_list:
+                            for self.tile in self.tile_list:
+                                yield
+
+    def work(self, overwrite=False):
+        get_tiles = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['chunks'][self.chunk]
+
+        if int(self.tile) in get_tiles:
+            dectime_val = self.time_data[self.vid_proj][self.tiling][self.quality][self.tile][self.chunk]
+            bitrate_val = self.rate_data[self.vid_proj][self.tiling][self.quality][self.tile][self.chunk]
+            quality_val = self.qlt_data[self.vid_proj][self.tiling][self.quality][self.tile][self.chunk]
+
+            seen_tiles_result = self.seen_tiles_data[f'{self.user}'][self.vid_proj][self.name][self.tiling][self.quality][self.tile][self.chunk]
+            seen_tiles_result['time'] = float(np.average(dectime_val['times']))
+            seen_tiles_result['rate'] = float(bitrate_val['rate'])
+            seen_tiles_result['time_std'] = float(np.std(dectime_val['times']))
+
+            for metric in ['PSNR', 'WS-PSNR', 'S-PSNR']:
+                value = quality_val[metric]
+                if value == float('inf'):
+                    value = 1000
+                seen_tiles_result[metric] = value
+                print('OK')
+
+        print(f'  Saving get tiles... ', end='')
+        # todo: criar arquivo para esse módulo
+        # save_json(self.seen_tiles_data, self.seen_tiles_json)
+        print(f'  Finished.')
+
+
+class ViewportMetrics_2(GetTilesPath):
+    def loop(self):
+        for self.video in self.videos_list:
+            for self.tiling in self.tiling_list:
+                for self.quality in self.quality_list:
+                    for turn in range(self.decoding_num):
+                        for self.tile in self.tiling_list:
+                            for self.chunk in self.chunk_list:
+                                print(f'Decoding {self.segment_file=}. {turn = }', end='')
+                                yield
+
+    def work(self, overwrite=False):
+        database = load_json(self.dataset_json)
+
+        for self.video in self.videos_list:
+            proj_h, proj_w, n_channels = self.video_shape
+            users_data = database[self.name]
+
+            erp = ERP(self.tiling, self.resolution, '110x90')
+            get_tiles_data = load_json(self.get_tiles_json, object_hook=dict)
+
+            for self.tiling in self.tiling_list:
+                if self.tiling == '1x1': continue  # Remover depois
+
+                folder = self.get_tiles_path / f'{self.vid_proj}_{self.name}_{self.tiling}'
+                folder.mkdir(parents=True, exist_ok=True)
+
+                users_list = get_tiles_data[self.vid_proj][self.name][self.tiling].keys()
+
+                M, N = splitx(self.tiling)
+                tile_w, tile_h = int(proj_w / M), int(proj_h / N)
+
+                for user in users_list:
+                    quality_list = ['0'] + self.quality_list
+
+                    for self.quality in quality_list:
+
+                        output_video = folder / f"user{user}_CRF{self.quality}.mp4"
+                        if not overwrite and output_video.exists():
+                            print(f'The output video {output_video} exist. Skipping')
+                            continue
+
+                        video_writer = skvideo.io.FFmpegWriter(output_video, inputdict={'-r': '30'}, outputdict={'-crf': '0', '-r': '30', '-pix_fmt': 'yuv420p'})
+
+                        yaw_pitch_roll_frames = iter(users_data[user])
+
+                        for self.chunk in self.chunk_list:
+                            get_tiles_val: list[int] = get_tiles_data[self.vid_proj][self.name][self.tiling][user]['chunks'][0][
+                                self.chunk]  # Foi um erro colocar isso na forma de lista. Remover o [0] um dia
+
+                            tiles_reader: dict[str, skvideo.io.FFmpegReader] = {str(self.tile): skvideo.io.FFmpegReader(f'{self.segment_file}').nextFrame() for self.tile in
+                                                                                get_tiles_val}
+                            img_proj = np.zeros((proj_h, proj_w, n_channels), dtype='uint8')
+
+                            for _ in range(30):  # 30 frames per chunk
+                                fig, ax = plt.subplots(1, 2, figsize=(6.5, 2), dpi=200)
+                                start = time.time()
+
+                                # Build projection frame
+                                for self.tile in map(str, get_tiles_val):
+                                    tile_m, tile_n = idx2xy(int(self.tile), (N, M))
+                                    tile_x, tile_y = tile_m * tile_w, tile_n * tile_h
+
+                                    tile_frame = next(tiles_reader[self.tile])
+
+                                    img_proj[tile_y:tile_y + tile_h, tile_x:tile_x + tile_w, :] = tile_frame
+
+                                print(f'Time to mount 1 frame {time.time() - start: 0.3f} s')
+
+                                yaw, pitch, roll = next(yaw_pitch_roll_frames)
+                                center_point = np.array([np.deg2rad(yaw), np.deg2rad(pitch)])  # camera center point (valid range [0,1])
+                                # fov_video = nfov.toNFOV(img_proj, center_point).astype('float64')
+
+                                start = time.time()
+                                fov_ref = erp.get_viewport(img_proj, center_point)  # .astype('float64')
+                                print(f'time to extract vp =  {time.time() - start: 0.3f} s')
+
+                                ax[0].imshow(erp.projection)
+                                ax[0].axis('off')
+                                ax[1].imshow(fov_ref)
+                                ax[1].axis('off')
+                                plt.tight_layout()
+                                plt.show()
+                                plt.close()
+                                video_writer.writeFrame(fov_ref)
+
+                            video_writer.close()
+                            exit()  # todo: remover
+                        print('')
+                        video_writer.close()
+
+
+class UserMetricsOptions(IntEnum):
+    PROCESS_NASRABADI = 0
+    USER_ANALISYS = 1
+    GET_TILES = 2
+    VIEWPORT_METRICS = 3
+    TEST_VIEWPORT_VIDEO = 4
+    PSNR_FROM_VIEWPORT = 5
+
+
+class UserMetrics(Base):
+    operations = {'PROCESS_NASRABADI': ProcessNasrabadi,
+                  'USER_ANALISYS': ViewportMetrics_2,
+                  'GET_TILES': GetTiles,
+                  'VIEWPORT_METRICS': ViewportMetrics,
+                  'TEST_VIEWPORT_VIDEO': TestViewport,
+                  'PSNR_FROM_VIEWPORT': ViewportPSNR}
