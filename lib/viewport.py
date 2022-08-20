@@ -182,7 +182,7 @@ class ERP:
                                         for m in range(0, self.shape[1], self.tile_res[1])])
 
     def get_vptiles(self) -> list:
-        if f'{self.tiling}' == '1x1':
+        if tuple(self.tiling) == (1, 1):
             return [0]
 
         tiles = [tile for tile in range(self.n_tiles)
