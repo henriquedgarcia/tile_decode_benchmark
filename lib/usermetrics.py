@@ -31,8 +31,13 @@ rotation_map = {'cable_cam_nas': 265 / 180 * pi, 'drop_tower_nas': 180 / 180 * p
 
 class GetTilesPath(TileDecodeBenchmarkPaths, ABC):
     dataset_folder: Path
-    video_id_map:dict
-    user_map:dict
+    video_id_map: dict
+    user_map: dict
+    _workfolder: Path = None
+    _csv_dataset_file: Path
+    video_name: str
+    user_id: str
+    head_movement: pd.DataFrame
 
     @property
     def workfolder(self) -> Path:
@@ -40,9 +45,16 @@ class GetTilesPath(TileDecodeBenchmarkPaths, ABC):
         Need None
         :return:
         """
-        folder = self.project_path / self.get_tiles_folder / f'{self.__class__.__name__}'
-        folder.mkdir(parents=True, exist_ok=True)
-        return folder
+        if self._workfolder is None:
+            folder = self.project_path / self.get_tiles_folder / f'{self.__class__.__name__}'
+            folder.mkdir(parents=True, exist_ok=True)
+            return folder
+        else:
+            return self._workfolder
+
+    @workfolder.setter
+    def workfolder(self, value):
+        self._workfolder = value
 
     @property
     def dataset_folder(self) -> Path:
