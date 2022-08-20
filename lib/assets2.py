@@ -237,10 +237,10 @@ class GlobalPaths(Factors, ABC):
     def __init__(self):
         self.print_resume()
         for _ in self.loop():
-            self.work()
+            self.worker()
 
     @abstractmethod
-    def work(self):
+    def worker(self):
         ...
 
     @abstractmethod

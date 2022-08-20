@@ -1,16 +1,16 @@
 import time
 from abc import ABC
-from enum import IntEnum
+from enum import Enum
+from itertools import count
 from logging import warning
 from pathlib import Path
-from typing import Iterable
-from typing import Union
+from typing import Iterable, Generator, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import skvideo.io
 from PIL import Image
+from skvideo.io import FFmpegWriter, FFmpegReader
 
 from .assets2 import Base
 from .qualityassessment import QualityAssessmentPaths
@@ -124,7 +124,7 @@ class ProcessNasrabadi(GetTilesPath):
         print(f'\nFinish. Saving as {self.dataset_json}.')
         save_json(self.dataset_final, self.dataset_json)
 
-    def work(self, overwrite=False):
+    def worker(self, overwrite=False):
         # For each  csv_file
         yaw_pitch_roll_frames = []
         start_time = time.time()
@@ -207,12 +207,12 @@ class GetTiles(GetTilesPath):
             print(f'Saving {self.get_tiles_json}')
             save_json(self.results, self.get_tiles_json)
 
-    def work(self):
+    def worker(self):
         print(f'{self.name} - tiling {self.tiling} - User {self.user}')
 
         if self.tiling == '1x1':
-            self.results[self.vid_proj][self.name][self.tiling][self.user]['frame'] = [0] * 1800
-            self.results[self.vid_proj][self.name][self.tiling][self.user]['chunks'] = {i: 0 for i in range(1, 61)}
+            self.results[self.vid_proj][self.name][self.tiling][self.user]['frame'] = [[0]] * 1800
+            self.results[self.vid_proj][self.name][self.tiling][self.user]['chunks'] = {i: [0] for i in range(1, 61)}
             return
 
         erp = self.erp_list[self.tiling]
@@ -241,12 +241,12 @@ class GetTiles(GetTilesPath):
         self.results[self.vid_proj][self.name][self.tiling][self.user]['frame'] = result_frames
         self.results[self.vid_proj][self.name][self.tiling][self.user]['chunks'] = result_chunks
 
-
     def output_exist(self):
         if self.get_tiles_json.exists() and not self.overwrite:
             warning(f'The file {self.get_tiles_json} exist. Skipping.')
             return True
         return False
+
 
 # class Heatmap(GetTilesPath):
 #     def user_analisys(self, overwrite=False):
@@ -307,123 +307,148 @@ class GetTiles(GetTilesPath):
 
 
 class TestViewport(GetTilesPath):
-    def videos_iterator(self):
+    _tiling: str
+    _video: str
+    _user: str
+    dataset_data: dict
+    erp_list: dict
+    reader: Generator
+    writer: FFmpegWriter
+
+    @property
+    def video(self):
+        return self._video
+
+    @video.setter
+    def video(self, value):
+        self._video = value
+
+        self.get_tiles_data = load_json(self.get_tiles_json)
+        self.users_list = list(self.dataset_data[self.name].keys())
+
+    @property
+    def tiling(self):
+        return self._tiling
+
+    @tiling.setter
+    def tiling(self, value):
+        self._tiling = value
+        self.erp = self.erp_list[value]
+
+    @property
+    def user(self):
+        return self._user
+
+    @user.setter
+    def user(self, value):
+        self._user = value
+
+    @property
+    def writer(self):
+        return FFmpegWriter(self.output_video,
+                            inputdict={'-r': '30'},
+                            outputdict={'-r': '30', '-pix_fmt': 'yuv420p'})
+
+    @property
+    def output_video(self):
+        return self.workfolder / f'{self.name}_{self.user}_{self.tiling}.mp4'
+
+    @property
+    def reader(self):
+        basename = Path(f'{self.name}_{self.resolution}_{self.config["fps"]}_'
+                        f'1x1_crf28')
+        folder = self.project_path / self.compressed_folder / basename
+        input_video = folder / f'tile0.mp4'
+        return FFmpegReader(f'{input_video}').nextFrame()
+
+    def loop(self, get_tiles_type='chunk'):
+        self.get_tiles_type = get_tiles_type
+        self.workfolder = self.workfolder / f'video_teste_by_{get_tiles_type}'
+        self.workfolder.mkdir(parents=True, exist_ok=True)
+
+        self.dataset_data = load_json(self.dataset_json)
+        self.erp_list = {tiling: ERP(tiling, '576x288', self.fov) for tiling in self.tiling_list}
+
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
-                for self.quality in self.quality_list:
-                    for turn in range(self.decoding_num):
-                        for self.tile in self.tiling_list:
-                            for self.chunk in self.chunk_list:
-                                print(f'Decoding {self.segment_file=}. {turn = }', end='')
-                                yield
+                for self.user in self.users_list:
+                    yield
 
-    def work(self):
-        workfolder = self.workfolder / 'video_teste_by_chunk'
-        workfolder.mkdir(parents=True, exist_ok=True)
-        dataset_data = load_json(self.dataset_json)
-        erp_list = {self.tiling: ERP(self.tiling, '576x288', '110x90') for self.tiling in self.tiling_list}
+    def worker(self):
+        print(f'{self.name} - tiling {self.tiling} - User {self.user}')
 
-        for self.video in self.videos_list:
-            get_tiles_data = load_json(self.get_tiles_json)
+        if self.tiling == '1x1': return
+        if self.users_list.index(self.user) >= 1: return
 
-            users_list = list(dataset_data[self.name].keys())
+        get_tiles_frame = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['frame']
+        get_tiles_chunk = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['chunks']
+        user_data = self.dataset_data[self.name][self.user]
 
-            for tiling in self.tiling_list:
-                if tiling == '1x1': continue
-                erp = erp_list[tiling]
-                self.tiling = '1x1'
-                self.quality = '28'
-                self.tile = '0'
 
-                for user in users_list:
-                    if users_list.index(user) == 1: break
-                    print(f'{self.name} - tiling {tiling} - User {user}')
+        for frame_id, proj_frame, yaw_pitch_roll in zip(count(), self.reader, user_data):
+            print(f'\rDrawing viewport. Frame {frame_id:04d}. ', end='')
 
-                    input_video = self.compressed_file
-                    output_video = workfolder / f'{self.name}_{user}_{tiling}.mp4'
+            self.erp.viewport.rotate(yaw_pitch_roll)
+            height, width = self.erp.shape
 
-                    if not input_video.exists(): continue
-                    if output_video.exists(): continue
+            frame_img = Image.fromarray(proj_frame).resize((width, height))
 
-                    reader = skvideo.io.FFmpegReader(f'{input_video}')
-                    writer = skvideo.io.FFmpegWriter(output_video,
-                                                     inputdict={'-r': '30'},
-                                                     outputdict={'-r': '30', '-pix_fmt': 'yuv420p'})
-                    try:
-                        # get_tiles_frame, = get_tiles_data[self.vid_proj][self.name][tiling][user]['frame']
-                        get_tiles_chunk, = get_tiles_data[self.vid_proj][self.name][tiling][user]['chunks']
-                    except ValueError:
-                        # Unpack Error
-                        # get_tiles_frame = get_tiles_data[self.vid_proj][self.name][tiling][user]['frame']
-                        get_tiles_chunk = get_tiles_data[self.vid_proj][self.name][tiling][user]['chunks']
+            # Draw all tiles border
+            self.erp.clear_projection()
+            self.erp.draw_all_tiles_borders(lum=255)
+            cover = Image.new("RGB", (width, height), (255, 0, 0))
+            frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(self.erp.projection))
 
-                    reader_users_data = zip(reader.nextFrame(),
-                                            dataset_data[self.name][user])
+            # Draw VP tiles by chunk
+            iterator = (get_tiles_chunk[str(frame_id // 30 + 1)]
+                        if self.get_tiles_type == 'chunk'
+                        else get_tiles_frame[frame_id])
+            self.erp.clear_projection()
+            _ = [self.erp.draw_tile_border(idx=tile, lum=255) for tile in iterator]
+            cover = Image.new("RGB", (width, height), (0, 255, 0))
+            frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(self.erp.projection))
 
-                    for frame_id, (proj_frame, yaw_pitch_roll) in enumerate(reader_users_data):
-                        yaw_pitch_roll = np.deg2rad(yaw_pitch_roll)
-                        erp.viewport.rotate(yaw_pitch_roll)
-                        height, width = erp.shape
-                        vp_height, vp_width = erp.vp_shape
-                        chunk = frame_id // 30 + 1
+            # Draw viewport
+            self.erp.clear_projection()
+            self.erp.draw_vp(lum=200)
+            cover = Image.new("RGB", (width, height), (200, 200, 200))
+            frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(self.erp.projection))
 
-                        print(f'\rDrawing viewport. Frame {frame_id:04d} ', end='')
-                        frame_img = Image.fromarray(proj_frame).resize((width, height))
+            # Draw viewport borders
+            self.erp.clear_projection()
+            self.erp.draw_vp_borders(lum=255)
+            cover = Image.new("RGB", (width, height), (0, 0, 255))
+            frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(self.erp.projection))
 
-                        # Draw all tiles border
-                        erp.clear_projection()
-                        erp.draw_all_tiles_borders(lum=255)
-                        cover = Image.new("RGB", (width, height), (255, 0, 0))
-                        frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+            print(f'The tiles {self.erp.get_vptiles()} have pixel in viewport.')
+            vp_image = self.erp.get_viewport(np.asarray(proj_frame))
 
-                        # # Draw VP tiles by frame
-                        # erp.clear_projection()
-                        # for tile in get_tiles_frame[frame_id]:
-                        #     erp.draw_tile_border(idx=tile, lum=255)
-                        # cover = Image.new("RGB", (width, height), (0, 255, 0))
-                        # frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+            vp_height, vp_width = self.erp.vp_shape
+            new_vp_width = int(np.round(height * vp_width / vp_height))
+            new_vp_height = height
+            vp_image = Image.fromarray(vp_image).resize((new_vp_width, new_vp_height))
 
-                        # Draw VP tiles by chunk
-                        erp.clear_projection()
-                        for tile in get_tiles_chunk[str(chunk)]:
-                            erp.draw_tile_border(idx=tile, lum=255)
-                        cover = Image.new("RGB", (width, height), (0, 255, 0))
-                        frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+            new_im: Union[Iterable, Image.Image] = Image.new('RGB', (width + new_vp_width + 4, height), (255, 255, 255))
+            new_im.paste(frame_img, (0, 0))
+            new_im.paste(vp_image, ((width + 2), 0))
 
-                        # Draw viewport
-                        erp.clear_projection()
-                        erp.draw_vp(lum=200)
-                        cover = Image.new("RGB", (width, height), (200, 200, 200))
-                        frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+            # new_im.show()
+            self.writer.writeFrame(np.asarray(new_im))
+            # todo: remove this in the future
+            # if frame_id >= 30: break
 
-                        # Draw viewport borders
-                        erp.clear_projection()
-                        erp.draw_vp_borders(lum=255)
-                        cover = Image.new("RGB", (width, height), (0, 0, 255))
-                        frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(erp.projection))
+        print('')
+        self.writer.close()
 
-                        print(f'The tiles {erp.get_vptiles()} have pixel in viewport.')
-                        vp_image = erp.get_viewport(np.asarray(proj_frame))
-
-                        vp_height = vp_height
-                        vp_width = int(np.round(height * vp_width / vp_height))
-                        vp_image = Image.fromarray(vp_image).resize((vp_width, height))
-
-                        new_im: Union[Iterable, Image.Image] = Image.new('RGB', (width + vp_width + 4, height), (255, 255, 255))
-                        new_im.paste(frame_img, (0, 0))
-                        # new_im.paste(frame_img2, (width + 2, 0))
-                        new_im.paste(vp_image, ((width + 2), 0))
-
-                        # new_im.show()
-                        writer.writeFrame(np.asarray(new_im))
-                        # todo: remove this in the future
-                        # if frame_id >= 30: break
-                    print('')
-                    writer.close()
+    def output_exist(self):
+        if self.output_video.exists() and not self.overwrite:
+            print(f'  The data file "{self.get_tiles_json}" exist. Loading date.')
+            return True
+        return False
 
 
 class ViewportPSNR(GetTilesPath):
-    def videos_iterator(self):
+    def loop(self):
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
@@ -433,7 +458,7 @@ class ViewportPSNR(GetTilesPath):
                                 print(f'Decoding {self.segment_file=}. {turn = }', end='')
                                 yield
 
-    def work(self, overwrite=False):
+    def worker(self, overwrite=False):
         workfolder = self.workfolder / 'psnr_from_viewport'
         workfolder.mkdir(parents=True, exist_ok=True)
         dataset = load_json(self.dataset_json)
@@ -463,14 +488,14 @@ class ViewportPSNR(GetTilesPath):
                             continue
 
                         user_yaw_pitch_roll_iterator = iter(dataset[self.name][user])
-                        video_writer = skvideo.io.FFmpegWriter(output_video, inputdict={'-r': '30'},
-                                                               outputdict={'-crf': '0', '-r': '30',
-                                                                           '-pix_fmt': 'yuv420p'})
+                        video_writer = FFmpegWriter(output_video, inputdict={'-r': '30'},
+                                                    outputdict={'-crf': '0', '-r': '30',
+                                                                '-pix_fmt': 'yuv420p'})
 
                         for self.chunk in self.chunk_list:
                             # Foi um erro colocar isso na forma de lista. Remover o [0] um dia
                             tiles_seen_during_chunk: list[int] = get_tiles_data[self.vid_proj][self.name][self.tiling][user]['chunks'][0][self.chunk]
-                            dict_video_reader_for_each_seen_tiles = {str(self.tile): skvideo.io.FFmpegReader(f'{self.segment_file}').nextFrame()
+                            dict_video_reader_for_each_seen_tiles = {str(self.tile): FFmpegReader(f'{self.segment_file}').nextFrame()
                                                                      for self.tile in tiles_seen_during_chunk}
 
                             for _ in range(30):  # 30 frames per chunk
@@ -552,7 +577,7 @@ class ViewportMetrics(GetTilesPath, QualityAssessmentPaths):
                             for self.tile in self.tile_list:
                                 yield
 
-    def work(self, overwrite=False):
+    def worker(self, overwrite=False):
         get_tiles = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['chunks'][self.chunk]
 
         if int(self.tile) in get_tiles:
@@ -578,7 +603,7 @@ class ViewportMetrics(GetTilesPath, QualityAssessmentPaths):
         print(f'  Finished.')
 
 
-class ViewportMetrics_2(GetTilesPath):
+class TestDataset(GetTilesPath):
     def loop(self):
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
@@ -589,7 +614,7 @@ class ViewportMetrics_2(GetTilesPath):
                                 print(f'Decoding {self.segment_file=}. {turn = }', end='')
                                 yield
 
-    def work(self, overwrite=False):
+    def worker(self, overwrite=False):
         database = load_json(self.dataset_json)
 
         for self.video in self.videos_list:
@@ -620,7 +645,7 @@ class ViewportMetrics_2(GetTilesPath):
                             print(f'The output video {output_video} exist. Skipping')
                             continue
 
-                        video_writer = skvideo.io.FFmpegWriter(output_video, inputdict={'-r': '30'}, outputdict={'-crf': '0', '-r': '30', '-pix_fmt': 'yuv420p'})
+                        video_writer = FFmpegWriter(output_video, inputdict={'-r': '30'}, outputdict={'-crf': '0', '-r': '30', '-pix_fmt': 'yuv420p'})
 
                         yaw_pitch_roll_frames = iter(users_data[user])
 
@@ -628,8 +653,8 @@ class ViewportMetrics_2(GetTilesPath):
                             get_tiles_val: list[int] = get_tiles_data[self.vid_proj][self.name][self.tiling][user]['chunks'][0][
                                 self.chunk]  # Foi um erro colocar isso na forma de lista. Remover o [0] um dia
 
-                            tiles_reader: dict[str, skvideo.io.FFmpegReader] = {str(self.tile): skvideo.io.FFmpegReader(f'{self.segment_file}').nextFrame() for self.tile in
-                                                                                get_tiles_val}
+                            tiles_reader: dict[str, FFmpegReader] = {str(self.tile): FFmpegReader(f'{self.segment_file}').nextFrame() for self.tile in
+                                                                     get_tiles_val}
                             img_proj = np.zeros((proj_h, proj_w, n_channels), dtype='uint8')
 
                             for _ in range(30):  # 30 frames per chunk
@@ -670,19 +695,19 @@ class ViewportMetrics_2(GetTilesPath):
                         video_writer.close()
 
 
-class UserMetricsOptions(IntEnum):
+class UserMetricsOptions(Enum):
     PROCESS_NASRABADI = 0
-    USER_ANALISYS = 1
+    TEST_DATASET = 1
     GET_TILES = 2
-    VIEWPORT_METRICS = 3
-    TEST_VIEWPORT_VIDEO = 4
+    TEST_VIEWPORT_VIDEO = 3
+    USER_ANALISYS = 4
     PSNR_FROM_VIEWPORT = 5
 
 
 class UserMetrics(Base):
     operations = {'PROCESS_NASRABADI': ProcessNasrabadi,
-                  'USER_ANALISYS': ViewportMetrics_2,
+                  'TEST_DATASET': TestDataset,
                   'GET_TILES': GetTiles,
-                  'VIEWPORT_METRICS': ViewportMetrics,
                   'TEST_VIEWPORT_VIDEO': TestViewport,
+                  'USER_ANALISYS': TestDataset,
                   'PSNR_FROM_VIEWPORT': ViewportPSNR}
