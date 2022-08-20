@@ -95,11 +95,12 @@ class ProcessNasrabadi(GetTilesPath):
     dataset_final = AutoDict()
     _csv_dataset_file: Path
     previous_line: tuple
+    frame_counter: int
 
     def loop(self):
         print(f'Processing dataset {self.dataset_folder}.')
 
-        # if self.output_exist(): return
+        if self.output_exist(): return
 
         self.video_id_map = load_json(f'{self.dataset_json.parent}/videos_map.json')
         self.user_map = load_json(f'{self.dataset_json.parent}/usermap.json')
@@ -120,7 +121,7 @@ class ProcessNasrabadi(GetTilesPath):
         print(f'\rUser {self.user_id} - {self.video_name} - ', end='')
         for n, line in enumerate(self.head_movement.itertuples(index=False, name=None)):
             timestamp, Qx, Qy, Qz, Qw, Vx, Vy, Vz = map(float, line)
-            xyz = np.array([Vz, Vy, Vx])  # Based on gitHub code of author
+            xyz = np.array([Vx, -Vy, Vz])  # Based on paper
 
             try:
                 yaw_pitch_roll = self.process_vectors((timestamp, xyz))
