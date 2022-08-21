@@ -312,8 +312,6 @@ class TestViewport(GetTilesPath):
     _user: str
     dataset_data: dict
     erp_list: dict
-    reader: Generator
-    writer: FFmpegWriter
 
     def loop(self, get_tiles_type='chunk'):
         self.get_tiles_type = get_tiles_type
@@ -329,13 +327,12 @@ class TestViewport(GetTilesPath):
                 for self.user in self.users_list:
                     if self.output_exist(True): continue
                     yield
-                    self.writer.close()
-                    break
+                    continue
 
     def worker(self):
         print(f'{self.name} - tiling {self.tiling} - User {self.user}')
-        for frame_id, yaw_pitch_roll in zip(count(), self.user_data):
-            proj_frame = next(self.reader)
+        writer = self.writer
+        for frame_id,proj_frame, yaw_pitch_roll in zip(count(), self.reader, self.user_data):
             print(f'\rDrawing viewport. Frame {frame_id:04d}. ', end='')
 
             self.erp.viewport.rotate(yaw_pitch_roll)
@@ -383,11 +380,12 @@ class TestViewport(GetTilesPath):
             new_im.paste(vp_image, ((width + 2), 0))
 
             # new_im.show()
-            self.writer.writeFrame(np.asarray(new_im))
+            writer.writeFrame(np.asarray(new_im))
             # todo: remove this in the future
             # if frame_id >= 30: break
 
         print('')
+        writer.close()
 
     def output_exist(self, overwrite=False):
         if self.output_video.exists() and not overwrite:
@@ -426,7 +424,6 @@ class TestViewport(GetTilesPath):
         self.get_tiles_chunk = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['chunks']
         self.user_data = self.dataset_data[self.name][self.user]
 
-
     @property
     def output_video(self):
         return self.workfolder / f'{self.name}_{self.user}_{self.tiling}.mp4'
@@ -444,7 +441,6 @@ class TestViewport(GetTilesPath):
         folder = self.project_path / self.compressed_folder / basename
         input_video = folder / f'tile0.mp4'
         return FFmpegReader(f'{input_video}').nextFrame()
-
 
 
 class ViewportPSNR(GetTilesPath):
