@@ -328,14 +328,12 @@ class TestViewport(GetTilesPath):
                 if self.tiling == '1x1': continue
                 for self.user in self.users_list:
                     if self.output_exist(True): continue
-
                     yield
-                    if self.users_list.index(self.user) >= 1: continue
                     self.writer.close()
+                    break
 
     def worker(self):
         print(f'{self.name} - tiling {self.tiling} - User {self.user}')
-
         for frame_id, yaw_pitch_roll in zip(count(), self.user_data):
             proj_frame = next(self.reader)
             print(f'\rDrawing viewport. Frame {frame_id:04d}. ', end='')
