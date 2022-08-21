@@ -315,52 +315,6 @@ class TestViewport(GetTilesPath):
     reader: Generator
     writer: FFmpegWriter
 
-    @property
-    def video(self):
-        return self._video
-
-    @video.setter
-    def video(self, value):
-        self._video = value
-
-        self.get_tiles_data = load_json(self.get_tiles_json)
-        self.users_list = list(self.dataset_data[self.name].keys())
-
-    @property
-    def tiling(self):
-        return self._tiling
-
-    @tiling.setter
-    def tiling(self, value):
-        self._tiling = value
-        self.erp = self.erp_list[value]
-
-    @property
-    def user(self):
-        return self._user
-
-    @user.setter
-    def user(self, value):
-        self._user = value
-
-    @property
-    def writer(self):
-        return FFmpegWriter(self.output_video,
-                            inputdict={'-r': '30'},
-                            outputdict={'-r': '30', '-pix_fmt': 'yuv420p'})
-
-    @property
-    def output_video(self):
-        return self.workfolder / f'{self.name}_{self.user}_{self.tiling}.mp4'
-
-    @property
-    def reader(self):
-        basename = Path(f'{self.name}_{self.resolution}_{self.config["fps"]}_'
-                        f'1x1_crf28')
-        folder = self.project_path / self.compressed_folder / basename
-        input_video = folder / f'tile0.mp4'
-        return FFmpegReader(f'{input_video}').nextFrame()
-
     def loop(self, get_tiles_type='chunk'):
         self.get_tiles_type = get_tiles_type
         self.workfolder = self.workfolder / f'video_teste_by_{get_tiles_type}'
@@ -371,21 +325,19 @@ class TestViewport(GetTilesPath):
 
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
+                if self.tiling == '1x1': continue
                 for self.user in self.users_list:
+                    if self.output_exist(True): continue
+
                     yield
+                    if self.users_list.index(self.user) >= 1: continue
+                    self.writer.close()
 
     def worker(self):
         print(f'{self.name} - tiling {self.tiling} - User {self.user}')
 
-        if self.tiling == '1x1': return
-        if self.users_list.index(self.user) >= 1: return
-
-        get_tiles_frame = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['frame']
-        get_tiles_chunk = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['chunks']
-        user_data = self.dataset_data[self.name][self.user]
-
-
-        for frame_id, proj_frame, yaw_pitch_roll in zip(count(), self.reader, user_data):
+        for frame_id, yaw_pitch_roll in zip(count(), self.user_data):
+            proj_frame = next(self.reader)
             print(f'\rDrawing viewport. Frame {frame_id:04d}. ', end='')
 
             self.erp.viewport.rotate(yaw_pitch_roll)
@@ -400,9 +352,9 @@ class TestViewport(GetTilesPath):
             frame_img = Image.composite(cover, frame_img, mask=Image.fromarray(self.erp.projection))
 
             # Draw VP tiles by chunk
-            iterator = (get_tiles_chunk[str(frame_id // 30 + 1)]
+            iterator = (self.get_tiles_chunk[str(frame_id // 30 + 1)]
                         if self.get_tiles_type == 'chunk'
-                        else get_tiles_frame[frame_id])
+                        else self.get_tiles_frame[frame_id])
             self.erp.clear_projection()
             _ = [self.erp.draw_tile_border(idx=tile, lum=255) for tile in iterator]
             cover = Image.new("RGB", (width, height), (0, 255, 0))
@@ -438,13 +390,63 @@ class TestViewport(GetTilesPath):
             # if frame_id >= 30: break
 
         print('')
-        self.writer.close()
 
-    def output_exist(self):
-        if self.output_video.exists() and not self.overwrite:
-            print(f'  The data file "{self.get_tiles_json}" exist. Loading date.')
+    def output_exist(self, overwrite=False):
+        if self.output_video.exists() and not overwrite:
+            print(f'  The data file "{self.output_video}" exist. Loading date.')
             return True
         return False
+
+    @property
+    def video(self):
+        return self._video
+
+    @video.setter
+    def video(self, value):
+        self._video = value
+
+        self.get_tiles_data = load_json(self.get_tiles_json)
+        self.users_list = list(self.dataset_data[self.name].keys())
+
+    @property
+    def tiling(self):
+        return self._tiling
+
+    @tiling.setter
+    def tiling(self, value):
+        self._tiling = value
+        self.erp = self.erp_list[value]
+
+    @property
+    def user(self):
+        return self._user
+
+    @user.setter
+    def user(self, value):
+        self._user = value
+        self.get_tiles_frame = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['frame']
+        self.get_tiles_chunk = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['chunks']
+        self.user_data = self.dataset_data[self.name][self.user]
+
+
+    @property
+    def output_video(self):
+        return self.workfolder / f'{self.name}_{self.user}_{self.tiling}.mp4'
+
+    @property
+    def writer(self):
+        return FFmpegWriter(self.output_video,
+                            inputdict={'-r': '30'},
+                            outputdict={'-r': '30', '-pix_fmt': 'yuv420p'})
+
+    @property
+    def reader(self):
+        basename = Path(f'{self.name}_{self.resolution}_{self.config["fps"]}_'
+                        f'1x1_crf28')
+        folder = self.project_path / self.compressed_folder / basename
+        input_video = folder / f'tile0.mp4'
+        return FFmpegReader(f'{input_video}').nextFrame()
+
 
 
 class ViewportPSNR(GetTilesPath):
