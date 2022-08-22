@@ -61,10 +61,6 @@ class Factors:
 
     # <editor-fold desc="Main lists">
     @property
-    def fov(self) -> str:
-        return self.config['fov']
-
-    @property
     def videos_list(self) -> dict[str, dict[str, Union[int, float, str]]]:
         return self.config.videos_list
 
@@ -93,7 +89,7 @@ class Factors:
 
     @property
     def chunk_list(self) -> list[str]:
-        return list(map(str, range(1, int(self.chunk_dur) + 1)))
+        return list(map(str, range(1, int(self.duration) + 1)))
     # </editor-fold>
 
     # <editor-fold desc="Video Property">
@@ -149,6 +145,13 @@ class Factors:
     @property
     def metric_list(self) -> list[str]:
         return ['time', 'rate', 'time_std', 'PSNR', 'WS-PSNR', 'S-PSNR']
+
+    # GetTiles
+    @property
+    def fov(self) -> str:
+        return self.config['fov']
+
+
 
 
 class GlobalPaths(Factors, ABC):
