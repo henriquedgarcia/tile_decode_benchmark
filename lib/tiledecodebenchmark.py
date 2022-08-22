@@ -3,21 +3,8 @@ from logging import warning
 from pathlib import Path
 from typing import Any, Union
 
-from .assets2 import Config, Base, GlobalPaths
+from .assets2 import Base, GlobalPaths
 from .util2 import splitx, run_command, AutoDict, save_json
-
-config: Config
-
-
-class TileDecodeBenchmarkOptions(Enum):
-    PREPARE = 0
-    COMPRESS = 1
-    SEGMENT = 2
-    DECODE = 3
-    COLLECT_RESULTS = 4
-
-    def __repr__(self):
-        return str({self.value: self.name})
 
 
 class TileDecodeBenchmarkPaths(GlobalPaths):
@@ -34,9 +21,9 @@ class TileDecodeBenchmarkPaths(GlobalPaths):
     def basename(self):
         return Path(f'{self.name}_'
                     f'{self.resolution}_'
-                    f'{config["fps"]}_'
+                    f'{self.fps}_'
                     f'{self.tiling}_'
-                    f'{config["rate_control"]}{self.quality}')
+                    f'{self.config["rate_control"]}{self.quality}')
 
     @property
     def original_file(self) -> Path:
@@ -46,7 +33,7 @@ class TileDecodeBenchmarkPaths(GlobalPaths):
     def lossless_file(self) -> Path:
         folder = self.project_path / self.lossless_folder
         folder.mkdir(parents=True, exist_ok=True)
-        return folder / f'{self.video}_{self.resolution}_{config["fps"]}.mp4'
+        return folder / f'{self.video}_{self.resolution}_{self.config["fps"]}.mp4'
 
     @property
     def compressed_file(self) -> Path:
@@ -68,7 +55,7 @@ class TileDecodeBenchmarkPaths(GlobalPaths):
                         f'{self.resolution}_'
                         f'{self.fps}_'
                         f'{self.tiling}_'
-                        f'{config["rate_control"]}{config["original_quality"]}')
+                        f'{self.config["rate_control"]}{self.config["original_quality"]}')
         folder = self.project_path / self.segment_folder / basename
         return folder / f'tile{self.tile}_{int(self.chunk):03d}.mp4'
 
@@ -79,7 +66,7 @@ class TileDecodeBenchmarkPaths(GlobalPaths):
                         f'{self.resolution}_'
                         f'{self.fps}_'
                         f'{self.tiling}_'
-                        f'{config["rate_control"]}{config["original_quality"]}')
+                        f'{self.config["rate_control"]}{self.config["original_quality"]}')
         folder = self.project_path / self.compressed_folder / basename
         return folder / f'tile{self.tile}.mp4'
 
@@ -108,17 +95,11 @@ class TileDecodeBenchmarkPaths(GlobalPaths):
 
 
 class Prepare(TileDecodeBenchmarkPaths):
-    def video_context(self):
+    def loop(self):
         for self.video in self.videos_list:
             yield
 
-    def __init__(self):
-        self.print_resume()
-        for _ in self.video_context():
-            print(f'Preparing {self.lossless_file=}', end='')
-            self.prepare(overwrite=False)
-
-    def prepare(self, overwrite=False):
+    def worker(self, overwrite=False):
         original_file: Path = self.original_file
         lossless_file: Path = self.lossless_file
 
@@ -150,7 +131,7 @@ class Prepare(TileDecodeBenchmarkPaths):
 
 
 class Compress(TileDecodeBenchmarkPaths):
-    def videos_iterator(self):
+    def loop(self):
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
@@ -158,12 +139,7 @@ class Compress(TileDecodeBenchmarkPaths):
                         print(f'\r{self.compressed_file}', end='')
                         yield
 
-    def __init__(self):
-        self.print_resume()
-        for _ in self.videos_iterator():
-            self.work(overwrite=False)
-
-    def work(self, overwrite=False):
+    def worker(self, overwrite=False):
         if self.compressed_file.exists() and not overwrite:
             warning(f'The file {self.compressed_file} exist. Skipping.')
             return
@@ -176,7 +152,7 @@ class Compress(TileDecodeBenchmarkPaths):
         M, N = splitx(self.tiling)
         tw, th = int(pw / M), int(ph / N)
         tx, ty = int(self.tile) * tw, int(self.tile) * th
-        factor = config["rate_control"]
+        factor = self.config["rate_control"]
 
         cmd = ['bin/ffmpeg -hide_banner -y -psnr']
         cmd += [f'-i {self.lossless_file}']
@@ -198,7 +174,7 @@ class Compress(TileDecodeBenchmarkPaths):
 
 
 class Segment(TileDecodeBenchmarkPaths):
-    def videos_iterator(self):
+    def loop(self):
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
@@ -206,12 +182,7 @@ class Segment(TileDecodeBenchmarkPaths):
                         print(f'==== Processing {self.compressed_file} ====')
                         yield
 
-    def __init__(self):
-        self.print_resume()
-        for _ in self.videos_iterator():
-            self.work(overwrite=False)
-
-    def work(self, overwrite=False) -> Any:
+    def worker(self, overwrite=False) -> Any:
         segment_log = self.segment_file.with_suffix('.log')
 
         # If segment log size is very small, infers error and overwrite.
@@ -238,7 +209,7 @@ class Segment(TileDecodeBenchmarkPaths):
 
 
 class Decode(TileDecodeBenchmarkPaths):
-    def videos_iterator(self):
+    def loop(self):
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
@@ -248,12 +219,7 @@ class Decode(TileDecodeBenchmarkPaths):
                                 print(f'Decoding {self.segment_file=}. {turn = }', end='')
                                 yield
 
-    def __init__(self):
-        self.print_resume()
-        for _ in self.videos_iterator():
-            self.work(overwrite=False)
-
-    def work(self, overwrite=False) -> Any:
+    def worker(self, overwrite=False) -> Any:
         if self.dectime_log.exists():
             if self.decoding_num - self.count_decoding(self.dectime_log) <= 0 and not overwrite:
                 warning(f'  {self.segment_file} is decoded enough. Skipping.')
@@ -272,12 +238,27 @@ class Decode(TileDecodeBenchmarkPaths):
 
 
 class Result(TileDecodeBenchmarkPaths):
+    """
+       The result dict have a following structure:
+       results[video_name][tile_pattern][quality][tile_id][chunk_id]
+               ['times'|'rate']
+       [video_proj]    : The video projection
+       [video_name]    : The video name
+       [tile_pattern]  : The tile tiling. e.g. "6x4"
+       [quality]       : Quality. An int like in crf or qp.
+       [tile_id]           : the tile number. ex. max = 6*4
+       [chunk_id]           : the chunk number. Start with 1.
+
+       'times': list(float, float, float)
+       'rate': float
+       """
+
     skip_time: bool
     skip_rate: bool
     result_rate: AutoDict
     result_times: AutoDict
 
-    def videos_iterator(self, overwrite=False):
+    def loop(self, overwrite=False):
         for self.video in self.videos_list:
             if self.dectime_result_json.exists() and not overwrite:
                 self.skip_time = True
@@ -298,26 +279,7 @@ class Result(TileDecodeBenchmarkPaths):
 
             self.save_dectime()
 
-    def __init__(self):
-        """
-        The result dict have a following structure:
-        results[video_name][tile_pattern][quality][tile_id][chunk_id]
-                ['times'|'rate']
-        [video_proj]    : The video projection
-        [video_name]    : The video name
-        [tile_pattern]  : The tile tiling. e.g. "6x4"
-        [quality]       : Quality. An int like in crf or qp.
-        [tile_id]           : the tile number. ex. max = 6*4
-        [chunk_id]           : the chunk number. Start with 1.
-
-        'times': list(float, float, float)
-        'rate': float
-        """
-        self.print_resume()
-        for _ in self.videos_iterator(overwrite=False):
-            self.work()
-
-    def work(self) -> Any:
+    def worker(self) -> Any:
         if not self.skip_rate:
             result_rate = self.result_rate[self.vid_proj][self.name][self.tiling][self.quality][self.tile][self.chunk]
             if self.segment_file.exists():
@@ -350,6 +312,17 @@ class Result(TileDecodeBenchmarkPaths):
 
         filename = self.bitrate_result_json
         save_json(self.result_rate, filename)
+
+
+class TileDecodeBenchmarkOptions(Enum):
+    PREPARE = 0
+    COMPRESS = 1
+    SEGMENT = 2
+    DECODE = 3
+    COLLECT_RESULTS = 4
+
+    def __repr__(self):
+        return str({self.value: self.name})
 
 
 class TileDecodeBenchmark(Base):
