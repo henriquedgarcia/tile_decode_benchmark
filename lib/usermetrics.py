@@ -150,8 +150,8 @@ class ProcessNasrabadi(GetTilesPath):
         self.dataset_final[self.video_name][self.user_id] = yaw_pitch_roll_frames
         print(f'Samples {n:04d} - {self.frame_counter=} - {time.time() - start_time:0.3f} s.')
 
-    def output_exist(self):
-        if self.dataset_json.exists() and not self.overwrite:
+    def output_exist(self, overwrite):
+        if self.dataset_json.exists() and not overwrite:
             warning(f'The file {self.dataset_json} exist. Skipping.')
             return True
         return False
