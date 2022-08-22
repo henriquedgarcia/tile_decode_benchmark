@@ -1,15 +1,6 @@
 from enum import Enum
 from pathlib import Path
-from assets2 import Config, GlobalPaths
-
-global config
-config: Config
-
-
-class DectimeGraphsOptions(Enum):
-    USERS_METRICS = 0
-    VIEWPORT_METRICS = 1
-    GET_TILES = 2
+from assets2 import GlobalPaths, Base
 
 
 class DectimeGraphsPaths(GlobalPaths):
@@ -64,3 +55,20 @@ class DectimeGraphsPaths(GlobalPaths):
         """
         correlations_file = self.workfolder / f'correlations.csv'
         return correlations_file
+
+
+class MyClass(DectimeGraphsPaths):
+    pass
+
+
+class DectimeGraphsOptions(Enum):
+    USERS_METRICS = 0
+    VIEWPORT_METRICS = 1
+    GET_TILES = 2
+
+
+class DectimeGraphs(Base):
+    operations = {'PROCESS_NASRABADI': MyClass,
+                  'TEST_DATASET': MyClass,
+                  'GET_TILES': MyClass,
+                  }
