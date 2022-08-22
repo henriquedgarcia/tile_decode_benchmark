@@ -128,10 +128,10 @@ class Viewport:
 
 
         if yaw_pitch_roll is not None:
-            if self.yaw_pitch_roll == yaw_pitch_roll:
+            if tuple(self.yaw_pitch_roll) == tuple(yaw_pitch_roll):
                 return
-            self.mat = rot_matrix(yaw_pitch_roll)
-            self.yaw_pitch_roll = yaw_pitch_roll
+            self.yaw_pitch_roll = np.array(yaw_pitch_roll)
+            self.mat = rot_matrix(self.yaw_pitch_roll)
 
         H, W = self.vp_shape[:2]
         vp_coord_xyz_list = self.vp_coord_xyz.reshape(-1, 3).T
