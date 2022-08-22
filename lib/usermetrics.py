@@ -102,9 +102,9 @@ class GetTilesPath(TileDecodeBenchmarkPaths, ABC):
 
     @property
     def viewport_psnr_file(self) -> Path:
-        folder = self.workfolder / f'{self.vid_proj}_{self.name}_{self.tiling}_CRF{self.quality}'
+        folder = self.workfolder / f'{self.vid_proj}_{self.name}_{self.tiling}'
         folder.mkdir(parents=True, exist_ok=True)
-        return folder / f"user{self.user}.mp4"
+        return folder / f"user{self.user}_CRF{self.quality}.mp4"
 
 
 class ProcessNasrabadi(GetTilesPath):
