@@ -2,17 +2,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Union
 
-from .assets2 import Config
+from .assets2 import Base
 from .tiledecodebenchmark import TileDecodeBenchmarkPaths
-
-global config
-config: Config
-
-
-class QualityAssessmentOptions(Enum):
-    USERS_METRICS = 0
-    VIEWPORT_METRICS = 1
-    GET_TILES = 2
 
 
 class QualityAssessmentPaths(TileDecodeBenchmarkPaths):
@@ -30,3 +21,21 @@ class QualityAssessmentPaths(TileDecodeBenchmarkPaths):
         folder = self.project_path / self.quality_folder
         folder.mkdir(parents=True, exist_ok=True)
         return folder / f'quality_{self.video}.json'
+
+
+class MyClass(QualityAssessmentPaths):
+    pass
+
+
+
+class QualityAssessmentOptions(Enum):
+    USERS_METRICS = 0
+    VIEWPORT_METRICS = 1
+    GET_TILES = 2
+
+
+class DectimeGraphs(Base):
+    operations = {'PROCESS_NASRABADI': MyClass,
+                  'TEST_DATASET': MyClass,
+                  'GET_TILES': MyClass,
+                  }
