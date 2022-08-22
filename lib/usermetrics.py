@@ -4,7 +4,7 @@ from enum import Enum
 from itertools import count
 from logging import warning
 from pathlib import Path
-from typing import Iterable, Generator, Union
+from typing import Iterable, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -100,6 +100,12 @@ class GetTilesPath(TileDecodeBenchmarkPaths, ABC):
         names = ['timestamp', 'Qx', 'Qy', 'Qz', 'Qw', 'Vx', 'Vy', 'Vz']
         self.head_movement = pd.read_csv(self.csv_dataset_file, names=names)
 
+    @property
+    def viewport_psnr_file(self) -> Path:
+        folder = self.workfolder / f'{self.vid_proj}_{self.name}_{self.tiling}'
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f"user{self.user}_CRF{self.quality}.mp4"
+
 
 class ProcessNasrabadi(GetTilesPath):
     csv_dataset_file: Path
@@ -113,7 +119,7 @@ class ProcessNasrabadi(GetTilesPath):
     def loop(self):
         print(f'Processing dataset {self.dataset_folder}.')
 
-        if self.output_exist(): return
+        if self.output_exist(True): return
 
         self.video_id_map = load_json(f'{self.dataset_json.parent}/videos_map.json')
         self.user_map = load_json(f'{self.dataset_json.parent}/usermap.json')
@@ -333,7 +339,7 @@ class TestViewport(GetTilesPath):
     def worker(self):
         print(f'{self.name} - tiling {self.tiling} - User {self.user}')
         writer = self.writer
-        for frame_id,proj_frame, yaw_pitch_roll in zip(count(), self.reader, self.user_data):
+        for frame_id, proj_frame, yaw_pitch_roll in zip(count(), self.reader, self.user_data):
             print(f'\rDrawing viewport. Frame {frame_id:04d}. ', end='')
 
             self.erp.viewport.rotate(yaw_pitch_roll)
@@ -401,7 +407,6 @@ class TestViewport(GetTilesPath):
     @video.setter
     def video(self, value):
         self._video = value
-
         self.get_tiles_data = load_json(self.get_tiles_json)
         self.users_list = list(self.dataset_data[self.name].keys())
 
@@ -445,81 +450,119 @@ class TestViewport(GetTilesPath):
 
 
 class ViewportPSNR(GetTilesPath):
+    _tiling: str
+    _video: str
+    _tile: str
+    _user: str
+    _quality: str
+    dataset_data: dict
+    erp_list: dict
+
     def loop(self):
-        for self.video in self.videos_list:
-            for self.tiling in self.tiling_list:
-                for self.quality in self.quality_list:
-                    for turn in range(self.decoding_num):
-                        for self.tile in self.tiling_list:
-                            for self.chunk in self.chunk_list:
-                                print(f'Decoding {self.segment_file=}. {turn = }', end='')
-                                yield
-
-    def worker(self, overwrite=False):
-        workfolder = self.workfolder / 'psnr_from_viewport'
-        workfolder.mkdir(parents=True, exist_ok=True)
-        dataset = load_json(self.dataset_json)
-        quality_list = ['0'] + self.quality_list
+        self.workfolder = self.workfolder / 'psnr_from_viewport'
+        self.workfolder.mkdir(parents=True, exist_ok=True)
+        self.dataset = load_json(self.dataset_json)
 
         for self.video in self.videos_list:
-            get_tiles_data = load_json(self.get_tiles_json)
-
             for self.tiling in self.tiling_list:
                 if self.tiling == '1x1':
                     print(f'Skipping 1x1 for {self.name}')
                     continue  # Remover depois
 
-                erp = ERP(self.tiling, self.resolution, self.fov)
-                (proj_h, proj_w), n_channels = erp.shape, 3
-                tile_h, tile_w = erp.vp_shape[:2]
+                for self.user in self.users_list:
+                    for self.quality in self.quality_list:
+                        if self.output_exist(False): continue
+                        yield
+                        return
 
-                folder = workfolder / f'{self.vid_proj}_{self.name}_{self.tiling}'
-                folder.mkdir(parents=True, exist_ok=True)
+    def worker(self, overwrite=False):
+        video_writer = FFmpegWriter(self.viewport_psnr_file, inputdict={'-r': '30'}, outputdict={'-crf': '0', '-r': '30', '-pix_fmt': 'yuv420p'})
+        tiles_seen_chunk = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['chunks']
+        proj_frame = np.zeros(self.video_shape, dtype='uint8')
 
-                for user in dataset[self.name].keys():
-                    for self.quality in quality_list:
+        frame = -1
+        for self.chunk in self.chunk_list:
+            readers = {}
 
-                        output_video = folder / f"user{user}_CRF{self.quality}.mp4"
-                        if not overwrite and output_video.exists():
-                            print(f'The output video {output_video} exist. Skipping')
-                            continue
+            # Operations by frame
+            for _ in range(int(self.fps)):  # 30 frames per chunk
+                start = time.time()
+                frame += 1
+                proj_frame[:] = 0
 
-                        user_yaw_pitch_roll_iterator = iter(dataset[self.name][user])
-                        video_writer = FFmpegWriter(output_video, inputdict={'-r': '30'},
-                                                    outputdict={'-crf': '0', '-r': '30',
-                                                                '-pix_fmt': 'yuv420p'})
+                # <editor-fold desc="Build projection frame">
+                for self.tile in map(str, tiles_seen_chunk[self.chunk]):  # todo:ver se é string mesmo
+                    try:
+                        tile_frame = next(readers[self.tile])
+                    except KeyError:
+                        readers[self.tile] = FFmpegReader(f'{self.segment_file}').nextFrame()
+                        tile_frame = next(readers[self.tile])
+                    tile_y, tile_x = self.erp.tiles_position[(int(self.tile))]
+                    proj_frame[tile_y:tile_y + self.tile_h, tile_x:tile_x + self.tile_w, :] = tile_frame
+                # </editor-fold>
+                viewport_frame = self.erp.get_viewport(proj_frame,
+                                                       self.dataset[self.name][self.user][frame])  # .astype('float64')
+                video_writer.writeFrame(viewport_frame)
 
-                        for self.chunk in self.chunk_list:
-                            # Foi um erro colocar isso na forma de lista. Remover o [0] um dia
-                            tiles_seen_during_chunk: list[int] = get_tiles_data[self.vid_proj][self.name][self.tiling][user]['chunks'][0][self.chunk]
-                            dict_video_reader_for_each_seen_tiles = {str(self.tile): FFmpegReader(f'{self.segment_file}').nextFrame()
-                                                                     for self.tile in tiles_seen_during_chunk}
+                print(f'time to process frame =  {time.time() - start: 0.3f} s')
+                print('')
 
-                            for _ in range(30):  # 30 frames per chunk
-                                proj_frame = np.zeros((proj_h, proj_w, n_channels), dtype='uint8')
+        print('')
+        video_writer.close()
 
-                                # <editor-fold desc="Build projection frame">
-                                start = time.time()
-                                for self.tile in map(str, tiles_seen_during_chunk):
-                                    tile_frame = next(dict_video_reader_for_each_seen_tiles[self.tile])
+    @property
+    def quality(self):
+        return self._quality
 
-                                    tile_y, tile_x = erp.tiles_position(int(self.tile))
-                                    proj_frame[tile_y:tile_y + tile_h, tile_x:tile_x + tile_w, :] = tile_frame
+    @quality.setter
+    def quality(self, value):
+        self._quality = value
+        self.get_tiles_data = load_json(self.get_tiles_json)
+        self.users_list = list(self.dataset[self.name].keys())
+        self.erp_list = {tiling: ERP(tiling, self.resolution, self.fov) for tiling in self.tiling_list}
 
-                                print(f'Time to mount 1 frame {time.time() - start: 0.3f} s')
-                                # </editor-fold>
+    @property
+    def user(self):
+        return self._user
 
-                                start = time.time()
-                                yaw_pitch_roll = next(user_yaw_pitch_roll_iterator)
-                                viewport_frame = erp.get_viewport(proj_frame, yaw_pitch_roll)  # .astype('float64')
-                                print(f'time to extract vp =  {time.time() - start: 0.3f} s')
+    @user.setter
+    def user(self, value):
+        self._user = value
 
-                                video_writer.writeFrame(viewport_frame)
+    @property
+    def video(self):
+        return self._video
 
-                            video_writer.close()
-                            exit()  # todo: remover
-                        print('')
-                        video_writer.close()
+    @video.setter
+    def video(self, value):
+        self._video = value
+        self.get_tiles_data = load_json(self.get_tiles_json)
+        self.users_list = list(self.dataset[self.name])
+        self.erp_list = {tiling: ERP(tiling, self.resolution, self.fov) for tiling in self.tiling_list}
+
+    @property
+    def tile(self):
+        return self._tile
+
+    @tile.setter
+    def tile(self, value):
+        self._tile = value
+
+    @property
+    def tiling(self):
+        return self._tiling
+
+    @tiling.setter
+    def tiling(self, value):
+        self._tiling = value
+        self.erp = self.erp_list[self.tiling]
+        self.tile_h, self.tile_w = self.erp.tile_res[:2]
+
+    def output_exist(self, overwrite=False):
+        if self.viewport_psnr_file.exists() and not overwrite:
+            print(f'  The data file "{self.viewport_psnr_file}" exist.')
+            return True
+        return False
 
 
 class ViewportMetrics(GetTilesPath, QualityAssessmentPaths):
@@ -697,8 +740,8 @@ class UserMetricsOptions(Enum):
     TEST_DATASET = 1
     GET_TILES = 2
     TEST_VIEWPORT_VIDEO = 3
-    USER_ANALISYS = 4
-    PSNR_FROM_VIEWPORT = 5
+    PSNR_FROM_VIEWPORT = 4
+    USER_ANALISYS = 5
 
 
 class UserMetrics(Base):
@@ -706,5 +749,6 @@ class UserMetrics(Base):
                   'TEST_DATASET': TestDataset,
                   'GET_TILES': GetTiles,
                   'TEST_VIEWPORT_VIDEO': TestViewport,
+                  'PSNR_FROM_VIEWPORT': ViewportPSNR,
                   'USER_ANALISYS': TestDataset,
-                  'PSNR_FROM_VIEWPORT': ViewportPSNR}
+                  }
