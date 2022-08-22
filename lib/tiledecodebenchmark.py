@@ -25,6 +25,7 @@ class TileDecodeBenchmarkPaths(GlobalPaths):
     original_folder = Path('original')
     lossless_folder = Path('lossless')
     compressed_folder = Path('compressed')
+    segment_folder = Path('segment')
     _viewport_folder = Path('viewport')
     _siti_folder = Path('siti')
     _check_folder = Path('check')

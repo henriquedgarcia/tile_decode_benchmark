@@ -16,6 +16,8 @@ class QualityAssessmentOptions(Enum):
 
 
 class QualityAssessmentPaths(TileDecodeBenchmarkPaths):
+    quality_folder = Path('quality')
+
     @property
     def quality_video_csv(self) -> Union[Path, None]:
         folder = self.project_path / self.quality_folder / self.basename

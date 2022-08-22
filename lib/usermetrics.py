@@ -30,6 +30,7 @@ rotation_map = {'cable_cam_nas': 265 / 180 * pi, 'drop_tower_nas': 180 / 180 * p
 
 
 class GetTilesPath(TileDecodeBenchmarkPaths, ABC):
+    get_tiles_folder = Path('get_tiles')
     dataset_folder: Path
     video_id_map: dict
     user_map: dict

@@ -13,6 +13,8 @@ class DectimeGraphsOptions(Enum):
 
 
 class DectimeGraphsPaths(GlobalPaths):
+    graphs_folder = Path('graphs')
+
     @property
     def workfolder(self) -> Path:
         folder = self.project_path / self.graphs_folder / f'{self.__class__.__name__}'

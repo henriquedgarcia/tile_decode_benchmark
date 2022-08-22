@@ -3,7 +3,6 @@ import numpy as np
 from collections  import defaultdict
 import json
 from pathlib import Path
-from typing import Type
 from enum import Enum
 import pandas as pd
 from typing import Union, Callable
@@ -58,6 +57,7 @@ class Factors:
     proj: str = None
     _name_list: list[str]
     config: Config
+    user: int
 
     # <editor-fold desc="Main lists">
     @property
@@ -154,13 +154,6 @@ class Factors:
 class GlobalPaths(Factors, ABC):
     overwrite = False
     dectime_folder = Path('dectime')
-    get_tiles_folder = Path('get_tiles')
-    quality_folder = Path('quality')
-    segment_folder = Path('segment')
-    graphs_folder = Path('graphs')
-    dataset_folder: Path
-    workfolder_data: Path
-    workfolder: Path
 
     @property
     def project_path(self) -> Path:
