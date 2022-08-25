@@ -466,7 +466,7 @@ class ViewportPSNR(GetTilesPath):
             for self.tiling in self.tiling_list:
                 for self.user in self.users_list:
                     for self.quality in self.quality_list:
-                        if self.output_exist(True): continue
+                        if self.output_exist(False): continue
                         yield
                         # return  # todo: remover
 
@@ -488,6 +488,9 @@ class ViewportPSNR(GetTilesPath):
 
                 # <editor-fold desc="Build projection frame">
                 for self.tile in map(str, self.tiles_seen_chunk[self.chunk]):
+                    if not self.segment_file.exists():
+                        print(f'The segment {self.segment_file} not found. Skipping')
+                        continue
                     try:
                         tile_frame = next(readers[self.tile])
                     except KeyError:
