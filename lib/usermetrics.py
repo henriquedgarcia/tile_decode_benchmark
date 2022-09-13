@@ -480,7 +480,7 @@ class ViewportPSNR(GetTilesPath):
                 warning(f'\n    there are not readers for key [crf{self.quality}][tile{self.tile}]')
                 try:
                     warning(f'    {self.segment_file =} - {self.segment_file.stat().st_size: ,} bytes')
-                    self.readers[self.quality][self.tile] = vreader(f'{self.segment_file}',height=self.video_shape[0], width=self.video_shape[1])
+                    self.readers[self.quality][self.tile] = vreader(f'{self.segment_file}',height=self.video_shape[0], width=self.video_shape[1], backend='libav')
                     tile_frame = next(self.readers[self.quality][self.tile])
                 except FileNotFoundError:
                     warning(f'    The segment {self.segment_file} not found. Skipping')
