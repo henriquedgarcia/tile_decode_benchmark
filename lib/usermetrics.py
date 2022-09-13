@@ -477,15 +477,15 @@ class ViewportPSNR(GetTilesPath):
             try:
                 tile_frame = next(self.readers[self.quality][self.tile])
             except (KeyError, TypeError):
-                warning(f'there are not readers for key [{self.quality}][{self.tile}]')
+                warning(f'\n    there are not readers for key [crf{self.quality}][tile{self.tile}]')
                 try:
                     videogen = FFmpegReader(f'{self.segment_file}', inputdict={'-s': self.resolution})
-                    warning(f'{self.segment_file =} - {self.segment_file.stat().st_size: ,} bytes - shape = {videogen.getShape()}')
+                    warning(f'    {self.segment_file =} - {self.segment_file.stat().st_size: ,} bytes - shape = {videogen.getShape()}')
                     self.readers[self.quality][self.tile] = videogen.nextFrame()
+                    tile_frame = next(self.readers[self.quality][self.tile])
                 except FileNotFoundError:
-                    warning(f'The segment {self.segment_file} not found. Skipping')
+                    warning(f'    The segment {self.segment_file} not found. Skipping')
                     continue
-                tile_frame = next(self.readers[self.quality][self.tile])
             tile_y, tile_x = self.erp.tiles_position[(int(self.tile))]
             proj_frame[tile_y:tile_y + self.tile_h, tile_x:tile_x + self.tile_w, :] = tile_frame
 
