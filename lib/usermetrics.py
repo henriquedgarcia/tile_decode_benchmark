@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from PIL import Image
-from skvideo.io import FFmpegWriter, FFmpegReader
+from skvideo.io import FFmpegWriter, FFmpegReader, vreader
 from skvideo.measure import psnr, ssim, mse
 
 from .assets2 import Base
@@ -479,12 +479,14 @@ class ViewportPSNR(GetTilesPath):
             except (KeyError, TypeError):
                 warning(f'\n    there are not readers for key [crf{self.quality}][tile{self.tile}]')
                 try:
-                    videogen = FFmpegReader(f'{self.segment_file}', inputdict={'-s': self.resolution})
-                    warning(f'    {self.segment_file =} - {self.segment_file.stat().st_size: ,} bytes - shape = {videogen.getShape()}')
-                    self.readers[self.quality][self.tile] = videogen.nextFrame()
+                    warning(f'    {self.segment_file =} - {self.segment_file.stat().st_size: ,} bytes')
+                    self.readers[self.quality][self.tile] = vreader(f'{self.segment_file}')
                     tile_frame = next(self.readers[self.quality][self.tile])
                 except FileNotFoundError:
                     warning(f'    The segment {self.segment_file} not found. Skipping')
+                    continue
+                except StopIteration:
+                    warning(f'    self.readers[crf{self.quality}][tile{self.tile}] stopped iteration. Skipping')
                     continue
             tile_y, tile_x = self.erp.tiles_position[(int(self.tile))]
             proj_frame[tile_y:tile_y + self.tile_h, tile_x:tile_x + self.tile_w, :] = tile_frame
