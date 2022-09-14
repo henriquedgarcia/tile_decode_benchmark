@@ -485,10 +485,6 @@ class ViewportPSNR(GetTilesPath):
                 except FileNotFoundError:
                     warning(f'    The segment {self.segment_file} not found. Skipping')
                     continue
-                except StopIteration:
-                    warning(f'    ATTENTION!!')
-                    warning(f'    self.readers[crf{self.quality}][tile{self.tile}] stopped iteration. Skipping.')
-                    break
             tile_y, tile_x = self.erp.tiles_position[(int(self.tile))]
             proj_frame[tile_y:tile_y + self.tile_h, tile_x:tile_x + self.tile_w, :] = tile_frame
 
@@ -502,46 +498,64 @@ class ViewportPSNR(GetTilesPath):
 
         frame = -1
         sse_frame = AutoDict()
-        for self.chunk in self.chunk_list:
-            print(f'\rProcessing {self.name}_{self.tiling}_user{self.user}_chunk{self.chunk}')
-            self.readers = AutoDict()
-            start = time.time()
+        try:
+            for self.chunk in self.chunk_list:
+                print(
+                    f'\rProcessing {self.name}_{self.tiling}_user{self.user}_chunk{self.chunk}')
+                self.readers = AutoDict()
+                start = time.time()
 
-            # Operations by frame
-            for _ in range(int(self.fps)):  # 30 frames per chunk
-                frame += 1
-                print(f'\r    {frame=} - ', end='')
-                proj_frame[:] = 0
-                tiles_list = list(map(str, self.tiles_seen_chunk[self.chunk]))
-
-                # <editor-fold desc="Build projection frame">
-                # Build reference frame
-                proj_frame_ref[:] = 0
-                self.mount_frame(proj_frame_ref, tiles_list, '0')
-                viewport_frame_ref = self.erp.get_viewport(proj_frame_ref, self.yaw_pitch_roll_frames[frame])  # .astype('float64')
-
-                for quality in self.quality_list:
-                    if quality == '0': continue
-                    # start2 = time.time()
+                # Operations by frame
+                for _ in range(int(self.fps)):  # 30 frames per chunk
+                    frame += 1
+                    print(f'\r    {frame=} - ', end='')
                     proj_frame[:] = 0
+                    tiles_list = list(map(str, self.tiles_seen_chunk[self.chunk]))
 
-                    self.mount_frame(proj_frame, tiles_list, quality)
-                    viewport_frame = self.erp.get_viewport(proj_frame, self.yaw_pitch_roll_frames[frame])  # .astype('float64')
+                    # <editor-fold desc="Build projection frame">
+                    # Build reference frame
+                    proj_frame_ref[:] = 0
+                    self.mount_frame(proj_frame_ref, tiles_list, '0')
+                    viewport_frame_ref = self.erp.get_viewport(
+                        proj_frame_ref, self.yaw_pitch_roll_frames[frame])  # .astype('float64')
 
-                    mse = np.average((viewport_frame_ref - viewport_frame)**2)
-                    psnr =  10 * np.log10((255. ** 2 / mse))
-                    try:
-                        sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['psnr'].append(psnr)
-                        sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['mse'].append(mse)
-                    except AttributeError:
-                        sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['psnr'] = [psnr]
-                        sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['mse'] = [mse]
-                    # print(f'time to process frame = {time.time()-start2}')
-                    # print('')
-                # </editor-fold>
-            print('')
-            print(f'time to process chunk = {time.time() - start: 0.3f} s')
-        save_json(sse_frame,self.viewport_psnr_file)
+                    for quality in self.quality_list:
+                        if quality == '0':
+                            continue
+                        # start2 = time.time()
+                        proj_frame[:] = 0
+
+                        self.mount_frame(proj_frame, tiles_list, quality)
+                        viewport_frame = self.erp.get_viewport(
+                            proj_frame, self.yaw_pitch_roll_frames[frame])  # .astype('float64')
+
+                        mse = np.average(
+                            (viewport_frame_ref - viewport_frame)**2)
+                        psnr = 10 * np.log10((255. ** 2 / mse))
+                        try:
+                            sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['psnr'].append(
+                                psnr)
+                            sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['mse'].append(
+                                mse)
+                        except AttributeError:
+                            sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['psnr'] = [
+                                psnr]
+                            sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['mse'] = [
+                                mse]
+                        # print(f'time to process frame = {time.time()-start2}')
+                        # print('')
+                    # </editor-fold>
+                print('')
+                print(f'time to process chunk = {time.time() - start: 0.3f} s')
+
+        except StopIteration:
+            warning(
+                f'    self.readers[crf{self.quality}][tile{self.tile}] stopped iteration. Skipping')
+            self.viewport_psnr_file.write_text(
+                f'StopIteration: context [{self.video}][{self.tiling}][user{self.user}][crf{self.quality}]')
+
+            return
+        save_json(sse_frame, self.viewport_psnr_file)
         # video_writer.close()
 
     @property
