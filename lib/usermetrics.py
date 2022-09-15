@@ -13,7 +13,7 @@ import pandas as pd
 from PIL import Image
 from skvideo.io import FFmpegWriter, FFmpegReader
 
-import viewport as vp
+import lib.viewport as vp
 from .assets2 import Base
 from .qualityassessment import QualityAssessmentPaths
 from .tiledecodebenchmark import TileDecodeBenchmarkPaths
@@ -478,8 +478,8 @@ class ViewportPSNR(GetTilesPath):
             try:
                 tile_frame = self.readers[self.quality][self.tile].read()[1]
             except (KeyError, TypeError, AttributeError):
-                print(f'    Loading {self.segment_file =} - {self.segment_file.stat().st_size: ,} bytes')
                 try:
+                    print(f'    Loading {self.segment_file.parents[0].name}/{self.segment_file.name} - {self.segment_file.stat().st_size: ,} bytes')
                     self.readers[self.quality][self.tile] = cv.VideoCapture(f'{self.segment_file}')
                     tile_frame = self.readers[self.quality][self.tile].read()[1]
                 except FileNotFoundError:
@@ -528,7 +528,7 @@ class ViewportPSNR(GetTilesPath):
                         except AttributeError:
                             sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['psnr'] = [psnr]
                             sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['mse'] = [mse]
-                    print(f'\r    {frame = } - {start: 0.3f} s', end='')
+                    print(f'\r    {frame = } - {time.time()-start: 0.3f} s', end='')
 
         except StopIteration:
             print(f'    WARNING: self.readers[crf{self.quality}][tile{self.tile}] stopped iteration. Skipping')
