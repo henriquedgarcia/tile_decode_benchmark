@@ -6,18 +6,18 @@ from logging import warning
 from pathlib import Path
 from typing import Iterable, Union
 
+import cv2 as cv
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from PIL import Image
-from skvideo.io import FFmpegWriter, FFmpegReader, vreader
-from skvideo.measure import psnr, ssim, mse
+from skvideo.io import FFmpegWriter, FFmpegReader
 
+import viewport as vp
 from .assets2 import Base
 from .qualityassessment import QualityAssessmentPaths
 from .tiledecodebenchmark import TileDecodeBenchmarkPaths
 from .util2 import load_json, save_json, splitx, AutoDict, cart2hcs, lin_interpol, idx2xy
-from .viewport import ERP
 
 pi = np.pi
 pi2 = np.pi * 2
@@ -202,7 +202,7 @@ class GetTiles(GetTilesPath):
         self.results = AutoDict()
 
     def loop(self, overwrite=False):
-        self.erp_list = {self.tiling: ERP(self.tiling, '576x288', self.fov) for self.tiling in self.tiling_list}
+        self.erp_list = {self.tiling: vp.ERP(self.tiling, '576x288', self.fov) for self.tiling in self.tiling_list}
         self.dataset = load_json(self.dataset_json)
 
         for self.video in self.videos_list:
@@ -318,6 +318,7 @@ class TestViewport(GetTilesPath):
     _tiling: str
     _video: str
     _user: str
+    get_tiles_type: str
     dataset_data: dict
     erp_list: dict
 
@@ -327,7 +328,7 @@ class TestViewport(GetTilesPath):
         self.workfolder.mkdir(parents=True, exist_ok=True)
 
         self.dataset_data = load_json(self.dataset_json)
-        self.erp_list = {tiling: ERP(tiling, '576x288', self.fov) for tiling in self.tiling_list}
+        self.erp_list = {tiling: vp.ERP(tiling, '576x288', self.fov) for tiling in self.tiling_list}
 
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
@@ -456,7 +457,9 @@ class ViewportPSNR(GetTilesPath):
     _user: str
     _quality: str
     dataset_data: dict
+    dataset: dict
     erp_list: dict
+    readers: AutoDict
 
     def loop(self):
         self.workfolder = self.workfolder / 'viewport_videos'
@@ -468,27 +471,22 @@ class ViewportPSNR(GetTilesPath):
                 for self.user in self.users_list:
                     if self.output_exist(False): continue
                     yield
-                    # return  # todo: remover
 
     def mount_frame(self, proj_frame, tiles_list, quality):
         self.quality = quality
-
         for self.tile in tiles_list:
             try:
-                tile_frame = next(self.readers[self.quality][self.tile])
-            except (KeyError, TypeError):
-                warning(f'\n    there are not readers for key [crf{self.quality}][tile{self.tile}]')
+                tile_frame = self.readers[self.quality][self.tile].read()[1]
+            except (KeyError, TypeError, AttributeError):
+                print(f'    Loading {self.segment_file =} - {self.segment_file.stat().st_size: ,} bytes')
                 try:
-                    warning(f'    {self.segment_file =} - {self.segment_file.stat().st_size: ,} bytes')
-                    self.readers[self.quality][self.tile] = vreader(f'{self.segment_file}',height=self.video_shape[0], width=self.video_shape[1])
-                    tile_frame = next(self.readers[self.quality][self.tile])
+                    self.readers[self.quality][self.tile] = cv.VideoCapture(f'{self.segment_file}')
+                    tile_frame = self.readers[self.quality][self.tile].read()[1]
                 except FileNotFoundError:
-                    warning(f'    The segment {self.segment_file} not found. Skipping')
+                    print(f'    WARNING: The segment {self.segment_file} not found. Skipping')
                     continue
             tile_y, tile_x = self.erp.tiles_position[(int(self.tile))]
             proj_frame[tile_y:tile_y + self.tile_h, tile_x:tile_x + self.tile_w, :] = tile_frame
-
-        return proj_frame
 
     def worker(self, overwrite=False):
         # video_writer = FFmpegWriter(self.viewport_psnr_file, inputdict={'-r': '30'},
@@ -496,63 +494,45 @@ class ViewportPSNR(GetTilesPath):
         proj_frame = np.zeros(self.video_shape, dtype='uint8')
         proj_frame_ref = np.zeros(self.video_shape, dtype='uint8')
 
-        frame = -1
+        counter = count()
         sse_frame = AutoDict()
         try:
             for self.chunk in self.chunk_list:
-                print(
-                    f'\rProcessing {self.name}_{self.tiling}_user{self.user}_chunk{self.chunk}')
+                print(f'Processing {self.name}_{self.tiling}_user{self.user}_chunk{self.chunk}')
                 self.readers = AutoDict()
+                tiles_list = list(map(str, self.tiles_seen_chunk[self.chunk]))
+                proj_frame[:] = 0
+                proj_frame_ref[:] = 0
                 start = time.time()
 
                 # Operations by frame
                 for _ in range(int(self.fps)):  # 30 frames per chunk
-                    frame += 1
-                    print(f'\r    {frame=} - ', end='')
-                    proj_frame[:] = 0
-                    tiles_list = list(map(str, self.tiles_seen_chunk[self.chunk]))
+                    frame = next(counter)
 
-                    # <editor-fold desc="Build projection frame">
-                    # Build reference frame
-                    proj_frame_ref[:] = 0
+                    # Build reference frame and get vp
                     self.mount_frame(proj_frame_ref, tiles_list, '0')
-                    viewport_frame_ref = self.erp.get_viewport(
-                        proj_frame_ref, self.yaw_pitch_roll_frames[frame])  # .astype('float64')
+                    viewport_frame_ref = self.erp.get_viewport(proj_frame_ref, self.yaw_pitch_roll_frames[frame])  # .astype('float64')
 
                     for quality in self.quality_list:
-                        if quality == '0':
-                            continue
-                        # start2 = time.time()
-                        proj_frame[:] = 0
+                        if quality == '0': continue
 
                         self.mount_frame(proj_frame, tiles_list, quality)
-                        viewport_frame = self.erp.get_viewport(
-                            proj_frame, self.yaw_pitch_roll_frames[frame])  # .astype('float64')
+                        viewport_frame = self.erp.get_viewport(proj_frame, self.yaw_pitch_roll_frames[frame])  # .astype('float64')
 
-                        mse = np.average(
-                            (viewport_frame_ref - viewport_frame)**2)
+                        mse = np.average((viewport_frame_ref - viewport_frame) ** 2)
                         psnr = 10 * np.log10((255. ** 2 / mse))
+
                         try:
-                            sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['psnr'].append(
-                                psnr)
-                            sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['mse'].append(
-                                mse)
+                            sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['psnr'].append(psnr)
+                            sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['mse'].append(mse)
                         except AttributeError:
-                            sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['psnr'] = [
-                                psnr]
-                            sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['mse'] = [
-                                mse]
-                        # print(f'time to process frame = {time.time()-start2}')
-                        # print('')
-                    # </editor-fold>
-                print('')
-                print(f'time to process chunk = {time.time() - start: 0.3f} s')
+                            sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['psnr'] = [psnr]
+                            sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['mse'] = [mse]
+                    print(f'\r    {frame = } - {start: 0.3f} s', end='')
 
         except StopIteration:
-            warning(
-                f'    self.readers[crf{self.quality}][tile{self.tile}] stopped iteration. Skipping')
-            self.viewport_psnr_file.write_text(
-                f'StopIteration: context [{self.video}][{self.tiling}][user{self.user}][crf{self.quality}]')
+            print(f'    WARNING: self.readers[crf{self.quality}][tile{self.tile}] stopped iteration. Skipping')
+            self.viewport_psnr_file.write_text(f'StopIteration: context [{self.video}][{self.tiling}][user{self.user}][crf{self.quality}]')
 
             return
         save_json(sse_frame, self.viewport_psnr_file)
@@ -585,7 +565,7 @@ class ViewportPSNR(GetTilesPath):
         self._video = value
         self.get_tiles_data = load_json(self.get_tiles_json)
         self.users_list = list(self.dataset[self.name])
-        self.erp_list = {tiling: ERP(tiling, self.resolution, self.fov) for tiling in self.tiling_list}
+        self.erp_list = {tiling: vp.ERP(tiling, self.resolution, self.fov) for tiling in self.tiling_list}
 
     @property
     def tile(self):
@@ -708,7 +688,7 @@ class TestDataset(GetTilesPath):
             proj_h, proj_w, n_channels = self.video_shape
             users_data = database[self.name]
 
-            erp = ERP(self.tiling, self.resolution, '110x90')
+            erp = vp.ERP(self.tiling, self.resolution, '110x90')
             get_tiles_data = load_json(self.get_tiles_json, object_hook=dict)
 
             for self.tiling in self.tiling_list:
