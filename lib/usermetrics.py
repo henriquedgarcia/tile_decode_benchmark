@@ -498,7 +498,8 @@ class ViewportPSNR(GetTilesPath):
         try:
             for self.chunk in self.chunk_list:
                 print(f'Processing {self.name}_{self.tiling}_user{self.user}_chunk{self.chunk}')
-                tiles_list = list(map(str, self.tiles_seen_chunk[self.chunk]))
+                tiles_list = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['chunks'][self.chunk]
+                tiles_list = list(map(str, tiles_list))
                 proj_frame[:] = 0
                 proj_frame_ref[:] = 0
                 start = time.time()
@@ -552,7 +553,6 @@ class ViewportPSNR(GetTilesPath):
     def user(self, value):
         self._user = value
         self.yaw_pitch_roll_frames = self.dataset[self.name][self.user]
-        self.tiles_seen_chunk = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['chunks']
 
     @property
     def video(self):
