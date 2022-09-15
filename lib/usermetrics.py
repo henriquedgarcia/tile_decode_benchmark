@@ -473,13 +473,14 @@ class ViewportPSNR(GetTilesPath):
                     yield
 
     def mount_frame(self, proj_frame, tiles_list, quality):
+        print(f'    mounting frame from using {tiles_list}')
         self.quality = quality
         for self.tile in tiles_list:
             try:
                 tile_frame = self.readers[self.quality][self.tile].read()[1]
             except (KeyError, TypeError, AttributeError):
                 try:
-                    print(f'    Loading {self.segment_file.parents[0].name}/{self.segment_file.name} - {self.segment_file.stat().st_size: ,} bytes')
+                    print(f'    Loading user{self.user}_{self.segment_file.parents[0].name}/{self.segment_file.name} - {self.segment_file.stat().st_size: ,} bytes')
                     self.readers[self.quality][self.tile] = cv.VideoCapture(f'{self.segment_file}')
                     tile_frame = self.readers[self.quality][self.tile].read()[1]
                 except FileNotFoundError:
