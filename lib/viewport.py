@@ -374,12 +374,12 @@ class ERP:
 #         return self
 
 
-def show1(projection):
+def show1(projection: np.ndarray):
     plt.imshow(projection)
     plt.show()
 
 
-def show2(projection):
+def show2(projection: np.ndarray):
     frame_img = Image.fromarray(projection)
     frame_img.show()
 
