@@ -494,27 +494,24 @@ class ViewportPSNR(GetTilesPath):
         proj_frame = np.zeros(self.video_shape, dtype='uint8')
         proj_frame_ref = np.zeros(self.video_shape, dtype='uint8')
 
-        counter = count()
         sse_frame = AutoDict()
         try:
             for self.chunk in self.chunk_list:
                 print(f'Processing {self.name}_{self.tiling}_user{self.user}_chunk{self.chunk}')
-                self.readers = AutoDict()
                 tiles_list = list(map(str, self.tiles_seen_chunk[self.chunk]))
                 proj_frame[:] = 0
                 proj_frame_ref[:] = 0
                 start = time.time()
 
                 # Operations by frame
-                for _ in range(int(self.fps)):  # 30 frames per chunk
-                    frame = next(counter)
+                for quality in self.quality_list:
+                    if quality == '0': continue
+                    self.readers = AutoDict()
 
-                    # Build reference frame and get vp
-                    self.mount_frame(proj_frame_ref, tiles_list, '0')
-                    viewport_frame_ref = self.erp.get_viewport(proj_frame_ref, self.yaw_pitch_roll_frames[frame])  # .astype('float64')
-
-                    for quality in self.quality_list:
-                        if quality == '0': continue
+                    for frame in range(int(self.fps)):  # 30 frames per chunk
+                        # Build reference frame and get vp
+                        self.mount_frame(proj_frame_ref, tiles_list, '0')
+                        viewport_frame_ref = self.erp.get_viewport(proj_frame_ref, self.yaw_pitch_roll_frames[frame])  # .astype('float64')
 
                         self.mount_frame(proj_frame, tiles_list, quality)
                         viewport_frame = self.erp.get_viewport(proj_frame, self.yaw_pitch_roll_frames[frame])  # .astype('float64')
@@ -528,7 +525,7 @@ class ViewportPSNR(GetTilesPath):
                         except AttributeError:
                             sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['psnr'] = [psnr]
                             sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['mse'] = [mse]
-                    print(f'\r    {frame = } - {time.time()-start: 0.3f} s', end='')
+                        print(f'\r    chunk{self.chunk}_{self.quality}_{frame = } - {time.time()-start: 0.3f} s', end='')
                 print('')
 
         except StopIteration:
