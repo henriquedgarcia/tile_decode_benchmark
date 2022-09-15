@@ -473,7 +473,6 @@ class ViewportPSNR(GetTilesPath):
                     yield
 
     def mount_frame(self, proj_frame, tiles_list, quality):
-        print(f'    mounting frame from using {tiles_list}')
         self.quality = quality
         for self.tile in tiles_list:
             try:
