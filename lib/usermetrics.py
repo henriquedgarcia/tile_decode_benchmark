@@ -527,7 +527,7 @@ class ViewportPSNR(GetTilesPath):
                             sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['psnr'] = [psnr]
                             sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['mse'] = [mse]
                         print(f'\r    chunk{self.chunk}_crf{self.quality}_{frame = } - {time.time()-start: 0.3f} s', end='')
-                print('')
+                print('\n\n')
 
         except StopIteration:
             print(f'    WARNING: self.readers[crf{self.quality}][tile{self.tile}] stopped iteration. Skipping')
