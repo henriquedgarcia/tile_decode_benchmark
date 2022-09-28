@@ -5,23 +5,31 @@ from typing import Union, Type, Iterable
 
 from lib.tiledecodebenchmark import TileDecodeBenchmarkOptions, TileDecodeBenchmark
 from lib.usermetrics import UserMetrics, UserMetricsOptions
+from lib.dectimegraphs import DectimeGraphs, DectimeGraphsOptions
 
 config = f'config/config_nas_erp.json'
 
 worker_list: dict[int, tuple[Type, Union[Type, Enum, Iterable]]] = {
     0: (TileDecodeBenchmark, TileDecodeBenchmarkOptions),
+    # 1: ('CheckTiles', 'CheckTilesOptions'),
+    2: (DectimeGraphs, DectimeGraphsOptions),
+    # 3: ('QualityAssessment', 'QualityAssessment'),
+    # 4: ('MakeViewport', 'QualityAssessment'),
+    # 5: ('Dashing', 'QualityAssessment'),
+    # 6: ('QualityAssessment', 'QualityAssessment'),
+    # 7: ('Siti', 'QualityAssessment'),
     8: (UserMetrics, UserMetricsOptions),
 }
 
-
 def make_help_txt():
     help_txt = 'Dectime Testbed.\n'
-    help_txt += f'\nWORKER_ID  {"Worker Name":19}   {{ROLE_ID: \'Role Name\', ...}}'
-    help_txt += '\n' + '-'*9 + '  ' + '-'*19 + '   ' + '-'*95
+    help_txt += f'\n  ID   {"Worker Name":^19}   {{ROLE_ID: \'Role Name\', ...}}'
+    help_txt += '\n| ' + '-'*2 + ' | ' + '-'*19
     for idx in worker_list:
-        worker = worker_list[idx][0].__class__.__name__
+        worker = worker_list[idx][0].__name__
         role = worker_list[idx][1]
-        help_txt += f'\n{str(idx):9>}: {worker:19} - {str(list(role)):19}'
+        help_txt += f'\n  {str(idx):>2}   {worker:^19}'
+        help_txt += f'\n  {str(""):>2}   {str(list(role)):95}'
     return help_txt
 
 
