@@ -23,9 +23,8 @@ class QualityAssessmentPaths(TileDecodeBenchmarkPaths):
         return folder / f'quality_{self.video}.json'
 
 
-class MyClass(QualityAssessmentPaths):
+class QualityAssessment(QualityAssessmentPaths):
     pass
-
 
 
 class QualityAssessmentOptions(Enum):
@@ -33,9 +32,12 @@ class QualityAssessmentOptions(Enum):
     VIEWPORT_METRICS = 1
     GET_TILES = 2
 
+    def __repr__(self):
+        return str({self.value: self.name})
+
 
 class DectimeGraphs(Base):
-    operations = {'PROCESS_NASRABADI': MyClass,
-                  'TEST_DATASET': MyClass,
-                  'GET_TILES': MyClass,
+    operations = {'PROCESS_NASRABADI': QualityAssessment,
+                  'TEST_DATASET': QualityAssessment,
+                  'GET_TILES': QualityAssessment,
                   }

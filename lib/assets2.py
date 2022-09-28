@@ -1,4 +1,4 @@
-from abc import abstractmethod, ABC
+from abc import ABC
 import numpy as np
 from collections  import defaultdict
 import json
@@ -7,6 +7,7 @@ from enum import Enum
 import pandas as pd
 from typing import Union, Callable
 from .util2 import splitx
+import matplotlib.pyplot as plt
 
 
 class Config:
@@ -90,6 +91,12 @@ class Factors:
     @property
     def chunk_list(self) -> list[str]:
         return list(map(str, range(1, int(self.duration) + 1)))
+
+    @property
+    def frame_list(self) -> list[str]:
+        return list(range(int(self.duration*int(self.fps))))
+
+
     # </editor-fold>
 
     # <editor-fold desc="Video Property">
@@ -152,11 +159,32 @@ class Factors:
         return self.config['fov']
 
 
-
-
 class GlobalPaths(Factors, ABC):
+    dataset_name = 'nasrabadi_28videos'
+    worker_name:str = None
     overwrite = False
     dectime_folder = Path('dectime')
+    graphs_folder = Path('graphs')
+    get_tiles_folder = Path('get_tiles')
+    _workfolder: Path = None
+
+    @property
+    def workfolder(self) -> Path:
+        """
+        Need None
+        set _workfolder=None if locked
+        :return:
+        """
+        if self._workfolder is None:
+            folder = self.project_path / self.worker_name / f'{self.__class__.__name__}'
+            folder.mkdir(parents=True, exist_ok=True)
+            return folder
+        else:
+            return self._workfolder
+
+    @workfolder.setter
+    def workfolder(self, value):
+        self._workfolder = value
 
     @property
     def project_path(self) -> Path:
@@ -193,52 +221,14 @@ class GlobalPaths(Factors, ABC):
 
         return len(['' for line in content if 'utime' in line])
 
-    @staticmethod
-    def remove_outliers(data, resumenamecsv=None):
-        ### Fliers analysis data[self.proj][self.tiling][self.metric]
-        print(f' Removing outliers... ', end='')
-        resume = defaultdict(list)
-        for proj in data:
-            for tiling in data[proj]:
-                for metric in data[proj][tiling]:
-                    data_bucket = data[proj][tiling][metric]
-
-                    min, q1, med, q3, max = np.percentile(data_bucket, [0, 25, 50, 75, 100]).T
-                    iqr = 1.5 * (q3 - q1)
-                    clean_left = q1 - iqr
-                    clean_right = q3 + iqr
-
-                    data_bucket_clean = [d for d in data_bucket
-                                         if (clean_left <= d <= clean_right)]
-                    data[proj][tiling][metric] = data_bucket
-
-                    resume['projection'] += [proj]
-                    resume['tiling'] += [tiling]
-                    resume['metric'] += [metric]
-                    resume['min'] += [min]
-                    resume['q1'] += [q1]
-                    resume['median'] += [med]
-                    resume['q3'] += [q3]
-                    resume['max'] += [max]
-                    resume['iqr'] += [iqr]
-                    resume['clean_left'] += [clean_left]
-                    resume['clean_right'] += [clean_right]
-                    resume['original_len'] += [len(data_bucket)]
-                    resume['clean_len'] += [len(data_bucket_clean)]
-                    resume['clear_rate'] += [len(data_bucket_clean) / len(data_bucket)]
-        print(f'  Finished.')
-        if resumenamecsv is not None:
-            pd.DataFrame(resume).to_csv(resumenamecsv)
 
     def __init__(self):
         self.print_resume()
         for _ in self.loop():
             self.worker()
 
-    @abstractmethod
     def worker(self):
         ...
 
-    @abstractmethod
     def loop(self):
-        ...
+        yield
