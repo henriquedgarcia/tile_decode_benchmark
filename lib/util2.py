@@ -3,6 +3,7 @@ from logging import warning
 from pathlib import Path
 from subprocess import run, STDOUT
 from typing import Union
+import pickle
 
 import numpy as np
 
@@ -22,6 +23,15 @@ def save_json(data: Union[dict, 'AutoDict', list], filename: Union[str, Path],
 def load_json(filename, object_hook=dict):
     with open(filename, 'r', encoding='utf-8') as f:
         results = json.load(f, object_hook=object_hook)
+    return results
+
+def save_pickle(data: object, filename: Union[str, Path]):
+    with open(filename, 'wb') as f:
+        pickle.dump(data, f, protocol=-1)
+
+def load_pickle(filename):
+    with open(filename, 'rb') as f:
+        results = pickle.load(f)
     return results
 
 
