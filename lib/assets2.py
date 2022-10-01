@@ -36,16 +36,6 @@ class Config:
         self.config_data[key] = value
 
 
-class Base:
-    operations: dict[str, Union['GlobalPaths', Callable]]
-
-    def __init__(self, conf: str, role: Enum):
-
-        self.operations[role.name].config = Config(Path(conf))
-        self.operations[role.name]()
-        print(f'\n====== The end of {role.name} ======')
-
-
 class Factors:
     bins: Union[int, str] = None
     video: str = None
@@ -232,3 +222,12 @@ class GlobalPaths(Factors, ABC):
 
     def loop(self):
         yield
+
+
+class Base:
+    operations: dict[str, Union[GlobalPaths, Callable]]
+
+    def __init__(self, conf: str, role: Enum):
+        self.operations[role.name].config = Config(Path(conf))
+        self.operations[role.name]()
+        print(f'\n====== The end of {role.name} ======')
