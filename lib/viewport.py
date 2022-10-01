@@ -127,13 +127,6 @@ class Viewport:
         :return: None
         """
 
-
-        if yaw_pitch_roll is not None:
-            if tuple(self.yaw_pitch_roll) == tuple(yaw_pitch_roll):
-                return
-            self.yaw_pitch_roll = np.array(yaw_pitch_roll)
-            self.mat = rot_matrix(self.yaw_pitch_roll)
-
         H, W = self.vp_shape[:2]
         vp_rotated_xyz_list = (self.mat @ self.vp_coord_xyz).T
         self.vp_rotated_xyz = vp_rotated_xyz_list.reshape((H, W, 3))
@@ -146,7 +139,12 @@ class Viewport:
         :param yaw_pitch_roll: a new head position. (optional)
         :return: The viewport image (RGB)
         """
-        self._rotate_vp(yaw_pitch_roll)
+        if yaw_pitch_roll:
+            self.rotate(yaw_pitch_roll)
+
+        H, W = self.vp_shape[:2]
+        vp_rotated_xyz_list = (self.mat @ self.vp_coord_xyz).T
+        self.vp_rotated_xyz = vp_rotated_xyz_list.reshape((H, W, 3))
 
         nm_coord = xyz2nm(self.vp_rotated_xyz, frame.shape)
 
