@@ -5,7 +5,7 @@ from itertools import count
 from logging import warning
 from pathlib import Path
 from typing import Iterable, Union
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 import cv2 as cv
 import matplotlib.pyplot as plt
@@ -236,7 +236,7 @@ class GetTiles(GetTilesProps):
 
         for frame, (yaw_pitch_roll) in enumerate(self.dataset[self.name][self.user]):
             erp.viewport.rotate(yaw_pitch_roll)
-            vptiles: list[int] = erp.get_vptiles()
+            vptiles: list[str] = erp.get_vptiles()
             tiles_in_chunk.update(vptiles)
 
             # vptiles by chunk
@@ -466,11 +466,13 @@ class ViewportPSNRProps(GetTilesPath):
     _video: str
     _tile: str
     _user: str
-    _quality: str
+    quality: str
     dataset_data: dict
     dataset: dict
     erp_list: dict
     readers: AutoDict
+    seen_tiles: dict
+    yaw_pitch_roll_frames: list
 
     @property
     def quality(self):
@@ -488,6 +490,7 @@ class ViewportPSNRProps(GetTilesPath):
     def user(self, value):
         self._user = value
         self.yaw_pitch_roll_frames = self.dataset[self.name][self.user]
+        self.seen_tiles_by_chunks = self.seen_tiles[self.vid_proj][self.name][self.tiling][self.user]['chunks']
 
     @property
     def video(self):
@@ -496,8 +499,10 @@ class ViewportPSNRProps(GetTilesPath):
     @video.setter
     def video(self, value):
         self._video = value
-        self.get_tiles_data = load_json(self.seen_tiles_json)
-        self.erp_list = {tiling: vp.ERP(tiling, self.resolution, self.fov) for tiling in self.tiling_list}
+        self.n_frames = int(self.duration) * int(self.fps)
+        self.seen_tiles = load_json(self.seen_tiles_json)
+        # self.erp_list = {tiling: vp.ERP(tiling, self.resolution, self.fov) for tiling in self.tiling_list}
+        self.erp_list = {tiling: vp.ERP(tiling, self.resolution, self.fov, vp_shape=np.array([90,110])*6) for tiling in self.tiling_list}
 
     @property
     def users_list(self):
@@ -536,7 +541,6 @@ class ViewportPSNRProps(GetTilesPath):
 
 
 class ViewportPSNR(ViewportPSNRProps):
-
     def loop(self):
         self.dataset = load_json(self.dataset_json)
 
@@ -546,41 +550,29 @@ class ViewportPSNR(ViewportPSNRProps):
                     yield
 
     def worker(self):
-        exist=self.output_exist()
-
-        if exist:
-            sse_frame = load_json(self.viewport_psnr_file, object_hook=AutoDict)
-            serie_size = len(sse_frame[self.vid_proj][self.name][self.tiling][self.user][self.quality_list[0]]['psnr'])
-            total_frames = int(self.duration) * int(self.fps)
-            psnr_qlt = sse_frame[self.vid_proj][self.name][self.tiling][self.user]
-            wrong = [max(psnr_qlt[x]['psnr']) for x in self.quality_list if max(psnr_qlt[x]['psnr']) > 100]
-            desired_chunk = int(serie_size / int(self.gop))
-
-            if serie_size == total_frames and len(wrong) == 0:
-                print(f'    Serie is OK. Skipping.\n')
-                return
-        sse_frame = AutoDict()
-        self.readers = AutoDict()
-        proj_frame = np.zeros(self.video_shape[:2], dtype='uint8')
-        proj_frame_ref = np.zeros(self.video_shape[:2], dtype='uint8')
+        qlt_by_frame = AutoDict()
+        # proj_frame = np.zeros(self.video_shape[:2], dtype='uint8')
+        # proj_frame_ref = np.zeros(self.video_shape[:2], dtype='uint8')
+        proj_frame = np.zeros(tuple(self.erp.shape) + (3,), dtype='uint8')
+        proj_frame_ref = np.zeros(tuple(self.erp.shape) + (3,), dtype='uint8')
 
         for self.chunk in self.chunk_list:
             print(f'Processing {self.name}_{self.tiling}_user{self.user}_chunk{self.chunk}')
 
-            seen_tiles = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['chunks'][self.chunk]
+            seen_tiles = self.seen_tiles_by_chunks[self.chunk]
             seen_tiles = list(map(str, seen_tiles))
             proj_frame[:] = 0
             proj_frame_ref[:] = 0
             start = time.time()
 
             # Operations by frame
-            self.readers = AutoDict()
             for quality in self.quality_list:
-                for frame in range(int(self.fps)):  # 30 frames per chunk
-                    f = (int(self.chunk)-1)*30 + frame
+                self.readers = AutoDict()
+                for chunk_frame_id in range(int(self.gop)):  # 30 frames per chunk
+                    video_frame_id = (int(self.chunk)-1)*30 + chunk_frame_id
 
                     # Build reference frame and get vp
-                    yaw_pitch_roll = self.yaw_pitch_roll_frames[f]
+                    yaw_pitch_roll = self.yaw_pitch_roll_frames[video_frame_id]
                     self.erp.viewport.rotate(yaw_pitch_roll)
 
                     self.mount_frame(proj_frame_ref, seen_tiles, '0')
@@ -592,22 +584,18 @@ class ViewportPSNR(ViewportPSNRProps):
                     mse = np.average((viewport_frame_ref - viewport_frame) ** 2)
                     psnr = 10 * np.log10((255. ** 2 / mse))
 
-                    if psnr > 100:
-                        # folder = self.workfolder / f'{self.vid_proj}_{self.name}'
-                        # file = folder / f"user{self.user}_{self.tiling}_before.png"
-                        print(f'   PSNR_ERROR: {psnr=}, {mse=}')
-
                     try:
-                        sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['psnr'].append(psnr)
-                        sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['mse'].append(mse)
+                        qlt_by_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['psnr'].append(psnr)
+                        qlt_by_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['mse'].append(mse)
                     except AttributeError:
-                        sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['psnr'] = [psnr]
-                        sse_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['mse'] = [mse]
+                        qlt_by_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['psnr'] = [psnr]
+                        qlt_by_frame[self.vid_proj][self.name][self.tiling][self.user][quality]['mse'] = [mse]
 
-                    print(f'\r    chunk{self.chunk}_crf{self.quality}_{frame = } - {time.time()-start: 0.3f} s', end='')
+                    print(f'\r    chunk{self.chunk}_crf{self.quality}_frame{chunk_frame_id} - {time.time()-start: 0.3f} s', end='')
+
             print('')
 
-        save_json(sse_frame, self.viewport_psnr_file)
+        save_json(qlt_by_frame, self.viewport_psnr_file)
         # video_writer.close()
 
     def mount_frame(self, proj_frame, tiles_list, quality):
@@ -615,17 +603,18 @@ class ViewportPSNR(ViewportPSNRProps):
         for self.tile in tiles_list:
             try:
                 tile_frame = self.readers[self.quality][self.tile].read()[1]
-            except (KeyError, TypeError, AttributeError):
+            except AttributeError:
                 try:
-                    print(f'    Loading user{self.user}_{self.segment_file.parents[0].name}/{self.segment_file.name} - {self.segment_file.stat().st_size: ,} bytes')
+                    # print(f'    Loading user{self.user}_{self.segment_file.parents[0].name}/{self.segment_file.name} - {self.segment_file.stat().st_size: ,} bytes')
                     self.readers[self.quality][self.tile] = cv.VideoCapture(f'{self.segment_file}')
                     tile_frame = self.readers[self.quality][self.tile].read()[1]
                 except FileNotFoundError:
                     print(f'    WARNING: The segment {self.segment_file} not found. Skipping')
                     continue
-            tile_frame = cv.cvtColor(tile_frame, cv.COLOR_BGR2YUV)[:, :, 0]
             tile_y, tile_x = self.erp.tiles_position[(int(self.tile))]
-            proj_frame[tile_y:tile_y + self.tile_h, tile_x:tile_x + self.tile_w] = tile_frame
+            # tile_frame = cv.cvtColor(tile_frame, cv.COLOR_BGR2YUV)[:, :, 0]
+            # proj_frame[tile_y:tile_y + self.tile_h, tile_x:tile_x + self.tile_w] = tile_frame
+            proj_frame[tile_y:tile_y + self.tile_h, tile_x:tile_x + self.tile_w,:] = tile_frame
 
     def output_exist(self, overwrite=False):
         if self.viewport_psnr_file.exists() and not overwrite:
@@ -658,10 +647,7 @@ class ViewportPSNRGraphs(GetTilesPath):
 
                     for self.chunk in self.chunk_list:
                         for self.quality in self.quality_list:
-                            sse_frame[self.vid_proj][self.name][self.tiling][self.user][self.quality]['psnr']
-                            sse_frame[self.vid_proj][self.name][self.tiling][self.user][self.quality]['mse']
                             for frame in range(int(self.fps)):  # 30 frames per chunk
-
                                 yield
 
     def worker(self, overwrite=False):
