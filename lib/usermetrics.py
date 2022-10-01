@@ -188,6 +188,9 @@ class ProcessNasrabadi(GetTilesPath):
 class GetTilesProps(GetTilesPath):
     dataset: dict
     _video: str
+    user: int
+    erp_list: dict
+    results: AutoDict
 
     @property
     def video(self):
@@ -196,17 +199,12 @@ class GetTilesProps(GetTilesPath):
     @video.setter
     def video(self, value):
         self._video = value
-        self.results = AutoDict()
 
     @property
     def users_list(self) -> list[str]:
         return list(self.dataset[self.name].keys())
 
 class GetTiles(GetTilesProps):
-    user: int
-    erp_list: dict
-    results: AutoDict
-
     def loop(self, overwrite=False):
         self.erp_list = {self.tiling: vp.ERP(self.tiling, '576x288', self.fov) for self.tiling in self.tiling_list}
         self.dataset = load_json(self.dataset_json)
