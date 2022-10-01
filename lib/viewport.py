@@ -160,12 +160,14 @@ class Viewport:
 class ERP:
     vp_image: np.ndarray  # A RGB image
 
-    def __init__(self, tiling: str, proj_res: str, fov: str):
+    def __init__(self, tiling: str, proj_res: str, fov: str, vp_shape: np.ndarray = None):
+        self.fov = np.deg2rad(splitx(fov)[::-1])
         self.shape = np.array(splitx(proj_res)[::-1], dtype=int)
+        self.vp_shape = vp_shape
+        if vp_shape is None:
+            self.vp_shape = np.round(self.fov * self.shape / (pi, 2 * pi)).astype('int')
         self.tiling = np.array(splitx(tiling)[::-1], dtype=int)
         self.n_tiles = self.tiling[0] * self.tiling[1]
-        self.fov = np.deg2rad(splitx(fov)[::-1])
-        self.vp_shape = np.round(self.fov * self.shape / (pi, 2 * pi)).astype('int')
 
         self.viewport = Viewport(self.vp_shape, self.fov)
 
