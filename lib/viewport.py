@@ -151,8 +151,8 @@ class Viewport:
         nm_coord = xyz2nm(self.vp_rotated_xyz, frame.shape)
 
         out = cv2.remap(frame,
-                        nm_coord[:, :, 1:2].astype(np.float32),
-                        nm_coord[:, :, 0:1].astype(np.float32),
+                        map1=nm_coord[..., 1:2].astype(np.float32),
+                        map2=nm_coord[..., 0:1].astype(np.float32),
                         interpolation=cv2.INTER_LINEAR,
                         borderMode=cv2.BORDER_WRAP)
         # show2(out)
@@ -279,8 +279,8 @@ class ERP:
 
         r = np.sqrt(np.sum(xyz_coord ** 2, axis=2))
 
-        elevation = np.arcsin(xyz_coord[:, :, 1] / r)
-        azimuth = np.arctan2(xyz_coord[:, :, 0], xyz_coord[:, :, 2])
+        elevation = np.arcsin(xyz_coord[..., 1] / r)
+        azimuth = np.arctan2(xyz_coord[..., 0], xyz_coord[..., 2])
 
         v = elevation / pi + 0.5
         u = azimuth / (2 * pi) + 0.5
