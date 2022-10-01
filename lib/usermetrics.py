@@ -210,8 +210,9 @@ class GetTiles(GetTilesProps):
         self.dataset = load_json(self.dataset_json)
 
         for self.video in self.videos_list:
-            if self.output_exist(): continue
+            if self.seen_tiles_json.exists(): continue
             self.results = AutoDict()
+            self.n_frames = int(self.duration) * int(self.gop)
 
             for self.tiling in self.tiling_list:
                 for self.user in self.users_list:
@@ -221,53 +222,45 @@ class GetTiles(GetTilesProps):
         print(f'{self.name} - tiling {self.tiling} - User {self.user}')
 
         if self.tiling == '1x1':
-            self.results[self.vid_proj][self.name][self.tiling][self.user]['frame'] = [[0]] * 1800
-            self.results[self.vid_proj][self.name][self.tiling][self.user]['chunks'] = {i: [0] for i in range(1, 61)}
+            self.results[self.vid_proj][self.name][self.tiling][self.user]['frame'] = [[0]] * self.n_frames
+            self.results[self.vid_proj][self.name][self.tiling][self.user]['chunks'] = {i: [0] for i in range(1, int(self.duration) + 1)}
             return
 
         erp = self.erp_list[self.tiling]
+
         result_frames = []
         head_positions = []
         result_chunks = {}
-        chunk = 0
         tiles_in_chunk = set()
         start = time.time()
 
         for frame, (yaw_pitch_roll) in enumerate(self.dataset[self.name][self.user]):
-            # vptiles
             erp.viewport.rotate(yaw_pitch_roll)
             vptiles: list[int] = erp.get_vptiles()
             tiles_in_chunk.update(vptiles)
 
-            result_frames.append(vptiles)
-            head_positions.append(yaw_pitch_roll)
-
             # vptiles by chunk
-            new_chunk = (frame + 1) % 30 == 0
-            if new_chunk:
+            next_is_new_chunk = (frame + 1) % 30 == 0
+            if next_is_new_chunk:
                 print(f'\r  user{self.user} - {frame:04d} - {time.time() - start:.3f}s - {str(tiles_in_chunk)[:25]: >25}', end='')
-                chunk += 1  # start from 1 gpac defined
-                result_chunks[f'{frame//30 + 1}'] = list(map(str, tiles_in_chunk))
+                chunk = frame//30 + 1  # start from 1 gpac defined
+                result_chunks[f'{chunk}'] = list(map(str, tiles_in_chunk))
                 tiles_in_chunk.clear()
 
+            result_frames.append(vptiles)
+            head_positions.append(yaw_pitch_roll)
         print('')
 
+        self.saving(result_frames, head_positions, result_chunks)
+
+    def saving(self, result_frames, head_positions, result_chunks):
         self.results[self.vid_proj][self.name][self.tiling][self.user]['frame'] = result_frames
         self.results[self.vid_proj][self.name][self.tiling][self.user]['head_positions'] = head_positions
         self.results[self.vid_proj][self.name][self.tiling][self.user]['chunks'] = result_chunks
 
-        self.saving()
-
-    def saving(self):
         if self.tiling == self.tiling_list[-1] and self.user == self.users_list[-1]:
             print(f'Saving {self.seen_tiles_json}')
             save_json(self.results, self.seen_tiles_json)
-
-    def output_exist(self):
-        if self.seen_tiles_json.exists() and not self.overwrite:
-            warning(f'The file {self.seen_tiles_json} exist. Skipping.')
-            return True
-        return False
 
 
 class Heatmap(GetTilesPath):
