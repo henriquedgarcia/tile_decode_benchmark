@@ -185,8 +185,13 @@ class ERP:
         if tuple(self.tiling) == (1, 1):
             return [0]
 
-        tiles = [tile for tile in range(self.n_tiles)
-                 if self.viewport.is_viewport(self.nm2xyz(self.get_tile_borders(tile), shape=self.shape))]
+        tiles = []
+        for tile in range(self.n_tiles):
+            borders = self.get_tile_borders(tile)
+            borders_3d = self.nm2xyz(borders, shape=self.shape)
+            is_vp = self.viewport.is_viewport(borders_3d)
+            if is_vp:
+                tiles.append(str(tile))
         return tiles
 
     def get_viewport(self, frame: np.ndarray, yaw_pitch_roll: np.ndarray = None) -> np.ndarray:
