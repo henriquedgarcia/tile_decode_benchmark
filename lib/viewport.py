@@ -268,8 +268,8 @@ class ERP:
         ERP specific.
 
         :param xyz_coord: [[[x, y, z], ..., M], ..., N] (shape == (N,M,3))
-        :param shape:
-        :param round_nm:
+        :param shape: the shape of projection that cover all sphere
+        :param round_nm: round the coords? is not needed.
         :return:
         """
         if shape is None:
