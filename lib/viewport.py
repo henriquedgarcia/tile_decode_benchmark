@@ -77,7 +77,8 @@ class Viewport:
         r = np.sqrt(np.sum(vp_coord_xyz_ ** 2, axis=2, keepdims=True))
 
         vp_coord_xyz = vp_coord_xyz_ / r
-        self.vp_coord_xyz = vp_coord_xyz  # shape==(H,W,3)
+        self.vp_coord_xyz = vp_coord_xyz.reshape(-1, 3).T  # shape==(H,W,3)
+
         self.vp_rotated_xyz = vp_coord_xyz.copy()
 
     def rotate(self, yaw_pitch_roll: np.ndarray) -> None:
@@ -134,8 +135,7 @@ class Viewport:
             self.mat = rot_matrix(self.yaw_pitch_roll)
 
         H, W = self.vp_shape[:2]
-        vp_coord_xyz_list = self.vp_coord_xyz.reshape(-1, 3).T
-        vp_rotated_xyz_list = (self.mat @ vp_coord_xyz_list).T
+        vp_rotated_xyz_list = (self.mat @ self.vp_coord_xyz).T
         self.vp_rotated_xyz = vp_rotated_xyz_list.reshape((H, W, 3))
 
     def get_vp(self, frame: np.ndarray, xyz2nm: Callable, yaw_pitch_roll: np.ndarray = None) -> np.ndarray:
