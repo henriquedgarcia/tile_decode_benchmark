@@ -555,6 +555,10 @@ class ViewportPSNR(ViewportPSNRProps):
         # proj_frame_ref = np.zeros(self.video_shape[:2], dtype='uint8')
         proj_frame = np.zeros(tuple(self.erp.shape) + (3,), dtype='uint8')
         proj_frame_ref = np.zeros(tuple(self.erp.shape) + (3,), dtype='uint8')
+        viewport_psnr_file_exist = self.viewport_psnr_file.exists()
+        if viewport_psnr_file_exist:
+            print(f'The file {self.viewport_psnr_file.parents[0]}/{self.viewport_psnr_file.name} exist. Skipping')
+            return
 
         for self.chunk in self.chunk_list:
             print(f'Processing {self.name}_{self.tiling}_user{self.user}_chunk{self.chunk}')
