@@ -171,10 +171,14 @@ def cmp2cart(n: int, m: int, shape: tuple[int, int], f: int = 0) -> tuple[float,
 
 def ______utils_____(): ...
 
-def rot_matrix(yaw_pitch_roll) -> np.array:
+def rot_matrix(yaw_pitch_roll: Union[np.ndarray, list]) -> np.ndarray:
     """
     Create rotation matrix using Tait–Bryan angles in Z-Y-X order.
     See Wikipedia. Use:
+        O exito x aponta para a direita
+        O eixo y aponta para baixo
+        O eixo z aponta para a frente
+
 
     Examples
     --------
@@ -185,28 +189,27 @@ def rot_matrix(yaw_pitch_roll) -> np.array:
     :param yaw_pitch_roll: the rotation (yaw, pitch, roll) in rad.
     :return: A 3x3 matrix of rotation for (z,y,x) vector
     """
-
     cos_rot = np.cos(yaw_pitch_roll)
     sin_rot = np.sin(yaw_pitch_roll)
 
     # pitch
     mat_x = np.array(
         [[1, 0, 0],
-         [0, cos_rot[1], -sin_rot[1]],
-         [0, sin_rot[1], cos_rot[1]]]
+         [0, cos_rot[1], sin_rot[1]],
+         [0, -sin_rot[1], cos_rot[1]]]
     )
 
     # yaw
     mat_y = np.array(
-        [[cos_rot[0], 0, sin_rot[0]],
+        [[cos_rot[0], 0, -sin_rot[0]],
          [0, 1, 0],
-         [-sin_rot[0], 0, cos_rot[0]]]
+         [sin_rot[0], 0, cos_rot[0]]]
     )
 
     # roll
     mat_z = np.array(
-        [[cos_rot[2], -sin_rot[2], 0],
-         [sin_rot[2], cos_rot[2], 0],
+        [[cos_rot[2], sin_rot[2], 0],
+         [-sin_rot[2], cos_rot[2], 0],
          [0, 0, 1]]
     )
 
