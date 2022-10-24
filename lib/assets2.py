@@ -150,31 +150,28 @@ class Factors:
 
 
 class GlobalPaths(Factors, ABC):
-    dataset_name = 'nasrabadi_28videos'
     worker_name:str = None
     overwrite = False
     dectime_folder = Path('dectime')
     graphs_folder = Path('graphs')
-    get_tiles_folder = Path('get_tiles')
-    _workfolder: Path = None
 
-    @property
-    def workfolder(self) -> Path:
-        """
-        Need None
-        set _workfolder=None if locked
-        :return:
-        """
-        if self._workfolder is None:
-            folder = self.project_path / self.worker_name / f'{self.__class__.__name__}'
-            folder.mkdir(parents=True, exist_ok=True)
-            return folder
-        else:
-            return self._workfolder
-
-    @workfolder.setter
-    def workfolder(self, value):
-        self._workfolder = value
+    # @property
+    # def workfolder(self) -> Path:
+    #     """
+    #     Need None
+    #     set _workfolder=None if locked
+    #     :return:
+    #     """
+    #     if self._workfolder is None:
+    #         folder = self.project_path / self.worker_name / f'{self.__class__.__name__}'
+    #         folder.mkdir(parents=True, exist_ok=True)
+    #         return folder
+    #     else:
+    #         return self._workfolder
+    #
+    # @workfolder.setter
+    # def workfolder(self, value):
+    #     self._workfolder = value
 
     @property
     def project_path(self) -> Path:
@@ -212,16 +209,16 @@ class GlobalPaths(Factors, ABC):
         return len(['' for line in content if 'utime' in line])
 
 
-    def __init__(self):
-        self.print_resume()
-        for _ in self.loop():
-            self.worker()
-
-    def worker(self):
-        ...
-
-    def loop(self):
-        yield
+    # def __init__(self):
+    #     self.print_resume()
+    #     for _ in self.loop():
+    #         self.worker()
+    #
+    # def worker(self):
+    #     ...
+    #
+    # def loop(self):
+    #     yield
 
 
 class Base:

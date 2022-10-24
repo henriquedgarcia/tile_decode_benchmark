@@ -32,60 +32,51 @@ rotation_map = {'cable_cam_nas': 265 / 180 * pi, 'drop_tower_nas': 180 / 180 * p
 
 
 class GetTilesPath(TileDecodeBenchmarkPaths, ABC):
+    operation_folder = Path('get_tiles')
+
     dataset_folder: Path
     video_id_map: dict
     user_map: dict
-    _workfolder: Path = None
     _csv_dataset_file: Path
     video_name: str
     user_id: str
     head_movement: pd.DataFrame
 
     @property
-    def get_tiles_path(self) -> Path:
-        folder = self.project_path / self.get_tiles_folder
+    def workfolder(self) -> Path:
+        folder = self.project_path / self.operation_folder
         folder.mkdir(parents=True, exist_ok=True)
         return folder
 
-    @property
-    def workfolder(self) -> Path:
-        """
-        Need None
-        :return:
-        """
-        if self._workfolder is None:
-            folder = self.get_tiles_path / f'{self.__class__.__name__}'
-            folder.mkdir(parents=True, exist_ok=True)
-            return folder
-        else:
-            return self._workfolder
+    # @property
+    # def workfolder(self) -> Path:
+    #     """
+    #     Need None
+    #     :return:
+    #     """
+    #     if self._workfolder is None:
+    #         folder = self.get_tiles_path / f'{self.__class__.__name__}'
+    #         folder.mkdir(parents=True, exist_ok=True)
+    #         return folder
+    #     else:
+    #         return self._workfolder
+    #
+    # @workfolder.setter
+    # def workfolder(self, value):
+    #     self._workfolder = value
 
-    @workfolder.setter
-    def workfolder(self, value):
-        self._workfolder = value
+    # <editor-fold desc="Dataset Path">
+    @property
+    def dataset_name(self):
+        return self.config['dataset_name']
 
     @property
     def dataset_folder(self) -> Path:
-        return Path('datasets') / self.config["dataset_name"]
+        return Path('datasets') / self.dataset_name
 
     @property
     def dataset_json(self) -> Path:
         return self.dataset_folder / f'{self.config["dataset_name"]}.json'
-
-    @property
-    def seen_metrics_json(self) -> Path:
-        folder = self.project_path / 'seen_metrics'
-        folder.mkdir(parents=True, exist_ok=True)
-        return folder / f'seen_metrics_{self.config["dataset_name"]}_{self.vid_proj}_{self.name}.json'
-
-    @property
-    def seen_tiles_json(self) -> Path:
-        path = self.get_tiles_path / f'get_tiles_{self.config["dataset_name"]}_{self.vid_proj}_{self.name}_fov{self.fov}.json'
-        return path
-
-    @property
-    def dataset_name(self):
-        return self.config['dataset_name']
 
     @property
     def csv_dataset_file(self) -> Path:
@@ -100,36 +91,40 @@ class GetTilesPath(TileDecodeBenchmarkPaths, ABC):
 
         names = ['timestamp', 'Qx', 'Qy', 'Qz', 'Qw', 'Vx', 'Vy', 'Vz']
         self.head_movement = pd.read_csv(self.csv_dataset_file, names=names)
+    # </editor-fold>
+
+    # <editor-fold desc="seen_metric path">
+    @property
+    def seen_metrics_folder(self) -> Path:
+        folder = self.project_path / 'seen_metrics'
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
 
     @property
-    def viewport_psnr_file(self) -> Path:
-        folder = self.workfolder / f'{self.vid_proj}_{self.name}'
-        folder.mkdir(parents=True, exist_ok=True)
-        return folder / f"user{self.user}_{self.tiling}.json"
+    def seen_metrics_json(self) -> Path:
+        return self.seen_metrics_folder / f'seen_metrics_{self.config["dataset_name"]}_{self.vid_proj}_{self.name}.json'
+    # </editor-fold>
 
 
 class ProcessNasrabadi(GetTilesPath):
-    csv_dataset_file: Path
-    user: int
     user_map = {}
     dataset_final = AutoDict()
-    _csv_dataset_file: Path
     previous_line: tuple
     frame_counter: int
 
-    def loop(self):
+    def __init__(self):
+        self.print_resume()
         print(f'Processing dataset {self.dataset_folder}.')
+        if self.dataset_json.exists(): return
 
-        if self.output_exist(True): return
+        self.video_id_map = load_json(f'{self.dataset_folder}/videos_map.json')
+        self.user_map = load_json(f'{self.dataset_folder}/usermap.json')
 
-        self.video_id_map = load_json(f'{self.dataset_json.parent}/videos_map.json')
-        self.user_map = load_json(f'{self.dataset_json.parent}/usermap.json')
-
-        for self.csv_dataset_file in self.dataset_json.parent.glob('*/*.csv'):
+        for self.csv_dataset_file in self.dataset_folder.glob('*/*.csv'):
             self.frame_counter = 0
-            yield
+            self.worker()
 
-        print(f'\nFinish. Saving as {self.dataset_json}.')
+        print(f'Finish. Saving as {self.dataset_json}.')
         save_json(self.dataset_final, self.dataset_json)
 
     def worker(self, overwrite=False):
@@ -157,12 +152,6 @@ class ProcessNasrabadi(GetTilesPath):
         self.dataset_final[self.video_name][self.user_id] = yaw_pitch_roll_frames
         print(f'Samples {n:04d} - {self.frame_counter=} - {time.time() - start_time:0.3f} s.')
 
-    def output_exist(self, overwrite):
-        if self.dataset_json.exists() and not overwrite:
-            warning(f'The file {self.dataset_json} exist. Skipping.')
-            return True
-        return False
-
     def process_vectors(self, actual_line):
         timestamp, xyz = actual_line
         frame_timestamp = self.frame_counter / 30
@@ -187,9 +176,6 @@ class ProcessNasrabadi(GetTilesPath):
 
 class GetTilesProps(GetTilesPath):
     dataset: dict
-    _video: str
-    user: int
-    erp_list: dict
     results: AutoDict
 
     @property
@@ -197,13 +183,15 @@ class GetTilesProps(GetTilesPath):
         return list(self.dataset[self.name].keys())
 
     @property
-    def workfolder(self) -> Path:
-        """
-        Need None
-        """
-        folder = self.get_tiles_path / f'GetTiles'
+    def get_tiles_folder(self) -> Path:
+        folder = self.workfolder / f'GetTiles'
         folder.mkdir(parents=True, exist_ok=True)
         return folder
+
+    @property
+    def get_tiles_json(self) -> Path:
+        path = self.get_tiles_folder / f'get_tiles_{self.config["dataset_name"]}_{self.vid_proj}_{self.name}_fov{self.fov}.json'
+        return path
 
 
 class GetTiles(GetTilesProps):
@@ -217,17 +205,18 @@ class GetTiles(GetTilesProps):
             self.n_frames = int(self.duration) * int(self.gop)
 
             self.worker()
+            # self.heatmap()
 
     def worker(self):
-        if self.seen_tiles_json.exists(): return
+        if self.get_tiles_json.exists(): return
 
         for self.tiling in self.tiling_list:
             for self.user in self.users_list:
                 print(f'{self.name} - tiling {self.tiling} - User {self.user}')
 
                 if self.tiling == '1x1':
-                    self.results[self.vid_proj][self.name][self.tiling][self.user]['frame'] = [[0]] * self.n_frames
-                    self.results[self.vid_proj][self.name][self.tiling][self.user]['chunks'] = {i: [0] for i in range(1, int(self.duration) + 1)}
+                    self.results[self.vid_proj][self.name][self.tiling][self.user]['frame'] = [["0"]] * self.n_frames
+                    self.results[self.vid_proj][self.name][self.tiling][self.user]['chunks'] = {str(i): ["0"] for i in range(1, int(self.duration) + 1)}
                     continue
 
                 erp = self.erp_list[self.tiling]
@@ -250,81 +239,104 @@ class GetTiles(GetTilesProps):
                 self.results[self.vid_proj][self.name][self.tiling][self.user]['frame'] = result_frames
                 self.results[self.vid_proj][self.name][self.tiling][self.user]['chunks'] = result_chunks
 
-        print(f'Saving {self.seen_tiles_json}')
-        save_json(self.results, self.seen_tiles_json)
+        print(f'Saving {self.get_tiles_json}')
+        save_json(self.results, self.get_tiles_json)
 
+    def heatmap(self):
+        if not self.get_tiles_json.exists():
+            print(f'The file {self.viewport_psnr_file.parents[0]}/{self.viewport_psnr_file.name} NOT exist. Skipping')
+            return
 
+        self.results1 = load_json(self.get_tiles_json)
+        self.results2 = load_json(self.get_tiles_json.with_suffix(f'.json.old'))
 
-class Heatmap(GetTilesPath):
-    def loop(self):
-        pass
-    def worker(self):
-        pass
-    def user_analisys(self, overwrite=False):
-        self.dataset = load_json(self.dataset_json)
-        counter_tiles_json = self.get_tiles_path / f'counter_tiles_{self.dataset_name}.json'
-
-        if counter_tiles_json.exists():
-            result = load_json(counter_tiles_json)
-        else:
-            database = load_json(self.dataset_json, object_hook=dict)
-            result = {}
-            for self.tiling in self.tiling_list:
-                # Collect tiling count
-                tiles_counter = Counter()
-                print(f'{self.tiling=}')
-                nb_chunk = 0
-                for self.video in self.videos_list:
-                    users = database[self.name].keys()
-                    get_tiles_json = self.get_tiles_path / f'get_tiles_{self.dataset_name}_{self.video}_{self.tiling}.json'
-                    if not get_tiles_json.exists():
-                        print(dict(tiles_counter))
-                        break
-                    print(f'  - {self.video=}')
-                    get_tiles = load_json(get_tiles_json, object_hook=dict)
-                    for user in users:
-                        # hm = database[self.name][user]
-                        chunks = get_tiles[self.vid_proj][self.tiling][user]['chunks'].keys()
-                        for chunk in chunks:
-                            seen_tiles_by_chunk = get_tiles[self.vid_proj][self.tiling][user]['chunks'][chunk]
-                            tiles_counter = tiles_counter + Counter(seen_tiles_by_chunk)
-                            nb_chunk += 1
-
-                # normalize results
-                dict_tiles_counter = dict(tiles_counter)
-                column = []
-                for tile_id in range(len(dict_tiles_counter)):
-                    if not tile_id in dict_tiles_counter:
-                        column.append(0.)
-                    else:
-                        column.append(dict_tiles_counter[tile_id] / nb_chunk)
-                result[self.tiling] = column
-                print(result)
-
-            save_json(result, counter_tiles_json)
-
-        # Create heatmap
         for self.tiling in self.tiling_list:
-            tiling_result = result[self.tiling]
-            shape = splitx(self.tiling)[::-1]
-            grade = np.asarray(tiling_result).reshape(shape)
-            fig, ax = plt.subplots()
-            im = ax.imshow(grade, cmap='jet', )
-            ax.set_title(f'Tiling {self.tiling}')
-            fig.colorbar(im, ax=ax, label='chunk frequency')
-            heatmap_tiling = self.get_tiles_path / f'heatmap_tiling_{self.dataset_name}_{self.tiling}.png'
-            fig.savefig(f'{heatmap_tiling}')
-            fig.show()
+            for self.user in self.users_list:
+                keys = ('frame', 'head_positions', 'chunks',)
+                result_frames1: list = self.results1[self.vid_proj][self.name][self.tiling][self.user]['frame']
+                result_frames2: list = self.results2[self.vid_proj][self.name][self.tiling][self.user]['frame']
+                result_chunks1: dict = self.results1[self.vid_proj][self.name][self.tiling][self.user]['chunks']
+                result_chunks2: dict = self.results2[self.vid_proj][self.name][self.tiling][self.user]['chunks']
+
+                # head_positions1: list = self.results1[self.vid_proj][self.name][self.tiling][self.user]['head_positions']
+                # head_positions2: list = self.results2[self.vid_proj][self.name][self.tiling][self.user]['head_positions']
+
+                # for get_tiles_frame1, get_tiles_frame2 in zip(result_frames1,result_frames2):
+                print(f'[{self.name}][{self.tiling}][{self.user}] ', end='')
+                result_frames2_str = [list(map(str, item)) for item in result_frames2]
+                if result_frames1 == result_frames2_str:
+                    print(f'igual')
+                else:
+                    print('não igual')
+
+    # class Heatmap(GetTilesPath):
+    #     def loop(self):
+    #         pass
+    #     def worker(self):
+    #         pass
+    #     def user_analisys(self, overwrite=False):
+    #         self.dataset = load_json(self.dataset_json)
+    #         counter_tiles_json = self.get_tiles_path / f'counter_tiles_{self.dataset_name}.json'
+    #
+    #         if counter_tiles_json.exists():
+    #             result = load_json(counter_tiles_json)
+    #         else:
+    #             database = load_json(self.dataset_json, object_hook=dict)
+    #             result = {}
+    #             for self.tiling in self.tiling_list:
+    #                 # Collect tiling count
+    #                 tiles_counter = Counter()
+    #                 print(f'{self.tiling=}')
+    #                 nb_chunk = 0
+    #                 for self.video in self.videos_list:
+    #                     users = database[self.name].keys()
+    #                     get_tiles_json = self.get_tiles_path / f'get_tiles_{self.dataset_name}_{self.video}_{self.tiling}.json'
+    #                     if not get_tiles_json.exists():
+    #                         print(dict(tiles_counter))
+    #                         break
+    #                     print(f'  - {self.video=}')
+    #                     get_tiles = load_json(get_tiles_json, object_hook=dict)
+    #                     for user in users:
+    #                         # hm = database[self.name][user]
+    #                         chunks = get_tiles[self.vid_proj][self.tiling][user]['chunks'].keys()
+    #                         for chunk in chunks:
+    #                             seen_tiles_by_chunk = get_tiles[self.vid_proj][self.tiling][user]['chunks'][chunk]
+    #                             tiles_counter = tiles_counter + Counter(seen_tiles_by_chunk)
+    #                             nb_chunk += 1
+    #
+    #                 # normalize results
+    #                 dict_tiles_counter = dict(tiles_counter)
+    #                 column = []
+    #                 for tile_id in range(len(dict_tiles_counter)):
+    #                     if not tile_id in dict_tiles_counter:
+    #                         column.append(0.)
+    #                     else:
+    #                         column.append(dict_tiles_counter[tile_id] / nb_chunk)
+    #                 result[self.tiling] = column
+    #                 print(result)
+    #
+    #             save_json(result, counter_tiles_json)
+    #
+    #         # Create heatmap
+    #         for self.tiling in self.tiling_list:
+    #             tiling_result = result[self.tiling]
+    #             shape = splitx(self.tiling)[::-1]
+    #             grade = np.asarray(tiling_result).reshape(shape)
+    #             fig, ax = plt.subplots()
+    #             im = ax.imshow(grade, cmap='jet', )
+    #             ax.set_title(f'Tiling {self.tiling}')
+    #             fig.colorbar(im, ax=ax, label='chunk frequency')
+    #             heatmap_tiling = self.get_tiles_path / f'heatmap_tiling_{self.dataset_name}_{self.tiling}.png'
+    #             fig.savefig(f'{heatmap_tiling}')
+    #             fig.show()
 
 
-class ViewportPSNRProps(GetTilesPath):
+class ViewportPSNRProps(GetTilesProps):
     _tiling: str
     _video: str
     _tile: str
     _user: str
-    quality: str
     dataset_data: dict
-    dataset: dict
     erp_list: dict
     readers: AutoDict
     seen_tiles: dict
@@ -332,10 +344,6 @@ class ViewportPSNRProps(GetTilesPath):
     video_frame_idx: int
 
     ## Lists #############################################
-    @property
-    def users_list(self):
-        return list(self.dataset[self.name])
-
     @property
     def quality_list(self) -> list[str]:
         quality_list = self.config['quality_list']
@@ -354,7 +362,7 @@ class ViewportPSNRProps(GetTilesPath):
     def video(self, value):
         self._video = value
         self.n_frames = int(self.duration) * int(self.fps)
-        self.seen_tiles = load_json(self.seen_tiles_json)
+        self.seen_tiles = load_json(self.get_tiles_json)
         # self.erp_list = {tiling: vp.ERP(tiling, self.resolution, self.fov) for tiling in self.tiling_list}
         self.erp_list = {tiling: vp.ERP(tiling, self.resolution, self.fov, vp_shape=np.array([90, 110]) * 6) for tiling in self.tiling_list}
 
@@ -378,23 +386,13 @@ class ViewportPSNRProps(GetTilesPath):
         self.yaw_pitch_roll_frames = self.dataset[self.name][self.user]
         self.seen_tiles_by_chunks = self.seen_tiles[self.vid_proj][self.name][self.tiling][self.user]['chunks']
 
-    @property
-    def quality(self):
-        return self._quality
-
-    @quality.setter
-    def quality(self, value):
-        self._quality = value
-
-    @property
-    def tile(self):
-        return self._tile
-
-    @tile.setter
-    def tile(self, value):
-        self._tile = value
-
     ## Paths #############################################
+    @property
+    def viewport_psnr_file(self) -> Path:
+        folder = self.workfolder / f'{self.vid_proj}_{self.name}'
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f"user{self.user}_{self.tiling}.json"
+
     @property
     def debug_video(self) -> Path:
         folder = self.workfolder / f'{self.vid_proj}_{self.name}' / f"user{self.users_list[0]}_{self.tiling}"
@@ -569,7 +567,7 @@ class ViewportPSNRGraphs(GetTilesPath):
     readers: AutoDict
 
     def loop(self):
-        self.workfolder = self.workfolder / 'viewport_videos'
+        self.workfolder = self.workfolder / 'viewport_videos'  # todo: fix it
         self.workfolder.mkdir(parents=True, exist_ok=True)
         self.dataset = load_json(self.dataset_json)
 
@@ -611,7 +609,7 @@ class ViewportPSNRGraphs(GetTilesPath):
     @video.setter
     def video(self, value):
         self._video = value
-        self.get_tiles_data = load_json(self.seen_tiles_json)
+        self.get_tiles_data = load_json(self.get_tiles_json)
         self.users_list = list(self.dataset[self.name])
         self.erp_list = {tiling: vp.ERP(tiling, self.resolution, self.fov) for tiling in self.tiling_list}
 
@@ -640,73 +638,73 @@ class ViewportPSNRGraphs(GetTilesPath):
         return False
 
 
-class CheckViewportPSNR(ViewportPSNR):
-
-    @property
-    def quality_list(self) -> list[str]:
-        quality_list: list = self.config['quality_list']
-        try:
-            quality_list.remove('0')
-        except ValueError:
-            pass
-        return quality_list
-
-    def loop(self):
-
-        self.workfolder.mkdir(parents=True, exist_ok=True)
-        self.sse_frame: dict = {}
-        self.frame: int = 0
-        self.log = []
-        debug1 = defaultdict(list)
-        debug2 = defaultdict(list)
-        # if self.output_exist(False): continue
-
-        for self.video in self.videos_list:
-            for self.tiling in self.tiling_list:
-                for self.user in self.users_list:
-                    print(f'\r  Processing {self.vid_proj}_{self.name}_user{self.user}_{self.tiling}', end='')
-                    viewport_psnr_file = self.project_path / self.get_tiles_folder / f'ViewportPSNR' / 'viewport_videos' / f'{self.vid_proj}_{self.name}' / f"user{self.user}_{self.tiling}.json"
-
-                    try:
-                        self.sse_frame = load_json(viewport_psnr_file)
-                    except FileNotFoundError:
-                        msg = f'FileNotFound: {self.viewport_psnr_file}'
-                        debug1['video'].append(self.video)
-                        debug1['tiling'].append(self.tiling)
-                        debug1['user'].append(self.user)
-                        debug1['msg'].append(msg)
-                        continue
-
-                    for self.quality in self.quality_list:
-                        psnr = self.sse_frame[self.vid_proj][self.name][self.tiling][self.user][self.quality]['psnr']
-                        n_frames = len(psnr)
-                        more_than_100 = [x for x in psnr if x > 100]
-
-                        if n_frames < (int(self.duration) * int(self.fps)):
-                            msg = f'Few frames {n_frames}.'
-                            debug2['video'].append(self.video)
-                            debug2['tiling'].append(self.tiling)
-                            debug2['user'].append(self.user)
-                            debug2['quality'].append(self.quality)
-                            debug2['error'].append('FrameError')
-                            debug2['msg'].append(msg)
-
-                        if len(more_than_100) > 0:
-                            msg = f'{len(more_than_100)} values above PSNR 100 - max={max(psnr)}'
-                            debug2['video'].append(self.video)
-                            debug2['tiling'].append(self.tiling)
-                            debug2['user'].append(self.user)
-                            debug2['quality'].append(self.quality)
-                            debug2['error'].append('ValueError')
-                            debug2['msg'].append(msg)
-
-        pd.DataFrame(debug1).to_csv("checkviewportpsnr1.csv", index=False)
-        pd.DataFrame(debug2).to_csv("checkviewportpsnr2.csv", index=False)
-
-        yield
-
-    def worker(self, **kwargs):
-        print(f'\rprocessing {self.vid_proj}_{self.name}_user{self.user}', end='')
+# class CheckViewportPSNR(ViewportPSNR):
+#
+#     @property
+#     def quality_list(self) -> list[str]:
+#         quality_list: list = self.config['quality_list']
+#         try:
+#             quality_list.remove('0')
+#         except ValueError:
+#             pass
+#         return quality_list
+#
+#     def loop(self):
+#
+#         self.workfolder.mkdir(parents=True, exist_ok=True)
+#         self.sse_frame: dict = {}
+#         self.frame: int = 0
+#         self.log = []
+#         debug1 = defaultdict(list)
+#         debug2 = defaultdict(list)
+#         # if self.output_exist(False): continue
+#
+#         for self.video in self.videos_list:
+#             for self.tiling in self.tiling_list:
+#                 for self.user in self.users_list:
+#                     print(f'\r  Processing {self.vid_proj}_{self.name}_user{self.user}_{self.tiling}', end='')
+#                     viewport_psnr_file = self.project_path / self.operation_folder / f'ViewportPSNR' / 'viewport_videos' / f'{self.vid_proj}_{self.name}' / f"user{self.user}_{self.tiling}.json"
+#
+#                     try:
+#                         self.sse_frame = load_json(viewport_psnr_file)
+#                     except FileNotFoundError:
+#                         msg = f'FileNotFound: {self.viewport_psnr_file}'
+#                         debug1['video'].append(self.video)
+#                         debug1['tiling'].append(self.tiling)
+#                         debug1['user'].append(self.user)
+#                         debug1['msg'].append(msg)
+#                         continue
+#
+#                     for self.quality in self.quality_list:
+#                         psnr = self.sse_frame[self.vid_proj][self.name][self.tiling][self.user][self.quality]['psnr']
+#                         n_frames = len(psnr)
+#                         more_than_100 = [x for x in psnr if x > 100]
+#
+#                         if n_frames < (int(self.duration) * int(self.fps)):
+#                             msg = f'Few frames {n_frames}.'
+#                             debug2['video'].append(self.video)
+#                             debug2['tiling'].append(self.tiling)
+#                             debug2['user'].append(self.user)
+#                             debug2['quality'].append(self.quality)
+#                             debug2['error'].append('FrameError')
+#                             debug2['msg'].append(msg)
+#
+#                         if len(more_than_100) > 0:
+#                             msg = f'{len(more_than_100)} values above PSNR 100 - max={max(psnr)}'
+#                             debug2['video'].append(self.video)
+#                             debug2['tiling'].append(self.tiling)
+#                             debug2['user'].append(self.user)
+#                             debug2['quality'].append(self.quality)
+#                             debug2['error'].append('ValueError')
+#                             debug2['msg'].append(msg)
+#
+#         pd.DataFrame(debug1).to_csv("checkviewportpsnr1.csv", index=False)
+#         pd.DataFrame(debug2).to_csv("checkviewportpsnr2.csv", index=False)
+#
+#         yield
+#
+#     def worker(self, **kwargs):
+#         print(f'\rprocessing {self.vid_proj}_{self.name}_user{self.user}', end='')
 
 
 class ViewportMetrics(GetTilesPath, QualityAssessmentPaths):
@@ -717,7 +715,7 @@ class ViewportMetrics(GetTilesPath, QualityAssessmentPaths):
 
     def output_exist(self):
         if self.seen_metrics_json.exists() and not self.overwrite:
-            print(f'  The data file "{self.seen_tiles_json}" exist. Loading date.')
+            print(f'  The data file "{self.get_tiles_json}" exist. Loading date.')
             return True
         return False
 
@@ -742,7 +740,7 @@ class ViewportMetrics(GetTilesPath, QualityAssessmentPaths):
         if self.video is None:
             warning('self.video is not assigned.')
         else:
-            self.get_tiles_data = load_json(self.seen_tiles_json, object_hook=dict)
+            self.get_tiles_data = load_json(self.get_tiles_json, object_hook=dict)
             self.users = list(self.get_tiles_data[self.vid_proj][self.name][self.tiling].keys())
 
     def loop(self):
@@ -806,7 +804,7 @@ class TestDataset(GetTilesPath):
             users_data = database[self.name]
 
             erp = vp.ERP(self.tiling, self.resolution, '110x90')
-            get_tiles_data = load_json(self.seen_tiles_json, object_hook=dict)
+            get_tiles_data = load_json(self.get_tiles_json, object_hook=dict)
 
             for self.tiling in self.tiling_list:
                 if self.tiling == '1x1': continue  # Remover depois
