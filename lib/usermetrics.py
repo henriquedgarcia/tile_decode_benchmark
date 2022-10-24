@@ -196,6 +196,16 @@ class GetTilesProps(GetTilesPath):
     def users_list(self) -> list[str]:
         return list(self.dataset[self.name].keys())
 
+    @property
+    def workfolder(self) -> Path:
+        """
+        Need None
+        """
+        folder = self.get_tiles_path / f'GetTiles'
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+
 class GetTiles(GetTilesProps):
     def loop(self, overwrite=False):
         self.erp_list = {self.tiling: vp.ERP(self.tiling, '576x288', self.fov) for self.tiling in self.tiling_list}
