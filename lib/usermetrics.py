@@ -217,7 +217,6 @@ class GetTiles(GetTilesProps):
             self.n_frames = int(self.duration) * int(self.gop)
 
             self.worker()
-            self.test_get_tiles()
 
     def worker(self):
         if self.seen_tiles_json.exists(): return
@@ -254,32 +253,6 @@ class GetTiles(GetTilesProps):
         print(f'Saving {self.seen_tiles_json}')
         save_json(self.results, self.seen_tiles_json)
 
-    def test_get_tiles(self):
-        if not self.seen_tiles_json.exists():
-            print(f'The file {self.viewport_psnr_file.parents[0]}/{self.viewport_psnr_file.name} NOT exist. Skipping')
-            return
-
-        self.results1 = load_json(self.seen_tiles_json)
-        self.results2 = load_json(self.seen_tiles_json.with_suffix(f'.json.old'))
-
-        for self.tiling in self.tiling_list:
-            for self.user in self.users_list:
-                keys = ('frame', 'head_positions', 'chunks',)
-                result_frames1: list = self.results1[self.vid_proj][self.name][self.tiling][self.user]['frame']
-                result_frames2: list = self.results2[self.vid_proj][self.name][self.tiling][self.user]['frame']
-                result_chunks1: dict = self.results1[self.vid_proj][self.name][self.tiling][self.user]['chunks']
-                result_chunks2: dict = self.results2[self.vid_proj][self.name][self.tiling][self.user]['chunks']
-
-                # head_positions1: list = self.results1[self.vid_proj][self.name][self.tiling][self.user]['head_positions']
-                # head_positions2: list = self.results2[self.vid_proj][self.name][self.tiling][self.user]['head_positions']
-
-                # for get_tiles_frame1, get_tiles_frame2 in zip(result_frames1,result_frames2):
-                print(f'[{self.name}][{self.tiling}][{self.user}] ', end='')
-                result_frames2_str = [list(map(str, item)) for item in result_frames2]
-                if result_frames1 == result_frames2_str:
-                    print(f'igual')
-                else:
-                    print('não igual')
 
 
 class Heatmap(GetTilesPath):
