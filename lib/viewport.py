@@ -40,7 +40,7 @@ class Viewport:
         """
         self.fov = fov
         self.vp_shape = vp_shape
-
+        self.updated_array = set()
         self._make_base_normals()
         self._make_base_vp_coord()
 
@@ -168,7 +168,7 @@ class Viewport:
 
         :param value: the positions like array(yaw, pitch, roll) in rad
         """
-        if np.all(self.yaw_pitch_roll != value):
+        if not np.all(self.yaw_pitch_roll == value):
             self._yaw_pitch_roll = value
             self.updated_array = set()
 
@@ -291,8 +291,7 @@ class ERP:
 
     @yaw_pitch_roll.setter
     def yaw_pitch_roll(self, value: np.ndarray):
-        if np.all(self.viewport.yaw_pitch_roll != value):
-            self.viewport.yaw_pitch_roll = value
+        self.viewport.yaw_pitch_roll = value
 
     def _draw_tile_border(self, idx, lum=255):
         borders = self.get_tile_borders(idx)
@@ -473,7 +472,7 @@ def get_borders(*, coord_nm: Union[tuple, np.ndarray] = None, shape=None, thickn
 def main():
     # erp '144x72', '288x144','432x216','576x288'
     # cmp '144x96', '288x192','432x288','576x384'
-    yaw_pitch_roll = np.deg2rad((-30, 20, -10))
+    yaw_pitch_roll = np.deg2rad((70, 0, 0))
     height, width = 288, 576
 
     cover_red = Image.new("RGB", (width, height), (255, 0, 0))
