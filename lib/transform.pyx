@@ -195,21 +195,19 @@ def rot_matrix(yaw_pitch_roll: Union[np.ndarray, list]) -> np.ndarray:
     # pitch
     mat_x = np.array(
         [[1, 0, 0],
-         [0, cos_rot[1], sin_rot[1]],
-         [0, -sin_rot[1], cos_rot[1]]]
+         [0, cos_rot[1], -sin_rot[1]],
+         [0, sin_rot[1], cos_rot[1]]]
     )
-
     # yaw
     mat_y = np.array(
-        [[cos_rot[0], 0, -sin_rot[0]],
+        [[cos_rot[0], 0, sin_rot[0]],
          [0, 1, 0],
-         [sin_rot[0], 0, cos_rot[0]]]
+         [-sin_rot[0], 0, cos_rot[0]]]
     )
-
     # roll
     mat_z = np.array(
-        [[cos_rot[2], sin_rot[2], 0],
-         [-sin_rot[2], cos_rot[2], 0],
+        [[cos_rot[2], -sin_rot[2], 0],
+         [sin_rot[2], cos_rot[2], 0],
          [0, 0, 1]]
     )
 
