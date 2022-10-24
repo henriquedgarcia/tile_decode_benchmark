@@ -193,14 +193,6 @@ class GetTilesProps(GetTilesPath):
     results: AutoDict
 
     @property
-    def video(self):
-        return self._video
-
-    @video.setter
-    def video(self, value):
-        self._video = value
-
-    @property
     def users_list(self) -> list[str]:
         return list(self.dataset[self.name].keys())
 
