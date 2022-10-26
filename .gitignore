@@ -5,7 +5,6 @@ results/
 __pycache__/
 old/
 projections/
-.gitignore
 *.log
 datasets/
 *.c
@@ -27,3 +26,4 @@ tile0_001-ref.mp4
 tile0_001.mp4
 lib/equirectangular-toolbox/
 lib/tesst.py
+results
