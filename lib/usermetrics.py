@@ -332,6 +332,83 @@ class GetTiles(GetTilesProps):
             # fig.show()
             fig.savefig(f'{heatmap_tiling}')
 
+class ViewportMetrics(GetTilesProps, QualityAssessmentPaths):
+    seen_tiles_data: AutoDict
+    _video: str = None
+    users: list = None
+    user: int = None
+
+    def output_exist(self):
+        if self.seen_metrics_json.exists() and not self.overwrite:
+            print(f'  The data file "{self.get_tiles_json}" exist. Loading date.')
+            return True
+        return False
+
+    @property
+    def video(self):
+        return self._video
+
+    @video.setter
+    def video(self, value):
+        self._video = value
+        self.time_data = load_json(self.dectime_result_json, object_hook=dict)
+        self.rate_data = load_json(self.bitrate_result_json, object_hook=dict)
+        self.qlt_data = load_json(self.quality_result_json, object_hook=dict)
+
+    @property
+    def tiling(self):
+        return self._tiling
+
+    @tiling.setter
+    def tiling(self, value):
+        self._tiling = value
+        if self.video is None:
+            warning('self.video is not assigned.')
+        else:
+            self.get_tiles_data = load_json(self.get_tiles_json, object_hook=dict)
+            self.users = list(self.get_tiles_data[self.vid_proj][self.name][self.tiling].keys())
+
+    def loop(self):
+        print('\n====== Get tiles data ======')
+
+        self.seen_tiles_data = AutoDict()
+
+        for self.video in self.videos_list:
+            if self.output_exist(): return
+
+            for self.tiling in self.tiling_list:
+                print(f'\r  Get Tiles - {self.vid_proj}  {self.name} {self.tiling} - {len(self.users)} users ... ', end='')
+                for self.user in self.users:
+                    for self.chunk in self.chunk_list:
+                        for self.quality in self.quality_list:
+                            for self.tile in self.tile_list:
+                                yield
+
+    def worker(self):
+        get_tiles = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['chunks'][self.chunk]
+
+        if int(self.tile) in get_tiles:
+            dectime_val = self.time_data[self.vid_proj][self.tiling][self.quality][self.tile][self.chunk]
+            bitrate_val = self.rate_data[self.vid_proj][self.tiling][self.quality][self.tile][self.chunk]
+            quality_val = self.qlt_data[self.vid_proj][self.tiling][self.quality][self.tile][self.chunk]
+
+            seen_tiles_result = self.seen_tiles_data[f'{self.user}'][self.vid_proj][self.name][self.tiling][self.quality][self.tile][self.chunk]
+            seen_tiles_result['time'] = float(np.average(dectime_val['times']))
+            seen_tiles_result['rate'] = float(bitrate_val['rate'])
+            seen_tiles_result['time_std'] = float(np.std(dectime_val['times']))
+
+            for metric in ['PSNR', 'WS-PSNR', 'S-PSNR']:
+                value = quality_val[metric]
+                if value == float('inf'):
+                    value = 1000
+                seen_tiles_result[metric] = value
+                print('OK')
+
+        print(f'  Saving get tiles... ', end='')
+        # todo: criar arquivo para esse módulo
+        # save_json(self.seen_tiles_data, self.seen_tiles_json)
+        print(f'  Finished.')
+
 
 class ViewportPSNRProps(GetTilesProps):
     _tiling: str
@@ -799,83 +876,6 @@ class TestDataset(ViewportPSNRProps):
                         print('')
                         video_writer.close()
 
-
-class ViewportMetrics(ViewportPSNRProps, QualityAssessmentPaths):
-    seen_tiles_data: AutoDict
-    _video: str = None
-    users: list = None
-    user: int = None
-
-    def output_exist(self):
-        if self.seen_metrics_json.exists() and not self.overwrite:
-            print(f'  The data file "{self.get_tiles_json}" exist. Loading date.')
-            return True
-        return False
-
-    @property
-    def video(self):
-        return self._video
-
-    @video.setter
-    def video(self, value):
-        self._video = value
-        self.time_data = load_json(self.dectime_result_json, object_hook=dict)
-        self.rate_data = load_json(self.bitrate_result_json, object_hook=dict)
-        self.qlt_data = load_json(self.quality_result_json, object_hook=dict)
-
-    @property
-    def tiling(self):
-        return self._tiling
-
-    @tiling.setter
-    def tiling(self, value):
-        self._tiling = value
-        if self.video is None:
-            warning('self.video is not assigned.')
-        else:
-            self.get_tiles_data = load_json(self.get_tiles_json, object_hook=dict)
-            self.users = list(self.get_tiles_data[self.vid_proj][self.name][self.tiling].keys())
-
-    def loop(self):
-        print('\n====== Get tiles data ======')
-
-        self.seen_tiles_data = AutoDict()
-
-        for self.video in self.videos_list:
-            if self.output_exist(): return
-
-            for self.tiling in self.tiling_list:
-                print(f'\r  Get Tiles - {self.vid_proj}  {self.name} {self.tiling} - {len(self.users)} users ... ', end='')
-                for self.user in self.users:
-                    for self.chunk in self.chunk_list:
-                        for self.quality in self.quality_list:
-                            for self.tile in self.tile_list:
-                                yield
-
-    def worker(self):
-        get_tiles = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['chunks'][self.chunk]
-
-        if int(self.tile) in get_tiles:
-            dectime_val = self.time_data[self.vid_proj][self.tiling][self.quality][self.tile][self.chunk]
-            bitrate_val = self.rate_data[self.vid_proj][self.tiling][self.quality][self.tile][self.chunk]
-            quality_val = self.qlt_data[self.vid_proj][self.tiling][self.quality][self.tile][self.chunk]
-
-            seen_tiles_result = self.seen_tiles_data[f'{self.user}'][self.vid_proj][self.name][self.tiling][self.quality][self.tile][self.chunk]
-            seen_tiles_result['time'] = float(np.average(dectime_val['times']))
-            seen_tiles_result['rate'] = float(bitrate_val['rate'])
-            seen_tiles_result['time_std'] = float(np.std(dectime_val['times']))
-
-            for metric in ['PSNR', 'WS-PSNR', 'S-PSNR']:
-                value = quality_val[metric]
-                if value == float('inf'):
-                    value = 1000
-                seen_tiles_result[metric] = value
-                print('OK')
-
-        print(f'  Saving get tiles... ', end='')
-        # todo: criar arquivo para esse módulo
-        # save_json(self.seen_tiles_data, self.seen_tiles_json)
-        print(f'  Finished.')
 
 
 class UserMetricsOptions(Enum):
