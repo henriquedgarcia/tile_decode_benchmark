@@ -193,6 +193,11 @@ class GetTilesProps(GetTilesPath):
         path = self.get_tiles_folder / f'get_tiles_{self.config["dataset_name"]}_{self.vid_proj}_{self.name}_fov{self.fov}.json'
         return path
 
+    @property
+    def counter_tiles_json(self):
+        filepath = self.get_tiles_folder / f'counter_{self.config["dataset_name"]}_{self.vid_proj}_{self.name}_fov{self.fov}.json'
+        return filepath
+
 
 class GetTiles(GetTilesProps):
     def __init__(self):
@@ -205,7 +210,8 @@ class GetTiles(GetTilesProps):
             self.n_frames = int(self.duration) * int(self.gop)
 
             self.worker()
-            # self.heatmap()
+            self.count_tiles()
+            self.heatmap()
 
     def worker(self):
         if self.get_tiles_json.exists(): return
@@ -242,93 +248,89 @@ class GetTiles(GetTilesProps):
         print(f'Saving {self.get_tiles_json}')
         save_json(self.results, self.get_tiles_json)
 
-    def heatmap(self):
-        if not self.get_tiles_json.exists():
-            print(f'The file {self.viewport_psnr_file.parents[0]}/{self.viewport_psnr_file.name} NOT exist. Skipping')
-            return
+    # def diferences(self):
+    #     if not self.get_tiles_json.exists():
+    #         print(f'The file {self.get_tiles_json} NOT exist. Skipping')
+    #         return
+    #
+    #     self.results1 = load_json(self.get_tiles_json)
+    #     self.results2 = load_json(self.get_tiles_json.with_suffix(f'.json.old'))
+    #
+    #     for self.tiling in self.tiling_list:
+    #         for self.user in self.users_list:
+    #             keys = ('frame', 'head_positions', 'chunks',)
+    #             result_frames1: list = self.results1[self.vid_proj][self.name][self.tiling][self.user]['frame']
+    #             result_frames2: list = self.results2[self.vid_proj][self.name][self.tiling][self.user]['frame']
+    #             result_chunks1: dict = self.results1[self.vid_proj][self.name][self.tiling][self.user]['chunks']
+    #             result_chunks2: dict = self.results2[self.vid_proj][self.name][self.tiling][self.user]['chunks']
+    #
+    #             # head_positions1: list = self.results1[self.vid_proj][self.name][self.tiling][self.user]['head_positions']
+    #             # head_positions2: list = self.results2[self.vid_proj][self.name][self.tiling][self.user]['head_positions']
+    #
+    #             # for get_tiles_frame1, get_tiles_frame2 in zip(result_frames1,result_frames2):
+    #             print(f'[{self.name}][{self.tiling}][{self.user}] ', end='')
+    #             result_frames2_str = [list(map(str, item)) for item in result_frames2]
+    #             if result_frames1 == result_frames2_str:
+    #                 print(f'igual')
+    #             else:
+    #                 print('não igual')
 
-        self.results1 = load_json(self.get_tiles_json)
-        self.results2 = load_json(self.get_tiles_json.with_suffix(f'.json.old'))
+    def count_tiles(self):
+        if self.counter_tiles_json.exists(): return
+
+        self.results = load_json(self.get_tiles_json)
+        result = {}
 
         for self.tiling in self.tiling_list:
+            if self.tiling == '1x1': continue
+            # <editor-fold desc="Count tiles">
+            tiles_counter_chunks = Counter()  # Collect tiling count
+
             for self.user in self.users_list:
-                keys = ('frame', 'head_positions', 'chunks',)
-                result_frames1: list = self.results1[self.vid_proj][self.name][self.tiling][self.user]['frame']
-                result_frames2: list = self.results2[self.vid_proj][self.name][self.tiling][self.user]['frame']
-                result_chunks1: dict = self.results1[self.vid_proj][self.name][self.tiling][self.user]['chunks']
-                result_chunks2: dict = self.results2[self.vid_proj][self.name][self.tiling][self.user]['chunks']
+                result_chunks: dict[str, list[str]] = self.results[self.vid_proj][self.name][self.tiling][self.user]['chunks']
 
-                # head_positions1: list = self.results1[self.vid_proj][self.name][self.tiling][self.user]['head_positions']
-                # head_positions2: list = self.results2[self.vid_proj][self.name][self.tiling][self.user]['head_positions']
+                for chunk in result_chunks:
+                    tiles_counter_chunks = tiles_counter_chunks + Counter(result_chunks[chunk])
+            # </editor-fold>
 
-                # for get_tiles_frame1, get_tiles_frame2 in zip(result_frames1,result_frames2):
-                print(f'[{self.name}][{self.tiling}][{self.user}] ', end='')
-                result_frames2_str = [list(map(str, item)) for item in result_frames2]
-                if result_frames1 == result_frames2_str:
-                    print(f'igual')
-                else:
-                    print('não igual')
+            print(tiles_counter_chunks)
+            dict_tiles_counter_chunks = dict(tiles_counter_chunks)
 
-    # class Heatmap(GetTilesPath):
-    #     def loop(self):
-    #         pass
-    #     def worker(self):
-    #         pass
-    #     def user_analisys(self, overwrite=False):
-    #         self.dataset = load_json(self.dataset_json)
-    #         counter_tiles_json = self.get_tiles_path / f'counter_tiles_{self.dataset_name}.json'
-    #
-    #         if counter_tiles_json.exists():
-    #             result = load_json(counter_tiles_json)
-    #         else:
-    #             database = load_json(self.dataset_json, object_hook=dict)
-    #             result = {}
-    #             for self.tiling in self.tiling_list:
-    #                 # Collect tiling count
-    #                 tiles_counter = Counter()
-    #                 print(f'{self.tiling=}')
-    #                 nb_chunk = 0
-    #                 for self.video in self.videos_list:
-    #                     users = database[self.name].keys()
-    #                     get_tiles_json = self.get_tiles_path / f'get_tiles_{self.dataset_name}_{self.video}_{self.tiling}.json'
-    #                     if not get_tiles_json.exists():
-    #                         print(dict(tiles_counter))
-    #                         break
-    #                     print(f'  - {self.video=}')
-    #                     get_tiles = load_json(get_tiles_json, object_hook=dict)
-    #                     for user in users:
-    #                         # hm = database[self.name][user]
-    #                         chunks = get_tiles[self.vid_proj][self.tiling][user]['chunks'].keys()
-    #                         for chunk in chunks:
-    #                             seen_tiles_by_chunk = get_tiles[self.vid_proj][self.tiling][user]['chunks'][chunk]
-    #                             tiles_counter = tiles_counter + Counter(seen_tiles_by_chunk)
-    #                             nb_chunk += 1
-    #
-    #                 # normalize results
-    #                 dict_tiles_counter = dict(tiles_counter)
-    #                 column = []
-    #                 for tile_id in range(len(dict_tiles_counter)):
-    #                     if not tile_id in dict_tiles_counter:
-    #                         column.append(0.)
-    #                     else:
-    #                         column.append(dict_tiles_counter[tile_id] / nb_chunk)
-    #                 result[self.tiling] = column
-    #                 print(result)
-    #
-    #             save_json(result, counter_tiles_json)
-    #
-    #         # Create heatmap
-    #         for self.tiling in self.tiling_list:
-    #             tiling_result = result[self.tiling]
-    #             shape = splitx(self.tiling)[::-1]
-    #             grade = np.asarray(tiling_result).reshape(shape)
-    #             fig, ax = plt.subplots()
-    #             im = ax.imshow(grade, cmap='jet', )
-    #             ax.set_title(f'Tiling {self.tiling}')
-    #             fig.colorbar(im, ax=ax, label='chunk frequency')
-    #             heatmap_tiling = self.get_tiles_path / f'heatmap_tiling_{self.dataset_name}_{self.tiling}.png'
-    #             fig.savefig(f'{heatmap_tiling}')
-    #             fig.show()
+            # <editor-fold desc="Normalize Counter">
+            nb_chunks = sum(dict_tiles_counter_chunks.values())
+            for self.tile in self.tile_list:
+                try:
+                    dict_tiles_counter_chunks[self.tile] /= nb_chunks
+                except KeyError:
+                    dict_tiles_counter_chunks[self.tile] = 0
+            # </editor-fold>
+
+            result[self.tiling] = dict_tiles_counter_chunks
+
+        save_json(result, self.counter_tiles_json)
+
+    def heatmap(self):
+        results = load_json(self.counter_tiles_json)
+
+        for self.tiling in self.tiling_list:
+            if self.tiling == '1x1': continue
+            heatmap_tiling = self.get_tiles_folder / f'heatmap_tiling_{self.dataset_name}_{self.vid_proj}_{self.name}_{self.tiling}_fov{self.fov}.png'
+            if heatmap_tiling.exists(): continue
+
+            tiling_result = results[self.tiling]
+
+            h, w = splitx(self.tiling)[::-1]
+            grade = np.zeros((h*w,))
+
+            for item in tiling_result: grade[int(item)] = tiling_result[item]
+            grade = grade.reshape((h,w))
+
+            fig, ax = plt.subplots()
+            im = ax.imshow(grade, cmap='jet', )
+            ax.set_title(f'Tiling {self.tiling}')
+            fig.colorbar(im, ax=ax, label='chunk frequency')
+            # fig.show()
+            fig.savefig(f'{heatmap_tiling}')
 
 
 class ViewportPSNRProps(GetTilesProps):
