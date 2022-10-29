@@ -13,13 +13,6 @@ class QualityAssessmentPaths(TileDecodeBenchmarkPaths):
     quality_folder = Path('quality')
 
     @property
-    def workfolder(self) -> Path:
-        folder = self.project_path / self.quality_folder
-        folder.mkdir(parents=True, exist_ok=True)
-        return folder
-
-
-    @property
     def video_quality_folder(self) -> Path:
         name =(f'{self.name}_'
                f'{self.resolution}_'
@@ -37,8 +30,9 @@ class QualityAssessmentPaths(TileDecodeBenchmarkPaths):
 
     @property
     def quality_result_json(self) -> Path:
-        return self.workfolder / f'quality_{self.video}.json'
-
+        folder = self.project_path / self.quality_folder
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder /  f'quality_{self.video}.json'
 
 class QualityAssessmentProps(QualityAssessmentPaths):
     sph_file = Path('lib/sphere_655362.txt')
