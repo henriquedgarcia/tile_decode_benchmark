@@ -154,7 +154,7 @@ class GlobalPaths(Factors, ABC):
     overwrite = False
     dectime_folder = Path('dectime')
     graphs_folder = Path('graphs')
-
+    operation_folder = Path('')
     # @property
     # def workfolder(self) -> Path:
     #     """
@@ -207,7 +207,6 @@ class GlobalPaths(Factors, ABC):
             return 0
 
         return len(['' for line in content if 'utime' in line])
-
 
     # def __init__(self):
     #     self.print_resume()
