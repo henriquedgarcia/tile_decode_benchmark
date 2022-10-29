@@ -444,7 +444,7 @@ class UserProjectionMetricsProps(GetTilesProps, QualityAssessmentPaths):
 class UserProjectionMetrics(UserProjectionMetricsProps):
     def __init__(self):
         self.print_resume()
-        # self.main()
+        self.main()
         self.test()
 
     def main(self):
