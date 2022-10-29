@@ -501,6 +501,7 @@ class UserProjectionMetrics(UserProjectionMetricsProps):
                 for self.user in users_list:
                     img_name = folder / f'{self.tiling}_user{self.user}.png'
                     if img_name.exists(): continue
+                    print(img_name, end='')
                     fig: plt.Figure
                     fig, ax = plt.subplots(2, 4, figsize=(12, 5), dpi=200)
                     ax = list(ax.flat)
