@@ -408,6 +408,15 @@ class UserProjectionMetricsProps(GetTilesProps, QualityAssessmentPaths):
         self.seen_tiles_data = AutoDict()
 
     @property
+    def quality_list(self) -> list[str]:
+        quality_list = self.config['quality_list']
+        try:
+            quality_list.remove('0')
+        except:
+            pass
+        return quality_list
+
+    @property
     def tiling(self):
         return self._tiling
 
