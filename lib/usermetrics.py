@@ -32,8 +32,6 @@ rotation_map = {'cable_cam_nas': 265 / 180 * pi, 'drop_tower_nas': 180 / 180 * p
 
 
 class GetTilesPath(TileDecodeBenchmarkPaths, ABC):
-    operation_folder = Path('get_tiles')
-
     dataset_folder: Path
     video_id_map: dict
     user_map: dict
@@ -41,12 +39,6 @@ class GetTilesPath(TileDecodeBenchmarkPaths, ABC):
     video_name: str
     user_id: str
     head_movement: pd.DataFrame
-
-    @property
-    def workfolder(self) -> Path:
-        folder = self.project_path / self.operation_folder
-        folder.mkdir(parents=True, exist_ok=True)
-        return folder
 
     # @property
     # def workfolder(self) -> Path:
@@ -91,18 +83,6 @@ class GetTilesPath(TileDecodeBenchmarkPaths, ABC):
 
         names = ['timestamp', 'Qx', 'Qy', 'Qz', 'Qw', 'Vx', 'Vy', 'Vz']
         self.head_movement = pd.read_csv(self.csv_dataset_file, names=names)
-    # </editor-fold>
-
-    # <editor-fold desc="seen_metric path">
-    @property
-    def seen_metrics_folder(self) -> Path:
-        folder = self.project_path / 'seen_metrics'
-        folder.mkdir(parents=True, exist_ok=True)
-        return folder
-
-    @property
-    def seen_metrics_json(self) -> Path:
-        return self.seen_metrics_folder / f'seen_metrics_{self.config["dataset_name"]}_{self.vid_proj}_{self.name}.json'
     # </editor-fold>
 
 
@@ -184,7 +164,7 @@ class GetTilesProps(GetTilesPath):
 
     @property
     def get_tiles_folder(self) -> Path:
-        folder = self.workfolder / f'GetTiles'
+        folder = self.project_path / 'GetTiles'
         folder.mkdir(parents=True, exist_ok=True)
         return folder
 
@@ -195,8 +175,17 @@ class GetTilesProps(GetTilesPath):
 
     @property
     def counter_tiles_json(self):
-        filepath = self.get_tiles_folder / f'counter_{self.config["dataset_name"]}_{self.vid_proj}_{self.name}_fov{self.fov}.json'
-        return filepath
+        folder = self.get_tiles_folder / 'counter'
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f'counter_{self.config["dataset_name"]}_{self.vid_proj}_{self.name}_fov{self.fov}.json'
+        return path
+
+    @property
+    def heatmap_tiling(self):
+        folder = self.get_tiles_folder / 'heatmap'
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f'heatmap_tiling_{self.dataset_name}_{self.vid_proj}_{self.name}_{self.tiling}_fov{self.fov}.png'
+        return path
 
 
 class GetTiles(GetTilesProps):
@@ -212,6 +201,7 @@ class GetTiles(GetTilesProps):
             self.worker()
             self.count_tiles()
             self.heatmap()
+            # self.plot_test()
 
     def worker(self):
         if self.get_tiles_json.exists(): return
@@ -332,17 +322,81 @@ class GetTiles(GetTilesProps):
             # fig.show()
             fig.savefig(f'{heatmap_tiling}')
 
-class ViewportMetrics(GetTilesProps, QualityAssessmentPaths):
-    seen_tiles_data: AutoDict
-    _video: str = None
-    users: list = None
-    user: int = None
 
-    def output_exist(self):
-        if self.seen_metrics_json.exists() and not self.overwrite:
-            print(f'  The data file "{self.get_tiles_json}" exist. Loading date.')
-            return True
-        return False
+    # def plot_test(self):
+    #     # self.results[self.vid_proj][self.name][self.tiling][self.user]['frame'|'chunks']: list[list[str]] | d
+    #     self.results = load_json(self.get_tiles_json)
+    #
+    #     users_list = self.seen_tiles_data[self.vid_proj][self.name]['1x1']['16'].keys()
+    #
+    #     for self.tiling in self.tiling_list:
+    #         folder = self.seen_metrics_folder / f'1_{self.name}'
+    #         folder.mkdir(parents=True, exist_ok=True)
+    #
+    #         for self.user in users_list:
+    #             fig: plt.Figure
+    #             fig, ax = plt.subplots(2, 4, figsize=(12, 5), dpi=200)
+    #             ax = list(ax.flat)
+    #             ax: list[plt.Axes]
+    #
+    #             for self.quality in self.quality_list:
+    #                 result5 = defaultdict(list)    # By chunk
+    #
+    #                 for self.chunk in self.chunk_list:
+    #                     seen_tiles_data = self.seen_tiles_data[self.vid_proj][self.name][self.tiling][self.quality][self.user][self.chunk]
+    #                     tiles_list = seen_tiles_data['time'].keys()
+    #
+    #                     result5[f'n_tiles'].append(len(tiles_list))
+    #                     for self.metric in ['time', 'rate', 'PSNR', 'WS-PSNR', 'S-PSNR']:
+    #                         value = [seen_tiles_data[self.metric][tile] for tile in tiles_list]
+    #                         percentile = list(np.percentile(value, [0, 25, 50, 75, 100]))
+    #                         result5[f'{self.metric}_sum'].append(np.sum(value))         # Tempo total de um chunk (sem decodificação paralela) (soma os tempos de decodificação dos tiles)
+    #                         result5[f'{self.metric}_avg'].append(np.average(value))     # tempo médio de um chunk (com decodificação paralela) (média dos tempos de decodificação dos tiles)
+    #                         result5[f'{self.metric}_std'].append(np.std(value))
+    #                         result5[f'{self.metric}_min'].append(percentile[0])
+    #                         result5[f'{self.metric}_q1'].append(percentile[1])
+    #                         result5[f'{self.metric}_median'].append(percentile[2])
+    #                         result5[f'{self.metric}_q2'].append(percentile[3])
+    #                         result5[f'{self.metric}_max'].append(percentile[4])
+    #
+    #                 ax[0].plot(result5['time_sum'], label=f'CRF{self.quality}')
+    #                 ax[1].plot(result5['time_avg'], label=f'CRF{self.quality}')
+    #                 ax[2].plot(result5['rate_sum'], label=f'CRF{self.quality}')
+    #                 ax[3].plot(result5['PSNR_avg'], label=f'CRF{self.quality}')
+    #                 ax[4].plot(result5['S-PSNR_avg'], label=f'CRF{self.quality}')
+    #                 ax[5].plot(result5['WS-PSNR_avg'], label=f'CRF{self.quality}')
+    #                 ax[6].plot(result5['n_tiles'], label=f'CRF{self.quality}')
+    #
+    #                 ax[0].set_title('time_sum')
+    #                 ax[1].set_title('time_avg')
+    #                 ax[2].set_title('rate_sum')
+    #                 ax[3].set_title('PSNR_avg')
+    #                 ax[4].set_title('S-PSNR_avg')
+    #                 ax[5].set_title('WS-PSNR_avg')
+    #                 ax[6].set_title('n_tiles')
+    #
+    #             for a in ax[:-1]:
+    #                 a.legend(loc='upper right')
+    #
+    #             fig.suptitle(f'{self.video} {self.tiling} - user {self.user}')
+    #             fig.suptitle(f'{self.video} {self.tiling} - user {self.user}')
+    #             fig.tight_layout()
+    #             # fig.show()
+    #             img_name = folder / f'{self.tiling}_user{self.user}.png'
+    #             fig.savefig(img_name)
+    #             plt.close(fig)
+    #
+
+
+class UserProjectionMetricsProps(GetTilesProps, QualityAssessmentPaths):
+    seen_tiles_data: AutoDict
+    _video: str
+    _tiling: str
+
+    time_data: dict
+    rate_data: dict
+    qlt_data: dict
+    get_tiles_data: dict
 
     @property
     def video(self):
@@ -351,9 +405,7 @@ class ViewportMetrics(GetTilesProps, QualityAssessmentPaths):
     @video.setter
     def video(self, value):
         self._video = value
-        self.time_data = load_json(self.dectime_result_json, object_hook=dict)
-        self.rate_data = load_json(self.bitrate_result_json, object_hook=dict)
-        self.qlt_data = load_json(self.quality_result_json, object_hook=dict)
+        self.seen_tiles_data = AutoDict()
 
     @property
     def tiling(self):
@@ -362,52 +414,159 @@ class ViewportMetrics(GetTilesProps, QualityAssessmentPaths):
     @tiling.setter
     def tiling(self, value):
         self._tiling = value
-        if self.video is None:
-            warning('self.video is not assigned.')
-        else:
+
+    @property
+    def users_list(self) -> list[str]:
+        return list(self.get_tiles_data[self.vid_proj][self.name][self.tiling].keys())
+
+    @property
+    def seen_metrics_folder(self) -> Path:
+        folder = self.project_path / 'UserProjectionMetrics'
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+    @property
+    def seen_metrics_json(self) -> Path:
+        return self.seen_metrics_folder / f'seen_metrics_{self.config["dataset_name"]}_{self.vid_proj}_{self.name}.json'
+
+    def get_get_tiles(self):
+        try:
+            tiles_list = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['chunks'][self.chunk]
+        except (KeyError, NameError):
             self.get_tiles_data = load_json(self.get_tiles_json, object_hook=dict)
-            self.users = list(self.get_tiles_data[self.vid_proj][self.name][self.tiling].keys())
+            self.time_data = load_json(self.dectime_result_json, object_hook=dict)
+            self.rate_data = load_json(self.bitrate_result_json, object_hook=dict)
+            self.qlt_data = load_json(self.quality_result_json, object_hook=dict)
+            tiles_list = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['chunks'][self.chunk]
+        return tiles_list
 
-    def loop(self):
-        print('\n====== Get tiles data ======')
 
-        self.seen_tiles_data = AutoDict()
+class UserProjectionMetrics(UserProjectionMetricsProps):
+    def __init__(self):
+        self.print_resume()
+        # self.main()
+        self.test()
 
+    def main(self):
         for self.video in self.videos_list:
-            if self.output_exist(): return
+            if self.seen_metrics_json.exists(): continue
 
             for self.tiling in self.tiling_list:
-                print(f'\r  Get Tiles - {self.vid_proj}  {self.name} {self.tiling} - {len(self.users)} users ... ', end='')
-                for self.user in self.users:
-                    for self.chunk in self.chunk_list:
-                        for self.quality in self.quality_list:
-                            for self.tile in self.tile_list:
-                                yield
+                for self.user in self.users_list:
+                    for self.quality in self.quality_list:
+                        for self.chunk in self.chunk_list:
+                            self.worker()
+
+            print(f'  Saving get tiles... ', end='')
+            save_json(self.seen_tiles_data, self.seen_metrics_json)
+            print(f'  Finished.')
+
+        print('')
 
     def worker(self):
-        get_tiles = self.get_tiles_data[self.vid_proj][self.name][self.tiling][self.user]['chunks'][self.chunk]
+        print(f'\r  Get Tiles - {self.vid_proj} {self.name} {self.tiling} - user{self.user} ... ', end='')
+        get_tiles = self.get_get_tiles()
 
-        if int(self.tile) in get_tiles:
+        for self.tile in get_tiles:
             dectime_val = self.time_data[self.vid_proj][self.tiling][self.quality][self.tile][self.chunk]
             bitrate_val = self.rate_data[self.vid_proj][self.tiling][self.quality][self.tile][self.chunk]
             quality_val = self.qlt_data[self.vid_proj][self.tiling][self.quality][self.tile][self.chunk]
 
-            seen_tiles_result = self.seen_tiles_data[f'{self.user}'][self.vid_proj][self.name][self.tiling][self.quality][self.tile][self.chunk]
-            seen_tiles_result['time'] = float(np.average(dectime_val['times']))
-            seen_tiles_result['rate'] = float(bitrate_val['rate'])
-            seen_tiles_result['time_std'] = float(np.std(dectime_val['times']))
+            metrics_result = self.seen_tiles_data[self.vid_proj][self.name][self.tiling][self.quality][self.user][self.chunk]
+            metrics_result['time'][self.tile] = float(np.average(dectime_val['times']))
+            metrics_result['rate'][self.tile] = float(bitrate_val['rate'])
+            metrics_result['time_std'][self.tile] = float(np.std(dectime_val['times']))
 
             for metric in ['PSNR', 'WS-PSNR', 'S-PSNR']:
-                value = quality_val[metric]
-                if value == float('inf'):
-                    value = 1000
-                seen_tiles_result[metric] = value
-                print('OK')
+                metrics_result[metric][self.tile] = quality_val[metric]
 
-        print(f'  Saving get tiles... ', end='')
-        # todo: criar arquivo para esse módulo
-        # save_json(self.seen_tiles_data, self.seen_tiles_json)
-        print(f'  Finished.')
+    def test(self):
+        for self.video in self.videos_list:
+            self.seen_tiles_data = load_json(self.seen_metrics_json)
+            users_list = self.seen_tiles_data[self.vid_proj][self.name]['1x1']['16'].keys()
+
+            for self.tiling in self.tiling_list:
+                folder = self.seen_metrics_folder / f'1_{self.name}'
+                folder.mkdir(parents=True, exist_ok=True)
+
+                for self.user in users_list:
+                    img_name = folder / f'{self.tiling}_user{self.user}.png'
+                    if img_name.exists(): continue
+                    fig: plt.Figure
+                    fig, ax = plt.subplots(2, 4, figsize=(12, 5), dpi=200)
+                    ax = list(ax.flat)
+                    ax: list[plt.Axes]
+
+                    for self.quality in self.quality_list:
+                        result5 = defaultdict(list)    # By chunk
+
+                        for self.chunk in self.chunk_list:
+                            seen_tiles_data = self.seen_tiles_data[self.vid_proj][self.name][self.tiling][self.quality][self.user][self.chunk]
+                            tiles_list = seen_tiles_data['time'].keys()
+
+                            result5[f'n_tiles'].append(len(tiles_list))
+                            for self.metric in ['time', 'rate', 'PSNR', 'WS-PSNR', 'S-PSNR']:
+                                value = [seen_tiles_data[self.metric][tile] for tile in tiles_list]
+                                percentile = list(np.percentile(value, [0, 25, 50, 75, 100]))
+                                result5[f'{self.metric}_sum'].append(np.sum(value))         # Tempo total de um chunk (sem decodificação paralela) (soma os tempos de decodificação dos tiles)
+                                result5[f'{self.metric}_avg'].append(np.average(value))     # tempo médio de um chunk (com decodificação paralela) (média dos tempos de decodificação dos tiles)
+                                result5[f'{self.metric}_std'].append(np.std(value))
+                                result5[f'{self.metric}_min'].append(percentile[0])
+                                result5[f'{self.metric}_q1'].append(percentile[1])
+                                result5[f'{self.metric}_median'].append(percentile[2])
+                                result5[f'{self.metric}_q2'].append(percentile[3])
+                                result5[f'{self.metric}_max'].append(percentile[4])
+
+                        ax[0].plot(result5['time_sum'], label=f'CRF{self.quality}')
+                        ax[1].plot(result5['time_avg'], label=f'CRF{self.quality}')
+                        ax[2].plot(result5['rate_sum'], label=f'CRF{self.quality}')
+                        ax[3].plot(result5['PSNR_avg'], label=f'CRF{self.quality}')
+                        ax[4].plot(result5['S-PSNR_avg'], label=f'CRF{self.quality}')
+                        ax[5].plot(result5['WS-PSNR_avg'], label=f'CRF{self.quality}')
+                        ax[6].plot(result5['n_tiles'], label=f'CRF{self.quality}')
+
+                        ax[0].set_title('time_sum')
+                        ax[1].set_title('time_avg')
+                        ax[2].set_title('rate_sum')
+                        ax[3].set_title('PSNR_avg')
+                        ax[4].set_title('S-PSNR_avg')
+                        ax[5].set_title('WS-PSNR_avg')
+                        ax[6].set_title('n_tiles')
+
+                    for a in ax[:-2]:
+                        a.legend(loc='upper right')
+
+                    fig.suptitle(f'{self.video} {self.tiling} - user {self.user}')
+                    fig.suptitle(f'{self.video} {self.tiling} - user {self.user}')
+                    fig.tight_layout()
+                    # fig.show()
+                    fig.savefig(img_name)
+                    plt.close(fig)
+
+                    # each metrics represent the metrics by complete reprodution of the one vídeo with one tiling in one quality for one user
+                    # result4[f'time_total'].append(np.sum(result5[f'time_sum']))         # tempo total sem decodificação paralela
+                    # result4[f'time_avg_sum'].append(np.average(result5[f'time_sum']))   # tempo médio sem decodificação paralela
+                    # result4[f'time_total_avg'].append(np.sum(result5[f'time_avg']))     # tempo total com decodificação paralela
+                    # result4[f'time_avg_avg'].append(np.average(result5[f'time_avg']))   # tempo total com decodificação paralela
+                    # result4[f'rate_total'].append(np.sum(result5[f'rate_sum']))         # taxa de bits sempre soma
+                    # result4[f'psnr_avg'].append(np.average(result5[f'PSNR_avg']))       # qualidade sempre é média
+                    # result4[f'ws_psnr_avg'].append(np.average(result5[f'WS-PSNR']))
+                    # result4[f's_psnr_avg'].append(np.average(result5[f'S-PSNR']))
+
+                #     result3[f'time_avg_total'].append(np.average(result4[f'time_total']))  # comparando entre usuários usamos o tempo médio
+                #     result3[f'time_avg_avg_sum'].append(np.sum(result4[f'time_avg_sum']))  # tempo médio sem paralelismo
+                #     result3[f'time_avg_avg'].append(np.average(result4[f'time_avg']))  # tempo total com decodificação paralela
+                #     result3[f'rate_total'].append(np.sum(result4[f'rate_sum']))  # taxa de bits sempre soma
+                #     result3[f'psnr_avg'].append(np.average(result4[f'PSNR_avg']))  # qualidade sempre é média
+                #     result3[f'ws_psnr_avg'].append(np.average(result4[f'WS-PSNR']))
+                #     result3[f's_psnr_avg'].append(np.average(result4[f'S-PSNR']))
+
+
+            # print(f'  Saving get tiles... ', end='')
+            # save_json(self.seen_tiles_data, self.seen_metrics_json)
+            # print(f'  Finished.')
+        #
+        # print('')
 
 
 class ViewportPSNRProps(GetTilesProps):
@@ -467,14 +626,20 @@ class ViewportPSNRProps(GetTilesProps):
 
     ## Paths #############################################
     @property
+    def viewport_psnr_path(self) -> Path:
+        folder = self.project_path / 'ViewportPSNR'
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+    @property
     def viewport_psnr_file(self) -> Path:
-        folder = self.workfolder / f'{self.vid_proj}_{self.name}'
+        folder = self.viewport_psnr_path / f'{self.vid_proj}_{self.name}'
         folder.mkdir(parents=True, exist_ok=True)
         return folder / f"user{self.user}_{self.tiling}.json"
 
     @property
     def debug_video(self) -> Path:
-        folder = self.workfolder / f'{self.vid_proj}_{self.name}' / f"user{self.users_list[0]}_{self.tiling}"
+        folder = self.viewport_psnr_path / f'{self.vid_proj}_{self.name}' / f"user{self.users_list[0]}_{self.tiling}"
         folder.mkdir(parents=True, exist_ok=True)
         return folder / f"frame_{self.video_frame_idx}.jpg"
 
@@ -502,11 +667,11 @@ class ViewportPSNRProps(GetTilesProps):
         return False
 
     @property
-    def workfolder(self) -> Path:
+    def ViewportPSNR_folder(self) -> Path:
         """
         Need None
         """
-        folder = self.get_tiles_path / f'ViewportPSNR'
+        folder = self.workfolder / f'ViewportPSNR'
         folder.mkdir(parents=True, exist_ok=True)
         return folder
 
@@ -644,9 +809,10 @@ class ViewportPSNRGraphs(ViewportPSNRProps):
     dataset: dict
     erp_list: dict
     readers: AutoDict
+    workfolder = None
 
-    def loop(self):
-        self.workfolder = self.workfolder / 'viewport_videos'  # todo: fix it
+    def __init__(self):
+        self.workfolder = super().workfolder / 'viewport_videos'  # todo: fix it
         self.workfolder.mkdir(parents=True, exist_ok=True)
         self.dataset = load_json(self.dataset_json)
 
@@ -654,12 +820,12 @@ class ViewportPSNRGraphs(ViewportPSNRProps):
             for self.tiling in self.tiling_list:
                 for self.user in self.users_list:
                     if self.output_exist(False): continue
-                    sse_frame = load_json(self.viewport_psnr_file)
+                    # sse_frame = load_json(self.viewport_psnr_file)
 
                     for self.chunk in self.chunk_list:
                         for self.quality in self.quality_list:
                             for frame in range(int(self.fps)):  # 30 frames per chunk
-                                yield
+                                self.worker()
 
     def worker(self, overwrite=False):
         pass
@@ -787,7 +953,7 @@ class ViewportPSNRGraphs(ViewportPSNRProps):
 
 
 class TestDataset(ViewportPSNRProps):
-    def loop(self):
+    def __init__(self):
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
@@ -795,7 +961,7 @@ class TestDataset(ViewportPSNRProps):
                         for self.tile in self.tiling_list:
                             for self.chunk in self.chunk_list:
                                 print(f'Decoding {self.segment_file=}. {turn = }', end='')
-                                yield
+                                self.worker()
 
     def worker(self, overwrite=False):
         database = load_json(self.dataset_json)
@@ -810,7 +976,7 @@ class TestDataset(ViewportPSNRProps):
             for self.tiling in self.tiling_list:
                 if self.tiling == '1x1': continue  # Remover depois
 
-                folder = self.get_tiles_path / f'{self.vid_proj}_{self.name}_{self.tiling}'
+                folder = self.get_tiles_folder / f'{self.vid_proj}_{self.name}_{self.tiling}'
                 folder.mkdir(parents=True, exist_ok=True)
 
                 users_list = get_tiles_data[self.vid_proj][self.name][self.tiling].keys()
@@ -877,15 +1043,12 @@ class TestDataset(ViewportPSNRProps):
                         video_writer.close()
 
 
-
 class UserMetricsOptions(Enum):
     PROCESS_NASRABADI = 0
     TEST_DATASET = 1
     GET_TILES = 2
-    TEST_VIEWPORT_VIDEO = 3
+    USER_PROJECTION_METRICS = 3
     PSNR_FROM_VIEWPORT = 4
-    CHECK_VIEWPORT_PSNR = 5
-    USER_ANALISYS = 6
 
     def __repr__(self):
         return str({self.value: self.name})
@@ -895,6 +1058,6 @@ class UserMetrics(Base):
     operations = {'PROCESS_NASRABADI': ProcessNasrabadi,  # 0
                   'TEST_DATASET': TestDataset,  # 1
                   'GET_TILES': GetTiles,  # 2
-                  'PSNR_FROM_VIEWPORT': ViewportPSNR,  # 3
-                  'USER_ANALISYS': TestDataset,  # 4
+                  'USER_PROJECTION_METRICS': UserProjectionMetrics,  # 3
+                  'PSNR_FROM_VIEWPORT': ViewportPSNR,  # 4
                   }
