@@ -454,7 +454,8 @@ class UserProjectionMetrics(UserProjectionMetricsProps):
     def __init__(self):
         self.print_resume()
         self.main()
-        self.test()
+        # self.test()
+        # self.test2()
 
     def main(self):
         for self.video in self.videos_list:
