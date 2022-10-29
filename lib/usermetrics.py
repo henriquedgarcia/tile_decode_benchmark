@@ -552,16 +552,6 @@ class UserProjectionMetrics(UserProjectionMetricsProps):
                     fig.savefig(img_name)
                     plt.close(fig)
 
-                    # each metrics represent the metrics by complete reprodution of the one vídeo with one tiling in one quality for one user
-                    # result4[f'time_total'].append(np.sum(result5[f'time_sum']))         # tempo total sem decodificação paralela
-                    # result4[f'time_avg_sum'].append(np.average(result5[f'time_sum']))   # tempo médio sem decodificação paralela
-                    # result4[f'time_total_avg'].append(np.sum(result5[f'time_avg']))     # tempo total com decodificação paralela
-                    # result4[f'time_avg_avg'].append(np.average(result5[f'time_avg']))   # tempo total com decodificação paralela
-                    # result4[f'rate_total'].append(np.sum(result5[f'rate_sum']))         # taxa de bits sempre soma
-                    # result4[f'psnr_avg'].append(np.average(result5[f'PSNR_avg']))       # qualidade sempre é média
-                    # result4[f'ws_psnr_avg'].append(np.average(result5[f'WS-PSNR']))
-                    # result4[f's_psnr_avg'].append(np.average(result5[f'S-PSNR']))
-
                 #     result3[f'time_avg_total'].append(np.average(result4[f'time_total']))  # comparando entre usuários usamos o tempo médio
                 #     result3[f'time_avg_avg_sum'].append(np.sum(result4[f'time_avg_sum']))  # tempo médio sem paralelismo
                 #     result3[f'time_avg_avg'].append(np.average(result4[f'time_avg']))  # tempo total com decodificação paralela
@@ -576,6 +566,105 @@ class UserProjectionMetrics(UserProjectionMetricsProps):
             # print(f'  Finished.')
         #
         # print('')
+
+    def test2(self):
+        # Compara usuários
+        for self.video in self.videos_list:
+            self.seen_tiles_data = load_json(self.seen_metrics_json)
+            users_list = self.seen_tiles_data[self.vid_proj][self.name]['1x1']['16'].keys()
+
+            for self.tiling in self.tiling_list:
+                # if self.tiling == '1x1': continue
+                folder = self.seen_metrics_folder / f'2_aggregate'
+                folder.mkdir(parents=True, exist_ok=True)
+
+                img_name = folder / f'{self.name}_{self.tiling}.png'
+                if img_name.exists(): continue
+                print(img_name, end='')
+                fig: plt.Figure
+                fig, ax = plt.subplots(2, 5, figsize=(15, 5), dpi=200)
+                ax = list(ax.flat)
+                ax: list[plt.Axes]
+
+                for self.quality in self.quality_list:
+                    result4 = defaultdict(list)    # By chunk
+
+                    for self.user in users_list:
+                        result5 = defaultdict(list)    # By chunk
+
+                        for self.chunk in self.chunk_list:
+                            seen_tiles_data = self.seen_tiles_data[self.vid_proj][self.name][self.tiling][self.quality][self.user][self.chunk]
+                            tiles_list = seen_tiles_data['time'].keys()
+
+                            result5[f'n_tiles'].append(len(tiles_list))
+                            for self.metric in ['time', 'rate', 'PSNR', 'WS-PSNR', 'S-PSNR']:
+                                value = [seen_tiles_data[self.metric][tile] for tile in tiles_list]
+                                percentile = list(np.percentile(value, [0, 25, 50, 75, 100]))
+                                result5[f'{self.metric}_sum'].append(np.sum(value))         # Tempo total de um chunk (sem decodificação paralela) (soma os tempos de decodificação dos tiles)
+                                result5[f'{self.metric}_avg'].append(np.average(value))     # tempo médio de um chunk (com decodificação paralela) (média dos tempos de decodificação dos tiles)
+                                result5[f'{self.metric}_std'].append(np.std(value))
+                                result5[f'{self.metric}_min'].append(percentile[0])
+                                result5[f'{self.metric}_q1'].append(percentile[1])
+                                result5[f'{self.metric}_median'].append(percentile[2])
+                                result5[f'{self.metric}_q2'].append(percentile[3])
+                                result5[f'{self.metric}_max'].append(percentile[4])
+
+                        # each metrics represent the metrics by complete reprodution of the one vídeo with one tiling in one quality for one user
+                        result4[f'time_total'].append(np.sum(result5[f'time_sum']))         # tempo total sem decodificação paralela
+                        result4[f'time_avg_sum'].append(np.average(result5[f'time_sum']))   # tempo médio sem decodificação paralela
+                        result4[f'time_total_avg'].append(np.sum(result5[f'time_avg']))     # tempo total com decodificação paralela
+                        result4[f'time_avg_avg'].append(np.average(result5[f'time_avg']))   # tempo total com decodificação paralela
+                        result4[f'rate_total'].append(np.sum(result5[f'rate_sum']))         # taxa de bits sempre soma
+                        result4[f'psnr_avg'].append(np.average(result5[f'PSNR_avg']))       # qualidade sempre é média
+                        result4[f'ws_psnr_avg'].append(np.average(result5[f'WS-PSNR_avg']))
+                        result4[f's_psnr_avg'].append(np.average(result5[f'S-PSNR_avg']))
+                        result4[f'n_tiles_avg'].append(np.average(result5[f'n_tiles']))
+                        result4[f'n_tiles_total'].append(np.sum(result5[f'n_tiles']))
+
+                    result4_df = pd.DataFrame(result4)
+                    # result4_df = result4_df.sort_values(by=['rate_total'])
+                    x=list(range(len(result4_df['time_total'])))
+                    ax[0].bar(x, result4_df['time_total'], label=f'CRF{self.quality}')
+                    ax[1].bar(x, result4_df['time_avg_sum'], label=f'CRF{self.quality}')
+                    ax[2].bar(x, result4_df['time_total_avg'], label=f'CRF{self.quality}')
+                    ax[3].bar(x, result4_df['time_avg_avg'], label=f'CRF{self.quality}')
+                    ax[4].bar(x, result4_df['rate_total'], label=f'CRF{self.quality}')
+                    ax[5].bar(x, result4_df['psnr_avg'], label=f'CRF{self.quality}')
+                    ax[6].bar(x, result4_df['ws_psnr_avg'], label=f'CRF{self.quality}')
+                    ax[7].bar(x, result4_df['s_psnr_avg'], label=f'CRF{self.quality}')
+                    ax[8].bar(x, result4_df['n_tiles_avg'], label=f'CRF{self.quality}')
+                    ax[9].bar(x, result4_df['n_tiles_total'], label=f'CRF{self.quality}')
+
+                    ax[0].set_title('time_total')
+                    ax[1].set_title('time_avg_sum')
+                    ax[2].set_title('time_total_avg')
+                    ax[3].set_title('time_avg_avg')
+                    ax[4].set_title('rate_total')
+                    ax[5].set_title('psnr_avg')
+                    ax[6].set_title('ws_psnr_avg')
+                    ax[7].set_title('s_psnr_avg')
+                    ax[8].set_title('n_tiles_avg')
+                    ax[9].set_title('n_tiles_total')
+
+                for a in ax[:-2]:
+                    a.legend(loc='upper right')
+
+                fig.suptitle(f'{self.video} {self.tiling}')
+                fig.tight_layout()
+                # fig.show()
+                fig.savefig(img_name)
+                img_name = folder / f'{self.tiling}_{self.name}.png'
+                fig.savefig(img_name)
+                plt.close(fig)
+
+
+                #     result3[f'time_avg_total'].append(np.average(result4[f'time_total']))  # comparando entre usuários usamos o tempo médio
+                #     result3[f'time_avg_avg_sum'].append(np.sum(result4[f'time_avg_sum']))  # tempo médio sem paralelismo
+                #     result3[f'time_avg_avg'].append(np.average(result4[f'time_avg']))  # tempo total com decodificação paralela
+                #     result3[f'rate_total'].append(np.sum(result4[f'rate_sum']))  # taxa de bits sempre soma
+                #     result3[f'psnr_avg'].append(np.average(result4[f'PSNR_avg']))  # qualidade sempre é média
+                #     result3[f'ws_psnr_avg'].append(np.average(result4[f'WS-PSNR']))
+                #     result3[f's_psnr_avg'].append(np.average(result4[f'S-PSNR']))
 
 
 class ViewportPSNRProps(GetTilesProps):
