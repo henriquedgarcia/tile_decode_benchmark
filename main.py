@@ -1,44 +1,36 @@
 #!/usr/bin/env python3.9
 import argparse
-import logging
-from typing import Union, Callable
 from enum import Enum
+from typing import Union, Type, Iterable
 
-from lib.dectime import (TileDecodeBenchmark, DectimeGraphs, UserDectime, UserDectimeOptions,
-                         CheckTiles, MakeViewport, Dashing, QualityAssessment, Siti)
+from lib.tiledecodebenchmark import TileDecodeBenchmarkOptions, TileDecodeBenchmark
+from lib.usermetrics import UserMetrics, UserMetricsOptions
+from lib.dectimegraphs import DectimeGraphs, DectimeGraphsOptions
+from lib.qualityassessment import QualityAssessment, QualityAssessmentOptions
 
-logging.basicConfig(level=logging.WARNING)
-
-# config_list = [f'config/config_test.json']
-# config_list = [f'config/config_ffmpeg_crf_12videos_60s.json']
-# config_list = [f'config/config_nas_erp_cmp.json']
-# config_list = [f'config/config_nas_cmp.json']
-# config = f'config/config_nas_erp_qp.json'
 config = f'config/config_nas_erp.json'
 
-worker_list: dict[int, list[Union[dict[int, str], Callable, Enum]]] = {
-    0: [TileDecodeBenchmark, {0: 'PREPARE', 1: 'COMPRESS', 2: 'SEGMENT', 3: 'DECODE', 4: 'COLLECT_RESULTS'}],
-    1: [CheckTiles, {0: 'CHECK_ORIGINAL', 1: 'CHECK_LOSSLESS', 2: 'CHECK_COMPRESS', 3: 'CHECK_SEGMENT', 4: 'CLEAN'}],
-    2: [DectimeGraphs, {0: 'BY_PATTERN', 1: 'BY_PATTERN_BY_QUALITY', 2: 'BY_VIDEO_BY_PATTERN_BY_QUALITY', 3: 'BY_PATTERN_FULL_FRAME', 4: 'BY_VIDEO_BY_PATTERN_BY_TILE_BY_CHUNK', 5: 'BY_VIDEO_BY_PATTERN_BY_TILE_BY_QUALITY_BY_CHUNK',}],
-    3: [QualityAssessment, {0: 'ALL', 1: 'PSNR', 2: 'WSPSNR', 3: 'SPSNR', 4: 'RESULTS'}],
-    4: [MakeViewport, {0: 'NAS_ERP', 1: 'USER_ANALYSIS'}],
-    5: [Dashing, {0: 'PREPARE', 1: 'COMPRESS', 2: 'DASH', 3: 'MEASURE_CHUNKS'}],
-    6: [QualityAssessment, {0: 'PREPARE', 1: 'GET_TILES', 2: 'USER_ANALYSIS'}],
-    7: [Siti, {0: 'SITI'}],
-    8: [UserDectime, UserDectimeOptions],
+worker_list: dict[int, tuple[Type, Union[Type, Enum, Iterable]]] = {
+    0: (TileDecodeBenchmark, TileDecodeBenchmarkOptions),
+    # 1: ('CheckTiles', 'CheckTilesOptions'),
+    2: (DectimeGraphs, DectimeGraphsOptions),
+    3: (QualityAssessment, QualityAssessmentOptions),
+    # 4: ('MakeViewport', 'QualityAssessment'),
+    # 5: ('Dashing', 'QualityAssessment'),
+    # 6: ('QualityAssessment', 'QualityAssessment'),
+    # 7: ('Siti', 'QualityAssessment'),
+    8: (UserMetrics, UserMetricsOptions),
 }
-
 
 def make_help_txt():
     help_txt = 'Dectime Testbed.\n'
-    help_txt += f'\nWORKER_ID  {"Worker Name":19}   {{ROLE_ID: \'Role Name\', ...}}'
-    help_txt += '\n' + '-'*9 + '  ' + '-'*19 + '   ' + '-'*95
-
-    for key in worker_list:
-        try:
-            help_txt += f'\n{str(key):>9}: {worker_list[key][0].__name__:19} - {str(worker_list[key][1]):19}'
-        except:
-            help_txt += f'\n{str(key):>9}: {worker_list[key][0].__name__:19} - {str(list(worker_list[key][1].__members__.keys())):19}'
+    help_txt += f'\n  ID   {"Worker Name":^19}   {{ROLE_ID: \'Role Name\', ...}}'
+    help_txt += '\n| ' + '-'*2 + ' | ' + '-'*19
+    for idx in worker_list:
+        worker = worker_list[idx][0].__name__
+        role = worker_list[idx][1]
+        help_txt += f'\n  {str(idx):>2}   {worker:^19}'
+        help_txt += f'\n  {str(""):>2}   {str(list(role)):95}'
     return help_txt
 
 
@@ -49,14 +41,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     worker_id, role_id = map(int, args.r)
-    config = args.c if args.c is not None else config
+    config: str = args.c if args.c is not None else config
 
-    worker = worker_list[worker_id][0]
-    if worker_id == 8:
-        role = worker_list[worker_id][1](role_id)
-    else:
-        role = worker_list[worker_id][1][role_id]
+    worker_cls, role_enum = worker_list[worker_id]
+    role = role_enum(role_id)
 
-    worker(config=config, role=role)
+    worker_cls(conf=config, role=role)
 
     print('## Finished. ##')
