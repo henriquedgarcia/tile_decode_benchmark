@@ -16,7 +16,7 @@ from skvideo.io import FFmpegWriter, FFmpegReader
 
 import lib.viewport as vp
 from .assets2 import Base
-from .qualityassessment import QualityAssessmentPaths
+from .qualityassessment import SegmentsQualityPaths
 from .tiledecodebenchmark import TileDecodeBenchmarkPaths
 from .util2 import load_json, save_json, splitx, AutoDict, cart2hcs, lin_interpol, idx2xy
 
@@ -388,7 +388,7 @@ class GetTiles(GetTilesProps):
     #
 
 
-class UserProjectionMetricsProps(GetTilesProps, QualityAssessmentPaths):
+class UserProjectionMetricsProps(GetTilesProps, SegmentsQualityPaths):
     seen_tiles_data: AutoDict
     _video: str
     _tiling: str
@@ -771,7 +771,7 @@ class ViewportPSNRProps(GetTilesProps):
         """
         Need None
         """
-        folder = self.workfolder / f'ViewportPSNR'
+        folder = self.project_path / f'ViewportPSNR'
         folder.mkdir(parents=True, exist_ok=True)
         return folder
 

@@ -18,12 +18,12 @@ import scipy.stats
 from fitter import Fitter
 
 from .assets2 import Base
-from .qualityassessment import QualityAssessmentPaths
+from .qualityassessment import SegmentsQualityPaths
 from .usermetrics import GetTilesPath
 from .util2 import load_json, save_json, AutoDict, save_pickle, load_pickle
 
 
-class DectimeGraphsPaths(QualityAssessmentPaths, GetTilesPath, ABC):
+class DectimeGraphsPaths(SegmentsQualityPaths, GetTilesPath, ABC):
     n_dist = 6
     bins = 30
     stats = defaultdict(list)

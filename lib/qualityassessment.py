@@ -1,15 +1,19 @@
+import pickle
 from enum import Enum
 from pathlib import Path
-from typing import Union
+from typing import Union, Callable
 from time import time
+
 from .assets2 import Base
 from .tiledecodebenchmark import TileDecodeBenchmarkPaths
 import numpy as np
-from .util import AutoDict, iter_frame, save_json, load_json, save_pickle, load_sph_file, splitx
+from .util import AutoDict, iter_frame, save_json, load_json, save_pickle, splitx, load_pickle
 from collections import defaultdict
 import pandas as pd
+from matplotlib import pyplot as plt
 
-class QualityAssessmentPaths(TileDecodeBenchmarkPaths):
+
+class SegmentsQualityPaths(TileDecodeBenchmarkPaths):
     quality_folder = Path('quality')
 
     @property
@@ -19,7 +23,7 @@ class QualityAssessmentPaths(TileDecodeBenchmarkPaths):
                f'{self.fps}_'
                f'{self.tiling}_'
                f'{self.config["rate_control"]}{self.quality}')
-        folder = self.workfolder / name
+        folder = self.project_path / self.quality_folder / name
         folder.mkdir(parents=True, exist_ok=True)
         return folder
 
@@ -34,42 +38,59 @@ class QualityAssessmentPaths(TileDecodeBenchmarkPaths):
         folder.mkdir(parents=True, exist_ok=True)
         return folder /  f'quality_{self.video}.json'
 
-class QualityAssessmentProps(QualityAssessmentPaths):
+
+class SegmentsQualityProps(SegmentsQualityPaths):
     sph_file = Path('lib/sphere_655362.txt')
+    sph_points_mask: np.ndarray
+    weight_ndarray: np.ndarray
+    mask: np.ndarray
+    chunk_quality: dict[str, list]
+    results: AutoDict
+    old_tile: str
+    results_dataframe: pd.DataFrame
+    method = dict[str, Callable]
+    original_quality='0'
 
     @staticmethod
     def _mse2psnr(mse: float) -> float:
         return 10 * np.log10((255. ** 2 / mse))
 
     def _prepare_weight_ndarray(self):
-        # for self.projection == 'erp'
-        height, width = self.video_shape
+        # for self.projection == 'erp' only
+        height, width = self.video_shape[:2]
         func = lambda y, x: np.cos((y + 0.5 - height / 2) * np.pi / height)
         self.weight_ndarray: Union[np.ndarray, object] = np.fromfunction(func, (height, width), dtype='float32')
 
+    @property
+    def metric_list(self) -> list[str]:
+        return ['MSE', 'WS-MSE', 'S-MSE']
 
-class QualityAssessment(QualityAssessmentProps):
+class SegmentsQuality(SegmentsQualityProps):
+
+
     def __init__(self):
         self.print_resume()
+        self.init()
+        for self.video in self.videos_list:
+            for self.tiling in self.tiling_list:
+                for self.quality in self.quality_list:
+                    for self.tile in self.tile_list:
+                        for self.chunk in self.chunk_list:
+                            self.all()
 
+    def init(self):
         self.sph_points_mask: np.ndarray = np.zeros(0)
         self.chunk_quality = defaultdict(list)
         self.results = AutoDict()
         self.results_dataframe = pd.DataFrame()
-
+        self.weight_ndarray = np.zeros(0)
         self.method = {'MSE': self._mse,
                        'WS-MSE': self._wsmse,
                        'S-MSE': self._smse_nn}
-
-        for self.video in self.videos_list:
-            for self.tiling in self.tiling_list:
-                for self.quality in self.quality_list:
-                    for self.tile in self.tiling_list:
-                        for self.chunk in self.chunk_list:
-                            self.all()
+        self.old_tile = ''
 
     def all(self):
-        print(f'Processing [{self.proj}][{self.video}][{self.tiling}][crf{self.quality}][tile{self.tile}][chunk{self.chunk}]')
+        print(f'Processing [{self.vid_proj}][{self.video}][{self.tiling}][crf{self.quality}][tile{self.tile}][chunk{self.chunk}]')
 
         if self.video_quality_csv.exists():
             print(f'The chunk quality csv {self.video_quality_csv.name} exist. Skipping')
@@ -94,10 +115,10 @@ class QualityAssessment(QualityAssessmentProps):
                 psnr = self._mse2psnr(metric_value)
                 chunk_quality[metric.replace('MSE', 'PSNR')].append(psnr)
 
-            print(f'[{self.proj}][{self.video}][{self.tiling}][{self.tile}][{self.chunk}] - '
+            print(f'[{self.vid_proj}][{self.video}][{self.tiling}][{self.tile}][{self.chunk}] - '
                   f'Frame {n} - {time() - start: 0.3f} s', end='\r')
         print('')
-        pd.DataFrame(self.chunk_quality).to_csv(self.video_quality_csv, encoding='utf-8', index_label='frame')
+        pd.DataFrame(chunk_quality).to_csv(self.video_quality_csv, encoding='utf-8', index_label='frame')
 
     @staticmethod
     def _mse(im_ref: np.ndarray, im_deg: np.ndarray) -> float:
@@ -138,12 +159,7 @@ class QualityAssessment(QualityAssessmentProps):
         y2 = tile * th + th  # not inclusive
         weight_tile = self.weight_ndarray[y1:y2, x1:x2]
 
-        tile_weighted = weight_tile * (im_ref - im_deg) ** 2
-        wmse = np.average(tile_weighted)
-
-        if wmse == 0:
-            return 1000
-
+        wmse = np.sum(weight_tile * (im_ref - im_deg) ** 2) / np.sum(weight_tile)
         return wmse
 
     def _smse_nn(self, im_ref: np.ndarray, im_deg: np.ndarray):
@@ -158,30 +174,30 @@ class QualityAssessment(QualityAssessmentProps):
         shape = self.video_shape[:2]
 
         if self.sph_points_mask.shape != shape:
-            sph_file = load_sph_file(self.sph_file, shape)
-            self.sph_points_mask = sph_file[-1]
+            self.sph_points_mask = load_sph_file(self.sph_file, shape)
 
-        ph, pw = shape
-        M, N = splitx(self.tiling)
-        tw, th = int(pw / M), int(ph / N)
-        tile = int(self.tile)
-        x1 = tile * tw
-        y1 = tile * th
-        x2 = tile * tw + tw  # not inclusive
-        y2 = tile * th + th  # not inclusive
-        mask = self.sph_points_mask[y1:y2, x1:x2]
+        if self.tile == '0' or self.old_tile != self.tile:
+            ph, pw = shape
+            M, N = splitx(self.tiling)
+            tw, th = int(pw / M), int(ph / N)
+            tile = int(self.tile)
+            x1 = tile * tw
+            y1 = tile * th
+            x2 = tile * tw + tw  # not inclusive
+            y2 = tile * th + th  # not inclusive
+            self.mask = self.sph_points_mask[y1:y2, x1:x2]
+            self.old_tile = self.tile
 
-        im_ref_m = im_ref * mask
-        im_deg_m = im_deg * mask
+        im_ref_m = im_ref * self.mask
+        im_deg_m = im_deg * self.mask
 
-        sqr_dif: np.ndarray = (im_ref_m - im_deg_m) ** 2
+        sqr_dif = (im_ref_m - im_deg_m) ** 2
 
-        smse_nn = sqr_dif.sum() / mask.sum()
+        smse_nn = sqr_dif.sum() / self.mask.sum()
         return smse_nn
 
-    original_quality=0
     def collect_results(self):
-        print(f'[{self.proj}][{self.video}][{self.tiling}][{self.tile}][{self.chunk}]')
+        print(f'[{self.vid_proj}][{self.video}][{self.tiling}][{self.tile}][{self.chunk}]')
 
         quality_result_json = self.quality_result_json
 
@@ -203,7 +219,7 @@ class QualityAssessment(QualityAssessmentProps):
 
         csv_dataframe = pd.read_csv(self.video_quality_csv, encoding='utf-8', index_col=0)
 
-        results = self.results[self.proj][self.name][self.tiling][self.quality][self.tile][self.chunk]
+        results = self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile][self.chunk]
 
         for metric in self.metric_list:
             if results[metric] != {}:
@@ -226,7 +242,7 @@ class QualityAssessment(QualityAssessmentProps):
             save_pickle(self.results, quality_result_pickle)
 
         if self.chunk == 1:
-            results = self.results[self.proj][self.name][self.tiling][self.quality][self.tile]
+            results = self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile]
             results.update(self._collect_ffmpeg_psnr())
 
     def _collect_ffmpeg_psnr(self) -> dict[str, float]:
@@ -246,18 +262,58 @@ class QualityAssessment(QualityAssessmentProps):
 
 
 class QualityAssessmentOptions(Enum):
-    USERS_METRICS = 0
-    VIEWPORT_METRICS = 1
-    GET_TILES = 2
+    ALL_METRICS = 0
+    GET_RESULTS = 1
 
     def __repr__(self):
         return str({self.value: self.name})
 
 
-class DectimeGraphs(Base):
-    operations = {'PROCESS_NASRABADI': QualityAssessment,
-                  'TEST_DATASET': QualityAssessment,
-                  'GET_TILES': QualityAssessment,
+class QualityAssessment(Base):
+    operations = {'ALL_METRICS': SegmentsQuality,
+                  'GET_RESULTS': SegmentsQuality,
                   }
 
+
+def show(img):
+    plt.imshow(img)
+    plt.show()
+
+
+def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
+    """
+    Load 655362 sample points (elevation, azimuth). Angles in degree.
+
+    :param sph_file:
+    :param shape:
+    :return:
+    """
+    sph_points_mask_file = Path('config/sph_points_erp_mask.pickle')
+
+    if sph_points_mask_file.exists():
+        sph_points_mask = load_pickle(sph_points_mask_file)
+        return sph_points_mask
+
+    iter_file = sph_file.read_text().splitlines()
+    sph_points_mask = np.zeros(shape)
+    height, width = shape
+
+    pi = np.pi
+    pi2 = pi * 2
+    pi_2 = pi / 2
+
+    # for each line (sample), convert to cartesian system and horizontal system
+    for line in iter_file[1:]:
+        el, az = list(map(np.deg2rad, map(float, line.strip().split())))
+
+        # convert to erp image coordinate
+        m = int(np.ceil(width * (az + pi) / pi2 - 1))
+        n = int(-np.floor(height * (el - pi_2) / pi) - 1)
+
+        if n >= height:
+            n = height - 1
+
+        sph_points_mask[n, m] = 1
+    save_pickle(sph_points_mask, sph_points_mask_file)
+    return sph_points_mask
 
