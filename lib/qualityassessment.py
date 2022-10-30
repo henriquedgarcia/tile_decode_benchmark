@@ -65,6 +65,16 @@ class SegmentsQualityProps(SegmentsQualityPaths):
     def metric_list(self) -> list[str]:
         return ['MSE', 'WS-MSE', 'S-MSE']
 
+    @property
+    def quality_list(self) -> list[str]:
+        quality_list: list = self.config['quality_list']
+        try:
+            quality_list.remove('0')
+        except ValueError:
+            pass
+        return quality_list
+
+
 class SegmentsQuality(SegmentsQualityProps):
 
 
