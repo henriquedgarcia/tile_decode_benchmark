@@ -76,8 +76,6 @@ class SegmentsQualityProps(SegmentsQualityPaths):
 
 
 class SegmentsQuality(SegmentsQualityProps):
-
-
     def __init__(self):
         self.print_resume()
         self.init()
@@ -263,6 +261,33 @@ class SegmentsQuality(SegmentsQualityProps):
                 break
         return psnr
 
+class CollectResults(SegmentsQualityProps):
+    def __init__(self):
+        self.print_resume()
+
+        for self.video in self.videos_list:
+            if self.quality_result_json.exists(): continue
+            self.results = AutoDict()
+
+            for self.tiling in self.tiling_list:
+                for self.quality in self.quality_list:
+                    for self.tile in self.tile_list:
+                        self.get_chunk_value()
+
+            save_json(self.results, self.quality_result_json)
+
+    def get_chunk_value(self):
+        results_chunk = AutoDict()
+
+        for self.chunk in self.chunk_list:
+            csv_dataframe = pd.read_csv(self.video_quality_csv, encoding='utf-8', index_col=0)
+
+            for metric in self.metric_list:
+                frames = csv_dataframe[metric].tolist()
+                results_chunk[self.chunk][metric] = np.average(frames)
+
+        self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile] = results_chunk
+
 
 class QualityAssessmentOptions(Enum):
     ALL_METRICS = 0
@@ -274,7 +299,7 @@ class QualityAssessmentOptions(Enum):
 
 class QualityAssessment(Base):
     operations = {'ALL_METRICS': SegmentsQuality,
-                  'GET_RESULTS': SegmentsQuality,
+                  'GET_RESULTS': CollectResults,
                   }
 
 
