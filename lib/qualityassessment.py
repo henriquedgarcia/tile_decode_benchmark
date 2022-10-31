@@ -178,14 +178,8 @@ class SegmentsQuality(SegmentsQualityProps):
             self.sph_points_mask = load_sph_file(self.sph_file, shape)
 
         if self.tile == '0' or self.old_tile != self.tile:
-            ph, pw = shape
-            M, N = splitx(self.tiling)
-            tw, th = int(pw / M), int(ph / N)
-            tile = int(self.tile)
-            x1 = tile * tw
-            y1 = tile * th
-            x2 = tile * tw + tw  # not inclusive
-            y2 = tile * th + th  # not inclusive
+            x1, x2, y1, y2 = self.tile_position()
+
             self.mask = self.sph_points_mask[y1:y2, x1:x2]
             self.old_tile = self.tile
 
