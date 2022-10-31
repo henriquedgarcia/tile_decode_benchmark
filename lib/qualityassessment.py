@@ -159,14 +159,7 @@ class SegmentsQuality(SegmentsQualityProps):
         if shape != self.weight_ndarray.shape:
             self._prepare_weight_ndarray()
 
-        ph, pw = shape
-        M, N = splitx(self.tiling)
-        tw, th = int(pw / M), int(ph / N)
-        tile = int(self.tile) 
-        x1 = tile * tw
-        y1 = tile * th
-        x2 = tile * tw + tw  # not inclusive
-        y2 = tile * th + th  # not inclusive
+        x1, x2, y1, y2 = self.tile_position()
         weight_tile = self.weight_ndarray[y1:y2, x1:x2]
 
         wmse = np.sum(weight_tile * (im_ref - im_deg) ** 2) / np.sum(weight_tile)
