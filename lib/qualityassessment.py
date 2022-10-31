@@ -103,15 +103,15 @@ class SegmentsQuality(SegmentsQualityProps):
         print(f'Processing [{self.vid_proj}][{self.video}][{self.tiling}][crf{self.quality}][tile{self.tile}][chunk{self.chunk}]')
 
         if self.video_quality_csv.exists():
-            print(f'The chunk quality csv {self.video_quality_csv.name} exist. Skipping')
+            print(f'The chunk quality csv {self.video_quality_csv} exist. Skipping')
             return
 
         if not self.segment_file.exists():
-            print(f'Segment not exist. Skipping')
+            print(f'Segment {self.segment_file} not exist. Skipping')
             return
 
         if not self.reference_segment.exists():
-            print(f'Reference not exist. Skipping')
+            print(f'Reference {self.reference_segment} not exist. Skipping')
             return
 
         frames = zip(iter_frame(self.reference_segment), iter_frame(self.segment_file))
