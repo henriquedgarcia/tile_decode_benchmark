@@ -208,6 +208,21 @@ class GlobalPaths(Factors, ABC):
 
         return len(['' for line in content if 'utime' in line])
 
+    def tile_position(self):
+        """
+        Need video, tiling and tile
+        :return: x1, x2, y1, y2
+        """
+        ph, pw = self.video_shape[:2]
+        M, N = splitx(self.tiling)
+        tw, th = int(pw / M), int(ph / N)
+        tile_x, tile_y = int(self.tile)%M, int(self.tile)//M
+        x1 = tile_x * tw
+        y1 = tile_y * th
+        x2 = tile_x * tw + tw  # not inclusive
+        y2 = tile_y * th + th  # not inclusive
+        return x1, x2, y1, y2
+
     # def __init__(self):
     #     self.print_resume()
     #     for _ in self.loop():
