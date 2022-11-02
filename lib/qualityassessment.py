@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Union, Callable
 from time import time
 
-from .assets2 import Base
+from .assets2 import Base, bcolors
 from .tiledecodebenchmark import TileDecodeBenchmarkPaths
 import numpy as np
 from .util import AutoDict, iter_frame, save_json, load_json, save_pickle, splitx, load_pickle
@@ -37,6 +37,10 @@ class SegmentsQualityPaths(TileDecodeBenchmarkPaths):
         folder = self.project_path / self.quality_folder
         folder.mkdir(parents=True, exist_ok=True)
         return folder /  f'quality_{self.video}.json'
+
+    @property
+    def quality_result_img(self) -> Path:
+        return self.video_quality_folder /  f'quality_resume.png'
 
 
 class SegmentsQualityProps(SegmentsQualityPaths):
@@ -88,9 +92,6 @@ class SegmentsQuality(SegmentsQualityProps):
 
     def init(self):
         self.sph_points_mask: np.ndarray = np.zeros(0)
-        self.chunk_quality = defaultdict(list)
-        self.results = AutoDict()
-        self.results_dataframe = pd.DataFrame()
         self.weight_ndarray = np.zeros(0)
         self.method = {'MSE': self._mse,
                        'WS-MSE': self._wsmse,
@@ -191,55 +192,6 @@ class SegmentsQuality(SegmentsQualityProps):
         smse_nn = sqr_dif.sum() / self.mask.sum()
         return smse_nn
 
-    def collect_results(self):
-        print(f'[{self.vid_proj}][{self.video}][{self.tiling}][{self.tile}][{self.chunk}]')
-
-        quality_result_json = self.quality_result_json
-
-        if quality_result_json.exists():
-            print(f'The file {quality_result_json} exist. Loading.')
-            json_content = quality_result_json.read_text(encoding='utf-8')
-            self.results = load_json(json_content)
-        else:
-            self.results = AutoDict()
-
-        print(f'Processing {self.quality_result_json}')
-        if self.quality == self.original_quality:
-            # info('Skipping original quality')
-            return 'continue'
-
-        if not self.video_quality_csv.exists():
-            print(f'The file {self.video_quality_csv} not exist. Skipping.')
-            return 'continue'
-
-        csv_dataframe = pd.read_csv(self.video_quality_csv, encoding='utf-8', index_col=0)
-
-        results = self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile][self.chunk]
-
-        for metric in self.metric_list:
-            if results[metric] != {}:
-                print(f'The metric {metric} exist for Result.'
-                        f'Skipping this metric')
-                return
-
-            if len(csv_dataframe[metric]) == 0:
-                print(f'The metric {metric} not exist for csv_dataframe'
-                        f'. Skipping this metric')
-                return
-
-            results[metric] = csv_dataframe[metric].tolist()
-
-        if self.tiling != self.tiling_list[-1]:
-            quality_result_json = self.quality_result_json
-            save_json(self.results, quality_result_json)
-
-            quality_result_pickle = quality_result_json.with_suffix('.pickle')
-            save_pickle(self.results, quality_result_pickle)
-
-        if self.chunk == 1:
-            results = self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile]
-            results.update(self._collect_ffmpeg_psnr())
-
     def _collect_ffmpeg_psnr(self) -> dict[str, float]:
         get_psnr = lambda l: float(l.strip().split(',')[3].split(':')[1])
         get_qp = lambda l: float(l.strip().split(',')[2].split(':')[1])
@@ -255,32 +207,90 @@ class SegmentsQuality(SegmentsQualityProps):
                 break
         return psnr
 
+
 class CollectResults(SegmentsQualityProps):
     def __init__(self):
+        self.get_chunk_value()
+        # self.get_tile_image()
+
+    _video = None
+    @property
+    def video(self):
+        return self._video
+
+    @video.setter
+    def video(self, value):
+        self._video = value
+        self.results = AutoDict()
+
+    def get_chunk_value(self):
         self.print_resume()
 
         for self.video in self.videos_list:
-            if self.quality_result_json.exists(): continue
-            self.results = AutoDict()
+            if  self.quality_result_json.exists():
+                print(bcolors.FAIL + f'The file {self.quality_result_json} exist. Skipping.' + bcolors.ENDC)
+                continue
 
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
                     for self.tile in self.tile_list:
-                        self.get_chunk_value()
+                        self.work1()
 
+            print('')
             save_json(self.results, self.quality_result_json)
 
-    def get_chunk_value(self):
-        results_chunk = AutoDict()
+    def work1(self):
+        local_results = AutoDict()
+        metric_list = ['MSE', 'WS-MSE', 'S-MSE', 'PSNR', 'WS-PSNR', 'S-PSNR']
+        mylist=defaultdict(list)
 
         for self.chunk in self.chunk_list:
+            print(f'\rProcessing [{self.vid_proj}][{self.video}][{self.tiling}][crf{self.quality}][tile{self.tile}][chunk{self.chunk}]', end='')
             csv_dataframe = pd.read_csv(self.video_quality_csv, encoding='utf-8', index_col=0)
+            for metric in metric_list:
+                local_results[self.chunk][metric] = np.average(frames:= csv_dataframe[metric].tolist())
+                mylist[metric].append(frames)
 
-            for metric in self.metric_list:
-                frames = csv_dataframe[metric].tolist()
-                results_chunk[self.chunk][metric] = np.average(frames)
+        self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile] = local_results
+        self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile]['frames'] = mylist
 
-        self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile] = results_chunk
+    def get_tile_image(self):
+        self.print_resume()
+
+        for self.video in self.videos_list:
+            for self.tiling in self.tiling_list:
+                for self.quality in self.quality_list:
+                    if self.quality_result_img.exists():
+                        print(bcolors.FAIL + f'The file {self.quality_result_json} exist. Skipping.' + bcolors.ENDC)
+                        return
+                    self.work2()
+
+    def work2(self):
+        print(f'Processing [{self.vid_proj}][{self.video}][{self.tiling}][crf{self.quality}][tile{self.tile}]', end='')
+
+        fig, axes = plt.subplots(2, 3, figsize=(8, 5), dpi=200)
+        axes: list[plt.Axes] = list(np.ravel(axes))
+        fig: plt.Figure
+
+        metric_list = ['MSE', 'WS-MSE', 'S-MSE', 'PSNR', 'WS-PSNR', 'S-PSNR']
+        get_result = lambda : [self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile][self.chunk][metric] for self.chunk in self.chunk_list]
+
+        for self.tile in self.tile_list:
+            for i, metric in enumerate(metric_list):
+                try:
+                    result = get_result()
+                except KeyError:
+                    self.results = load_json(self.quality_result_json)
+                    result = get_result()
+
+                axes[i].plot(result, label=f'{self.tile}')
+                # axes[i].legend(loc='upper right')
+                axes[i].set_title(metric)
+
+        fig.suptitle(f'[{self.vid_proj}][{self.video}][{self.tiling}][crf{self.quality}][tile{self.tile}]')
+        fig.tight_layout()
+        # fig.show()
+        fig.savefig(self.quality_result_img)
 
 
 class QualityAssessmentOptions(Enum):
