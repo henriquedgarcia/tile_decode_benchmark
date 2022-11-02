@@ -155,8 +155,14 @@ class ProcessNasrabadi(GetTilesPath):
 
 
 class GetTilesProps(GetTilesPath):
-    dataset: dict
+    _dataset: dict = None
     results: AutoDict
+
+    @property
+    def dataset(self) -> dict:
+        if self._dataset is None:
+            self._dataset = load_json(self.dataset_json)
+        return self._dataset
 
     @property
     def users_list(self) -> list[str]:
@@ -192,7 +198,6 @@ class GetTiles(GetTilesProps):
     def __init__(self):
         self.print_resume()
         self.erp_list = {self.tiling: vp.ERP(self.tiling, '576x288', self.fov) for self.tiling in self.tiling_list}
-        self.dataset = load_json(self.dataset_json)
 
         for self.video in self.videos_list:
             self.results = AutoDict()
@@ -426,6 +431,8 @@ class UserProjectionMetricsProps(GetTilesProps, SegmentsQualityPaths):
 
     @property
     def users_list(self) -> list[str]:
+        users_list = self.dataset[self.video_name].keys()
+
         return list(self.get_tiles_data[self.vid_proj][self.name][self.tiling].keys())
 
     @property
@@ -454,8 +461,8 @@ class UserProjectionMetrics(UserProjectionMetricsProps):
     def __init__(self):
         self.print_resume()
         self.main()
-        # self.test()
-        # self.test2()
+        # self.graphs1()
+        # self.graphs2()
 
     def main(self):
         for self.video in self.videos_list:
@@ -490,16 +497,24 @@ class UserProjectionMetrics(UserProjectionMetricsProps):
             for metric in ['PSNR', 'WS-PSNR', 'S-PSNR']:
                 metrics_result[metric][self.tile] = quality_val[metric]
 
-    def test(self):
+    def loop_lv1(self):
+        for self.video in self.videos_list:
+            for self.tiling in self.tiling_list:
+                for self.user in self.users_list:
+                    for self.quality in self.quality_list:
+                        for self.metric in ['time', 'rate', 'PSNR', 'WS-PSNR', 'S-PSNR']:
+                            pass
+
+
+    def graphs1(self):
         for self.video in self.videos_list:
             self.seen_tiles_data = load_json(self.seen_metrics_json)
-            users_list = self.seen_tiles_data[self.vid_proj][self.name]['1x1']['16'].keys()
 
             for self.tiling in self.tiling_list:
                 folder = self.seen_metrics_folder / f'1_{self.name}'
                 folder.mkdir(parents=True, exist_ok=True)
 
-                for self.user in users_list:
+                for self.user in self.users_list:
                     img_name = folder / f'{self.tiling}_user{self.user}.png'
                     if img_name.exists(): continue
                     print(img_name, end='')
@@ -516,6 +531,7 @@ class UserProjectionMetrics(UserProjectionMetricsProps):
                             tiles_list = seen_tiles_data['time'].keys()
 
                             result5[f'n_tiles'].append(len(tiles_list))
+
                             for self.metric in ['time', 'rate', 'PSNR', 'WS-PSNR', 'S-PSNR']:
                                 value = [seen_tiles_data[self.metric][tile] for tile in tiles_list]
                                 percentile = list(np.percentile(value, [0, 25, 50, 75, 100]))
@@ -569,7 +585,7 @@ class UserProjectionMetrics(UserProjectionMetricsProps):
         #
         # print('')
 
-    def test2(self):
+    def graphs2(self):
         # Compara usuários
         for self.video in self.videos_list:
             self.seen_tiles_data = load_json(self.seen_metrics_json)
@@ -779,7 +795,6 @@ class ViewportPSNRProps(GetTilesProps):
 class ViewportPSNR(ViewportPSNRProps):
     def __init__(self):
         self.print_resume()
-        self.dataset = load_json(self.dataset_json)
 
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
@@ -914,7 +929,6 @@ class ViewportPSNRGraphs(ViewportPSNRProps):
     def __init__(self):
         self.workfolder = super().workfolder / 'viewport_videos'  # todo: fix it
         self.workfolder.mkdir(parents=True, exist_ok=True)
-        self.dataset = load_json(self.dataset_json)
 
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
@@ -955,7 +969,6 @@ class ViewportPSNRGraphs(ViewportPSNRProps):
     def video(self, value):
         self._video = value
         self.get_tiles_data = load_json(self.get_tiles_json)
-        self.users_list = list(self.dataset[self.name])
         self.erp_list = {tiling: vp.ERP(tiling, self.resolution, self.fov) for tiling in self.tiling_list}
 
     @property
@@ -1064,11 +1077,9 @@ class TestDataset(ViewportPSNRProps):
                                 self.worker()
 
     def worker(self, overwrite=False):
-        database = load_json(self.dataset_json)
-
         for self.video in self.videos_list:
             proj_h, proj_w, n_channels = self.video_shape
-            users_data = database[self.name]
+            users_data = self.dataset[self.name]
 
             erp = vp.ERP(self.tiling, self.resolution, '110x90')
             get_tiles_data = load_json(self.get_tiles_json, object_hook=dict)
@@ -1079,12 +1090,10 @@ class TestDataset(ViewportPSNRProps):
                 folder = self.get_tiles_folder / f'{self.vid_proj}_{self.name}_{self.tiling}'
                 folder.mkdir(parents=True, exist_ok=True)
 
-                users_list = get_tiles_data[self.vid_proj][self.name][self.tiling].keys()
-
                 M, N = splitx(self.tiling)
                 tile_w, tile_h = int(proj_w / M), int(proj_h / N)
 
-                for user in users_list:
+                for user in self.users_list:
                     quality_list = ['0'] + self.quality_list
 
                     for self.quality in quality_list:
@@ -1099,11 +1108,8 @@ class TestDataset(ViewportPSNRProps):
                         yaw_pitch_roll_frames = iter(users_data[user])
 
                         for self.chunk in self.chunk_list:
-                            get_tiles_val: list[int] = get_tiles_data[self.vid_proj][self.name][self.tiling][user]['chunks'][0][
-                                self.chunk]  # Foi um erro colocar isso na forma de lista. Remover o [0] um dia
-
-                            tiles_reader: dict[str, FFmpegReader] = {str(self.tile): FFmpegReader(f'{self.segment_file}').nextFrame() for self.tile in
-                                                                     get_tiles_val}
+                            get_tiles_val: list[int] = get_tiles_data[self.vid_proj][self.name][self.tiling][user]['chunks'][0][self.chunk]  # Foi um erro colocar isso na forma de lista. Remover o [0] um dia
+                            tiles_reader: dict[str, FFmpegReader] = {str(self.tile): FFmpegReader(f'{self.segment_file}').nextFrame() for self.tile in get_tiles_val}
                             img_proj = np.zeros((proj_h, proj_w, n_channels), dtype='uint8')
 
                             for _ in range(30):  # 30 frames per chunk
