@@ -80,14 +80,6 @@
       "duration": 60,
       "group": 0
     },
-    "elevator_lift_erp_nas": {
-      "original": "elevator_lift_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "erp",
-      "offset": "0:04",
-      "duration": 49,
-      "group": 0
-    },
     "glass_elevator_erp_nas": {
       "original": "glass_elevator_erp.mp4",
       "scale": "4320x2160",
