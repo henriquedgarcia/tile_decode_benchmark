@@ -55,6 +55,16 @@ class SegmentsQualityProps(SegmentsQualityPaths):
     method = dict[str, Callable]
     original_quality='0'
 
+    _video = None
+    @property
+    def video(self):
+        return self._video
+
+    @video.setter
+    def video(self, value):
+        self._video = value
+        self.results = AutoDict()
+
     @staticmethod
     def _mse2psnr(mse: float) -> float:
         return 10 * np.log10((255. ** 2 / mse))
@@ -213,16 +223,6 @@ class CollectResults(SegmentsQualityProps):
         self.get_chunk_value()
         # self.get_tile_image()
 
-    _video = None
-    @property
-    def video(self):
-        return self._video
-
-    @video.setter
-    def video(self, value):
-        self._video = value
-        self.results = AutoDict()
-
     def get_chunk_value(self):
         self.print_resume()
 
@@ -252,7 +252,6 @@ class CollectResults(SegmentsQualityProps):
                 mylist[metric].append(frames)
 
         self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile] = local_results
-        self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile]['frames'] = mylist
 
     def get_tile_image(self):
         self.print_resume()
@@ -284,7 +283,6 @@ class CollectResults(SegmentsQualityProps):
                     result = get_result()
 
                 axes[i].plot(result, label=f'{self.tile}')
-                # axes[i].legend(loc='upper right')
                 axes[i].set_title(metric)
 
         fig.suptitle(f'[{self.vid_proj}][{self.video}][{self.tiling}][crf{self.quality}][tile{self.tile}]')
