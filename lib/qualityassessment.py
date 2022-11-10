@@ -1,16 +1,16 @@
-import pickle
+from collections import defaultdict
 from enum import Enum
 from pathlib import Path
-from typing import Union, Callable
 from time import time
+from typing import Union, Callable
+
+import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
 
 from .assets2 import Base, bcolors
 from .tiledecodebenchmark import TileDecodeBenchmarkPaths
-import numpy as np
-from .util import AutoDict, iter_frame, save_json, load_json, save_pickle, splitx, load_pickle
-from collections import defaultdict
-import pandas as pd
-from matplotlib import pyplot as plt
+from .util import AutoDict, iter_frame, save_json, load_json, save_pickle, load_pickle
 
 
 class SegmentsQualityPaths(TileDecodeBenchmarkPaths):
@@ -18,11 +18,11 @@ class SegmentsQualityPaths(TileDecodeBenchmarkPaths):
 
     @property
     def video_quality_folder(self) -> Path:
-        name =(f'{self.name}_'
-               f'{self.resolution}_'
-               f'{self.fps}_'
-               f'{self.tiling}_'
-               f'{self.config["rate_control"]}{self.quality}')
+        name = (f'{self.name}_'
+                f'{self.resolution}_'
+                f'{self.fps}_'
+                f'{self.tiling}_'
+                f'{self.config["rate_control"]}{self.quality}')
         folder = self.project_path / self.quality_folder / name
         folder.mkdir(parents=True, exist_ok=True)
         return folder
@@ -36,11 +36,11 @@ class SegmentsQualityPaths(TileDecodeBenchmarkPaths):
     def quality_result_json(self) -> Path:
         folder = self.project_path / self.quality_folder
         folder.mkdir(parents=True, exist_ok=True)
-        return folder /  f'quality_{self.video}.json'
+        return folder / f'quality_{self.video}.json'
 
     @property
     def quality_result_img(self) -> Path:
-        return self.video_quality_folder /  f'quality_resume.png'
+        return self.video_quality_folder / f'quality_resume.png'
 
 
 class SegmentsQualityProps(SegmentsQualityPaths):
@@ -53,9 +53,10 @@ class SegmentsQualityProps(SegmentsQualityPaths):
     old_tile: str
     results_dataframe: pd.DataFrame
     method = dict[str, Callable]
-    original_quality='0'
+    original_quality = '0'
 
     _video = None
+
     @property
     def video(self):
         return self._video
@@ -227,7 +228,7 @@ class CollectResults(SegmentsQualityProps):
         self.print_resume()
 
         for self.video in self.videos_list:
-            if  self.quality_result_json.exists():
+            if self.quality_result_json.exists():
                 print(bcolors.FAIL + f'The file {self.quality_result_json} exist. Skipping.' + bcolors.ENDC)
                 continue
 
@@ -241,15 +242,15 @@ class CollectResults(SegmentsQualityProps):
 
     def work1(self):
         local_results = AutoDict()
-        metric_list = ['MSE', 'WS-MSE', 'S-MSE', 'PSNR', 'WS-PSNR', 'S-PSNR']
-        mylist=defaultdict(list)
+        metric_list = ['MSE', 'WS-MSE', 'S-MSE']
 
         for self.chunk in self.chunk_list:
             print(f'\rProcessing [{self.vid_proj}][{self.video}][{self.tiling}][crf{self.quality}][tile{self.tile}][chunk{self.chunk}]', end='')
-            csv_dataframe = pd.read_csv(self.video_quality_csv, encoding='utf-8', index_col=0)
+            chunk_quality_df = pd.read_csv(self.video_quality_csv, encoding='utf-8', index_col=0)
             for metric in metric_list:
-                local_results[self.chunk][metric] = np.average(frames:= csv_dataframe[metric].tolist())
-                mylist[metric].append(frames)
+                # https://ffmpeg.org/ffmpeg-filters.html#psnr
+                local_results[self.chunk][metric] = np.average(chunk_quality_df[metric].tolist())
+                local_results[self.chunk][metric.replace('MSE', 'PSNR')] = self._mse2psnr(local_results[self.chunk][metric])
 
         self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile] = local_results
 
@@ -272,7 +273,7 @@ class CollectResults(SegmentsQualityProps):
         fig: plt.Figure
 
         metric_list = ['MSE', 'WS-MSE', 'S-MSE', 'PSNR', 'WS-PSNR', 'S-PSNR']
-        get_result = lambda : [self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile][self.chunk][metric] for self.chunk in self.chunk_list]
+        get_result = lambda: [self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile][self.chunk][metric] for self.chunk in self.chunk_list]
 
         for self.tile in self.tile_list:
             for i, metric in enumerate(metric_list):
@@ -346,4 +347,3 @@ def load_sph_file(sph_file: Path, shape: tuple[int, int] = None):
         sph_points_mask[n, m] = 1
     save_pickle(sph_points_mask, sph_points_mask_file)
     return sph_points_mask
-
