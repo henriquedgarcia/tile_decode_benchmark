@@ -3,8 +3,11 @@ from logging import warning
 from pathlib import Path
 from typing import Any, Union
 
+from matplotlib import pyplot as plt
+
 from .assets2 import Base, GlobalPaths
-from .util2 import splitx, run_command, AutoDict, save_json
+from .siti import SiTi
+from .util2 import splitx, run_command, AutoDict, save_json, load_json
 
 
 class TileDecodeBenchmarkPaths(GlobalPaths):
@@ -92,6 +95,12 @@ class TileDecodeBenchmarkPaths(GlobalPaths):
         folder = self.project_path / self.segment_folder
         folder.mkdir(parents=True, exist_ok=True)
         return folder / f'rate_{self.video}.json'
+
+    @property
+    def siti_results(self) -> Path:
+        folder = self.project_path / self._siti_folder
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f'{self.video}_siti_results.json'
 
 
 class Prepare(TileDecodeBenchmarkPaths):
@@ -314,12 +323,53 @@ class Result(TileDecodeBenchmarkPaths):
         save_json(self.result_rate, filename)
 
 
+class MakeSiti(TileDecodeBenchmarkPaths):
+    def __init__(self):
+        for self.video in self.videos_list:
+            if self.siti_results.exists():
+                continue
+
+            self.tiling = '1x1'
+            self.quality = '28'
+            self.tile = '0'
+            siti = SiTi(self.compressed_file)
+            si, ti = siti.calc_siti()
+            siti_results_df = {f'{self.video}_si': si,
+                               f'{self.video}_ti': ti}
+            save_json(siti_results_df, self.siti_results)
+
+        self._scatter_plot_siti()
+
+    def _scatter_plot_siti(self):
+        siti_results_df = load_json(self.siti_results)
+
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6), dpi=300)
+        fig: plt.Figure
+        ax: plt.Axes
+
+        for self.video in self.videos_list:
+            si = siti_results_df[f'{self.video}_si']
+            ti = [0] + siti_results_df[f'{self.video}_ti']
+            ax1.plot(si, label=self.name)
+            ax2.plot(ti, label=self.name)
+
+        # ax.set_title('Si/Ti', fontdict={'size': 16})
+        ax1.set_xlabel("Spatial Information")
+        ax2.set_xlabel('Temporal Information')
+        ax1.legend(loc='upper left', bbox_to_anchor=(1.01, 1.0), fontsize='small')
+
+        fig.tight_layout()
+        fig.savefig(self.project_path / self._siti_folder / 'scatter.png')
+        fig.show()
+
+
 class TileDecodeBenchmarkOptions(Enum):
     PREPARE = 0
     COMPRESS = 1
     SEGMENT = 2
     DECODE = 3
     COLLECT_RESULTS = 4
+    SITI = 5
 
     def __repr__(self):
         return str({self.value: self.name})
@@ -330,4 +380,5 @@ class TileDecodeBenchmark(Base):
                   'COMPRESS': Compress,
                   'SEGMENT': Segment,
                   'DECODE': Decode,
-                  'COLLECT_RESULTS': Result}
+                  'COLLECT_RESULTS': Result,
+                  'SITI': MakeSiti}
