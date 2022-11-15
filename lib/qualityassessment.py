@@ -243,14 +243,20 @@ class CollectResults(SegmentsQualityProps):
     def work1(self):
         local_results = AutoDict()
         metric_list = ['MSE', 'WS-MSE', 'S-MSE']
+        by_frame = defaultdict(list)
 
         for self.chunk in self.chunk_list:
             print(f'\rProcessing [{self.vid_proj}][{self.video}][{self.tiling}][crf{self.quality}][tile{self.tile}][chunk{self.chunk}]', end='')
             chunk_quality_df = pd.read_csv(self.video_quality_csv, encoding='utf-8', index_col=0)
             for metric in metric_list:
+                chunk_quality_list = chunk_quality_df[metric].tolist()
+
                 # https://ffmpeg.org/ffmpeg-filters.html#psnr
-                local_results[self.chunk][metric] = np.average(chunk_quality_df[metric].tolist())
+                local_results[self.chunk][metric] = np.average(chunk_quality_list)
                 local_results[self.chunk][metric.replace('MSE', 'PSNR')] = self._mse2psnr(local_results[self.chunk][metric])
+
+                by_frame[metric].extend(chunk_quality_list)
+            local_results[self.chunk]['by_frame'] = by_frame
 
         self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile] = local_results
 
