@@ -3,450 +3,450 @@
     "angel_falls_erp_nas": {
       "original": "angel_falls_erp.mp4",
       "scale": "4320x2160",
-      "projection": "equirectangular",
+      "projection": "erp",
       "offset": "5:30",
       "duration": 60,
-      "group": 0
-    },
-    "blue_angels_erp_nas": {
-      "original": "blue_angels_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "1:00",
-      "duration": 60,
-      "group": 0
-    },
-    "cable_cam_erp_nas": {
-      "original": "cable_cam_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:15",
-      "duration": 60,
-      "group": 0
-    },
-    "chariot_race_erp_nas": {
-      "original": "chariot_race_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:00",
-      "duration": 60,
-      "group": 0
-    },
-    "closet_tour_erp_nas": {
-      "original": "closet_tour_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:07",
-      "duration": 60,
-      "group": 0
-    },
-    "drone_chases_car_erp_nas": {
-      "original": "drone_chases_car_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "2:11",
-      "duration": 60,
-      "group": 0
-    },
-    "drone_footage_erp_nas": {
-      "original": "drone_footage_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:01",
-      "duration": 60,
-      "group": 0
-    },
-    "drone_video_erp_nas": {
-      "original": "drone_video_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:15",
-      "duration": 60,
-      "group": 0
-    },
-    "drop_tower_erp_nas": {
-      "original": "drop_tower_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "1:11",
-      "duration": 60,
-      "group": 0
-    },
-    "dubstep_dance_erp_nas": {
-      "original": "dubstep_dance_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:05",
-      "duration": 60,
-      "group": 0
-    },
-    "elevator_lift_erp_nas": {
-      "original": "elevator_lift_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:04",
-      "duration": 49,
-      "group": 0
-    },
-    "glass_elevator_erp_nas": {
-      "original": "glass_elevator_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:14",
-      "duration": 60,
-      "group": 0
-    },
-    "montana_erp_nas": {
-      "original": "montana_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:00",
-      "duration": 60,
-      "group": 0
-    },
-    "motorsports_park_erp_nas": {
-      "original": "motorsports_park_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:15",
-      "duration": 60,
-      "group": 0
-    },
-    "nyc_drive_erp_nas": {
-      "original": "nyc_drive_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:12",
-      "duration": 60,
-      "group": 0
-    },
-    "pac_man_erp_nas": {
-      "original": "pac_man_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
-    "penthouse_erp_nas": {
-      "original": "penthouse_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:04",
-      "duration": 60,
-      "group": 0
-    },
-    "petite_anse_erp_nas": {
-      "original": "petite_anse_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:45",
-      "duration": 60,
-      "group": 0
-    },
-    "rhinos_erp_nas": {
-      "original": "rhinos_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:18",
-      "duration": 60,
-      "group": 0
-    },
-    "sunset_erp_nas": {
-      "original": "sunset_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:40",
-      "duration": 60,
-      "group": 0
-    },
-    "three_peaks_erp_nas": {
-      "original": "three_peaks_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:00",
-      "duration": 60,
-      "group": 0
-    },
-    "video_19_erp_nas": {
-      "original": "19_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
-    "video_20_erp_nas": {
-      "original": "20_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
-    "video_22_erp_nas": {
-      "original": "22_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
-    "video_23_erp_nas": {
-      "original": "23_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
-    "video_24_erp_nas": {
-      "original": "24_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
-    "video_04_erp_nas": {
-      "original": "4_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
-    "wingsuit_dubai_erp_nas": {
-      "original": "wingsuit_dubai_erp.mp4",
-      "scale": "4320x2160",
-      "projection": "equirectangular",
-      "offset": "0:00",
-      "duration": 60,
-      "group": 0
+      "group": "MN"
     },
     "angel_falls_cmp_nas": {
       "original": "angel_falls_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "5:30",
       "duration": 60,
-      "group": 0
+      "group": "MN"
     },
     "blue_angels_cmp_nas": {
       "original": "blue_angels_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "1:00",
       "duration": 60,
-      "group": 0
+      "group": "MM"
+    },
+    "blue_angels_erp_nas": {
+      "original": "blue_angels_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "1:00",
+      "duration": 60,
+      "group": "MM"
+    },
+    "cable_cam_erp_nas": {
+      "original": "cable_cam_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:15",
+      "duration": 60,
+      "group": "HS"
     },
     "cable_cam_cmp_nas": {
       "original": "cable_cam_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0:15",
       "duration": 60,
-      "group": 0
+      "group": "HS"
     },
     "chariot_race_cmp_nas": {
       "original": "chariot_race_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0:00",
       "duration": 60,
-      "group": 0
+      "group": "HM"
+    },
+    "chariot_race_erp_nas": {
+      "original": "chariot_race_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:00",
+      "duration": 60,
+      "group": "HM"
+    },
+    "closet_tour_erp_nas": {
+      "original": "closet_tour_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:07",
+      "duration": 60,
+      "group": "FS"
     },
     "closet_tour_cmp_nas": {
       "original": "closet_tour_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0:07",
       "duration": 60,
-      "group": 0
+      "group": "FS"
+    },
+    "drone_chases_car_erp_nas": {
+      "original": "drone_chases_car_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "2:11",
+      "duration": 60,
+      "group": "MS"
     },
     "drone_chases_car_cmp_nas": {
       "original": "drone_chases_car_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "2:11",
       "duration": 60,
-      "group": 0
+      "group": "MS"
+    },
+    "drone_footage_erp_nas": {
+      "original": "drone_footage_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:01",
+      "duration": 60,
+      "group": "HN"
     },
     "drone_footage_cmp_nas": {
       "original": "drone_footage_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0:01",
       "duration": 60,
-      "group": 0
+      "group": "HN"
+    },
+    "drone_video_erp_nas": {
+      "original": "drone_video_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:15",
+      "duration": 60,
+      "group": "VM"
     },
     "drone_video_cmp_nas": {
       "original": "drone_video_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0:15",
       "duration": 60,
-      "group": 0
+      "group": "VM"
+    },
+    "drop_tower_erp_nas": {
+      "original": "drop_tower_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "1:11",
+      "duration": 60,
+      "group": "VM"
     },
     "drop_tower_cmp_nas": {
       "original": "drop_tower_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "1:11",
       "duration": 60,
-      "group": 0
+      "group": "VM"
+    },
+    "dubstep_dance_erp_nas": {
+      "original": "dubstep_dance_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:05",
+      "duration": 60,
+      "group": "FM"
     },
     "dubstep_dance_cmp_nas": {
       "original": "dubstep_dance_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0:05",
       "duration": 60,
-      "group": 0
+      "group": "FM"
+    },
+    "elevator_lift_erp_nas": {
+      "original": "elevator_lift_erp_nas.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:00",
+      "duration": 60,
+      "group": "VN"
     },
     "elevator_lift_cmp_nas": {
-      "original": "elevator_lift_cmp.mp4",
+      "original": "elevator_lift_cmp_nas.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
-      "offset": "0:04",
-      "duration": 49,
-      "group": 0
+      "projection": "cmp",
+      "offset": "0:00",
+      "duration": 60,
+      "group": "VN"
+    },
+    "glass_elevator_erp_nas": {
+      "original": "glass_elevator_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:14",
+      "duration": 60,
+      "group": "VN"
     },
     "glass_elevator_cmp_nas": {
       "original": "glass_elevator_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0:14",
       "duration": 60,
-      "group": 0
+      "group": "VN"
+    },
+    "montana_erp_nas": {
+      "original": "montana_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:00",
+      "duration": 60,
+      "group": "FN"
     },
     "montana_cmp_nas": {
       "original": "montana_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0:00",
       "duration": 60,
-      "group": 0
+      "group": "FN"
+    },
+    "motorsports_park_erp_nas": {
+      "original": "motorsports_park_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:15",
+      "duration": 60,
+      "group": "HS"
     },
     "motorsports_park_cmp_nas": {
       "original": "motorsports_park_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0:15",
       "duration": 60,
-      "group": 0
+      "group": "HS"
+    },
+    "nyc_drive_erp_nas": {
+      "original": "nyc_drive_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:12",
+      "duration": 60,
+      "group": "HM"
     },
     "nyc_drive_cmp_nas": {
       "original": "nyc_drive_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0:12",
       "duration": 60,
-      "group": 0
+      "group": "HM"
+    },
+    "pac_man_erp_nas": {
+      "original": "pac_man_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0",
+      "duration": 60,
+      "group": "MM"
     },
     "pac_man_cmp_nas": {
       "original": "pac_man_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0",
       "duration": 60,
-      "group": 0
+      "group": "MM"
+    },
+    "penthouse_erp_nas": {
+      "original": "penthouse_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:04",
+      "duration": 60,
+      "group": "RS"
     },
     "penthouse_cmp_nas": {
       "original": "penthouse_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0:04",
       "duration": 60,
-      "group": 0
+      "group": "RS"
+    },
+    "petite_anse_erp_nas": {
+      "original": "petite_anse_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:45",
+      "duration": 60,
+      "group": "HN"
     },
     "petite_anse_cmp_nas": {
       "original": "petite_anse_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0:45",
       "duration": 60,
-      "group": 0
+      "group": "HN"
+    },
+    "rhinos_erp_nas": {
+      "original": "rhinos_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:18",
+      "duration": 60,
+      "group": "FM"
     },
     "rhinos_cmp_nas": {
       "original": "rhinos_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0:18",
       "duration": 60,
-      "group": 0
+      "group": "FM"
+    },
+    "sunset_erp_nas": {
+      "original": "sunset_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:40",
+      "duration": 60,
+      "group": "FN"
     },
     "sunset_cmp_nas": {
       "original": "sunset_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0:40",
       "duration": 60,
-      "group": 0
+      "group": "FN"
+    },
+    "three_peaks_erp_nas": {
+      "original": "three_peaks_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:00",
+      "duration": 60,
+      "group": "MN"
     },
     "three_peaks_cmp_nas": {
       "original": "three_peaks_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0:00",
       "duration": 60,
-      "group": 0
+      "group": "MN"
     },
-    "video_19_cmp_nas": {
-      "original": "19_cmp.mp4",
-      "scale": "3240x2160",
-      "projection": "cubemap",
+    "video_04_erp_nas": {
+      "original": "4_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
       "offset": "0",
       "duration": 60,
-      "group": 0
-    },
-    "video_20_cmp_nas": {
-      "original": "20_cmp.mp4",
-      "scale": "3240x2160",
-      "projection": "cubemap",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
-    "video_22_cmp_nas": {
-      "original": "22_cmp.mp4",
-      "scale": "3240x2160",
-      "projection": "cubemap",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
-    "video_23_cmp_nas": {
-      "original": "23_cmp.mp4",
-      "scale": "3240x2160",
-      "projection": "cubemap",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
-    },
-    "video_24_cmp_nas": {
-      "original": "24_cmp.mp4",
-      "scale": "3240x2160",
-      "projection": "cubemap",
-      "offset": "0",
-      "duration": 60,
-      "group": 0
+      "group": "FS"
     },
     "video_04_cmp_nas": {
       "original": "4_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0",
       "duration": 60,
-      "group": 0
+      "group": "FS"
+    },
+    "video_19_erp_nas": {
+      "original": "19_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0",
+      "duration": 60,
+      "group": "RN"
+    },
+    "video_19_cmp_nas": {
+      "original": "19_cmp.mp4",
+      "scale": "3240x2160",
+      "projection": "cmp",
+      "offset": "0",
+      "duration": 60,
+      "group": "RN"
+    },
+    "video_20_erp_nas": {
+      "original": "20_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0",
+      "duration": 60,
+      "group": "RN"
+    },
+    "video_20_cmp_nas": {
+      "original": "20_cmp.mp4",
+      "scale": "3240x2160",
+      "projection": "cmp",
+      "offset": "0",
+      "duration": 60,
+      "group": "RN"
+    },
+    "video_22_erp_nas": {
+      "original": "22_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0",
+      "duration": 60,
+      "group": "RS"
+    },
+    "video_22_cmp_nas": {
+      "original": "22_cmp.mp4",
+      "scale": "3240x2160",
+      "projection": "cmp",
+      "offset": "0",
+      "duration": 60,
+      "group": "RS"
+    },
+    "video_23_erp_nas": {
+      "original": "23_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0",
+      "duration": 60,
+      "group": "RM"
+    },
+    "video_23_cmp_nas": {
+      "original": "23_cmp.mp4",
+      "scale": "3240x2160",
+      "projection": "cmp",
+      "offset": "0",
+      "duration": 60,
+      "group": "RM"
+    },
+    "video_24_erp_nas": {
+      "original": "24_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0",
+      "duration": 60,
+      "group": "RM"
+    },
+    "video_24_cmp_nas": {
+      "original": "24_cmp.mp4",
+      "scale": "3240x2160",
+      "projection": "cmp",
+      "offset": "0",
+      "duration": 60,
+      "group": "RM"
+    },
+    "wingsuit_dubai_erp_nas": {
+      "original": "wingsuit_dubai_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:00",
+      "duration": 60,
+      "group": "MS"
     },
     "wingsuit_dubai_cmp_nas": {
       "original": "wingsuit_dubai_cmp.mp4",
       "scale": "3240x2160",
-      "projection": "cubemap",
+      "projection": "cmp",
       "offset": "0:00",
       "duration": 60,
-      "group": 0
+      "group": "MS"
     }
   }
 }
