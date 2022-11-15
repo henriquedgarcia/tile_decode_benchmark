@@ -259,6 +259,6 @@ def sobel(frame):
     :return:
     """
     sobx = ndimage.sobel(frame, axis=0)
-    soby = ndimage.sobel(frame, axis=1)
+    soby = ndimage.sobel(frame, axis=1, mode="wrap")
     sob = np.hypot(sobx, soby)
     return sob
