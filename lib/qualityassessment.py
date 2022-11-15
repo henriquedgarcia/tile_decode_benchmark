@@ -40,7 +40,9 @@ class SegmentsQualityPaths(TileDecodeBenchmarkPaths):
 
     @property
     def quality_result_img(self) -> Path:
-        return self.video_quality_folder / f'quality_resume.png'
+        folder = self.project_path / self.quality_folder / '0-graphs'
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder / f'{self.video}_{self.tiling}_crf{self.quality}.png'
 
 
 class SegmentsQualityProps(SegmentsQualityPaths):
@@ -221,8 +223,8 @@ class SegmentsQuality(SegmentsQualityProps):
 
 class CollectResults(SegmentsQualityProps):
     def __init__(self):
-        self.get_chunk_value()
-        # self.get_tile_image()
+        # self.get_chunk_value()
+        self.get_tile_image()
 
     def get_chunk_value(self):
         self.print_resume()
@@ -262,32 +264,34 @@ class CollectResults(SegmentsQualityProps):
 
     def get_tile_image(self):
         self.print_resume()
+        self.get_result = lambda metric: [self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile][self.chunk][metric] for self.chunk in self.chunk_list]
 
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
                     if self.quality_result_img.exists():
-                        print(bcolors.FAIL + f'The file {self.quality_result_json} exist. Skipping.' + bcolors.ENDC)
-                        return
+                        print(bcolors.FAIL + f'The file {self.quality_result_img} exist. Skipping.' + bcolors.ENDC)
+                        continue
                     self.work2()
 
     def work2(self):
-        print(f'Processing [{self.vid_proj}][{self.video}][{self.tiling}][crf{self.quality}][tile{self.tile}]', end='')
+        print(f'\rProcessing [{self.vid_proj}][{self.video}][{self.tiling}][crf{self.quality}]', end='')
 
         fig, axes = plt.subplots(2, 3, figsize=(8, 5), dpi=200)
         axes: list[plt.Axes] = list(np.ravel(axes))
         fig: plt.Figure
 
         metric_list = ['MSE', 'WS-MSE', 'S-MSE', 'PSNR', 'WS-PSNR', 'S-PSNR']
-        get_result = lambda: [self.results[self.vid_proj][self.name][self.tiling][self.quality][self.tile][self.chunk][metric] for self.chunk in self.chunk_list]
 
         for self.tile in self.tile_list:
             for i, metric in enumerate(metric_list):
                 try:
-                    result = get_result()
+                    result = self.get_result(metric)
+                    if isinstance(result[0], dict): raise KeyError
+
                 except KeyError:
                     self.results = load_json(self.quality_result_json)
-                    result = get_result()
+                    result = self.get_result(metric)
 
                 axes[i].plot(result, label=f'{self.tile}')
                 axes[i].set_title(metric)
@@ -296,6 +300,7 @@ class CollectResults(SegmentsQualityProps):
         fig.tight_layout()
         # fig.show()
         fig.savefig(self.quality_result_img)
+        plt.close()
 
 
 class QualityAssessmentOptions(Enum):
