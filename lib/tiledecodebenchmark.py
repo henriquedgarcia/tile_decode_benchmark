@@ -364,6 +364,7 @@ class MakeSiti(TileDecodeBenchmarkPaths):
 
 
 class TileDecodeBenchmarkOptions(Enum):
+    """Operation 0"""
     PREPARE = 0
     COMPRESS = 1
     SEGMENT = 2
