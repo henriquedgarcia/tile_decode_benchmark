@@ -45,11 +45,15 @@ class TileDecodeBenchmarkPaths(GlobalPaths):
         return folder / f'tile{self.tile}.mp4'
 
     @property
-    def segment_file(self) -> Path:
+    def segments_folder(self) -> Path:
         folder = self.project_path / self.segment_folder / self.basename
         folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+    @property
+    def segment_file(self) -> Path:
         chunk = int(str(self.chunk))
-        return folder / f'tile{self.tile}_{chunk:03d}.mp4'
+        return self.segments_folder / f'tile{self.tile}_{chunk:03d}.mp4'
 
     @property
     def reference_segment(self) -> Union[Path, None]:
@@ -146,7 +150,7 @@ class Compress(TileDecodeBenchmarkPaths):
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
                     for self.tile in self.tile_list:
-                        print(f'\r{self.compressed_file}', end='')
+                        print(f'==== Processing {self.compressed_file} ====')
                         self.worker()
 
     def worker(self, overwrite=False):
@@ -186,15 +190,15 @@ class Segment(TileDecodeBenchmarkPaths):
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
-                    for self.tile in self.tiling_list:
+                    for self.tile in self.tile_list:
                         print(f'==== Processing {self.compressed_file} ====')
                         self.worker()
 
     def worker(self, overwrite=False) -> Any:
-        segment_log = self.segment_file.parent / f'tile{self.tile}.log'
+        segment_log = self.segments_folder / f'tile{self.tile}.log'
 
         # If segment log size is very small, infers error and overwrite.
-        if segment_log.is_file() and segment_log.stat().st_size > 10000 and not overwrite:
+        if segment_log.is_file() and segment_log.stat().st_size > 50000 and not overwrite:
             warning(f'The file {segment_log} exist. Skipping.')
             return
 
@@ -208,8 +212,9 @@ class Segment(TileDecodeBenchmarkPaths):
 
         cmd = ['MP4Box']
         cmd += ['-split 1']
-        cmd += [f'{self.compressed_file}']
-        cmd += [f'-out {self.segment_folder}/']
+        import pathlib
+        cmd += [f'{self.compressed_file.as_posix()}']
+        cmd += [f'-out {self.segments_folder.as_posix()}/']
         cmd = ' '.join(cmd)
         cmd = f'bash -c "{cmd}"'
 
@@ -222,7 +227,7 @@ class Decode(TileDecodeBenchmarkPaths):
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
                     for turn in range(self.decoding_num):
-                        for self.tile in self.tiling_list:
+                        for self.tile in self.tile_list:
                             for self.chunk in self.chunk_list:
                                 print(f'Decoding {self.segment_file=}. {turn = }', end='')
                                 self.worker()
