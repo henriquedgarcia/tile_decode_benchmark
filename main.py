@@ -9,6 +9,7 @@ from lib.dectimegraphs import DectimeGraphs, DectimeGraphsOptions
 from lib.qualityassessment import QualityAssessment, QualityAssessmentOptions
 
 config = f'config/config_nas_erp.json'
+# config = f'config/config_nas_cmp.json'
 
 worker_list: dict[int, tuple[Type, Union[Type, Enum, Iterable]]] = {
     0: (TileDecodeBenchmark, TileDecodeBenchmarkOptions),
