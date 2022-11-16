@@ -150,8 +150,6 @@ class Compress(TileDecodeBenchmarkPaths):
                         self.worker()
 
     def worker(self, overwrite=False):
-        self.tiling='3x2'
-        self.tile = '1'
         if self.compressed_file.exists() and not overwrite:
             warning(f'The file {self.compressed_file} exist. Skipping.')
             return
@@ -193,7 +191,7 @@ class Segment(TileDecodeBenchmarkPaths):
                         self.worker()
 
     def worker(self, overwrite=False) -> Any:
-        segment_log = self.segment_file.with_suffix('.log')
+        segment_log = self.segment_file.parent / f'tile{self.tile}.log'
 
         # If segment log size is very small, infers error and overwrite.
         if segment_log.is_file() and segment_log.stat().st_size > 10000 and not overwrite:
