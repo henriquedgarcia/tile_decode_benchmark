@@ -155,14 +155,16 @@ class ProcessNasrabadi(GetTilesPath):
 
 
 class GetTilesProps(GetTilesPath):
-    _dataset: dict = None
     results: AutoDict
 
+    _dataset: dict
     @property
     def dataset(self) -> dict:
-        if self._dataset is None:
-            self._dataset = load_json(self.dataset_json)
-        return self._dataset
+        while True:
+            try:
+                return self._dataset
+            except AttributeError:
+                self._dataset = load_json(self.dataset_json)
 
     @property
     def users_list(self) -> list[str]:
