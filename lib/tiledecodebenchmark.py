@@ -104,9 +104,9 @@ class TileDecodeBenchmarkPaths(GlobalPaths):
 
 
 class Prepare(TileDecodeBenchmarkPaths):
-    def loop(self):
+    def __init__(self):
         for self.video in self.videos_list:
-            yield
+            self.worker()
 
     def worker(self, overwrite=False):
         original_file: Path = self.original_file
@@ -140,15 +140,18 @@ class Prepare(TileDecodeBenchmarkPaths):
 
 
 class Compress(TileDecodeBenchmarkPaths):
-    def loop(self):
+    def __init__(self):
+        self.print_resume()
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
                     for self.tile in self.tile_list:
                         print(f'\r{self.compressed_file}', end='')
-                        yield
+                        self.worker()
 
     def worker(self, overwrite=False):
+        self.tiling='3x2'
+        self.tile = '1'
         if self.compressed_file.exists() and not overwrite:
             warning(f'The file {self.compressed_file} exist. Skipping.')
             return
@@ -181,13 +184,13 @@ class Compress(TileDecodeBenchmarkPaths):
 
 
 class Segment(TileDecodeBenchmarkPaths):
-    def loop(self):
+    def __init__(self):
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
                     for self.tile in self.tiling_list:
                         print(f'==== Processing {self.compressed_file} ====')
-                        yield
+                        self.worker()
 
     def worker(self, overwrite=False) -> Any:
         segment_log = self.segment_file.with_suffix('.log')
@@ -216,7 +219,7 @@ class Segment(TileDecodeBenchmarkPaths):
 
 
 class Decode(TileDecodeBenchmarkPaths):
-    def loop(self):
+    def __init__(self):
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
@@ -224,7 +227,7 @@ class Decode(TileDecodeBenchmarkPaths):
                         for self.tile in self.tiling_list:
                             for self.chunk in self.chunk_list:
                                 print(f'Decoding {self.segment_file=}. {turn = }', end='')
-                                yield
+                                self.worker()
 
     def worker(self, overwrite=False) -> Any:
         if self.dectime_log.exists():
