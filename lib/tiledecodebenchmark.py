@@ -157,10 +157,8 @@ class Compress(TileDecodeBenchmarkPaths):
             warning(f'The file {self.lossless_file} not exist. Skipping.')
             return
 
-        pw, ph = splitx(self.resolution)
-        M, N = splitx(self.tiling)
-        tw, th = int(pw / M), int(ph / N)
-        tx, ty = int(self.tile) * tw, int(self.tile) * th
+        x1, y1, x2, y2 = self.tile_position()
+
         factor = self.config["rate_control"]
 
         cmd = ['bin/ffmpeg -hide_banner -y -psnr']
@@ -174,8 +172,8 @@ class Compress(TileDecodeBenchmarkPaths):
                 f'scenecut=0:'
                 f'info=0"']
         cmd += [f'-vf "crop='
-                f'w={tw}:h={th}:'
-                f'x={tx}:y={ty}"']
+                f'w={x2-x1}:h={y2-y1}:'
+                f'x={x1}:y={y1}"']
         cmd += [f'{self.compressed_file}']
         cmd = ' '.join(cmd)
         compressed_log = self.compressed_file.with_suffix('.log')
