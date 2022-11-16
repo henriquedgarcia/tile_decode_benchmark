@@ -221,7 +221,7 @@ class GlobalPaths(Factors, ABC):
         y1 = tile_y * th
         x2 = tile_x * tw + tw  # not inclusive
         y2 = tile_y * th + th  # not inclusive
-        return x1, x2, y1, y2
+        return x1, y1, x2, y2
 
     # def __init__(self):
     #     self.print_resume()
