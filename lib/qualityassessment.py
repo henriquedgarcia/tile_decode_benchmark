@@ -171,7 +171,7 @@ class SegmentsQuality(SegmentsQualityProps):
         if shape != self.weight_ndarray.shape:
             self._prepare_weight_ndarray()
 
-        x1, x2, y1, y2 = self.tile_position()
+        x1, y1, x2, y2 = self.tile_position()
         weight_tile = self.weight_ndarray[y1:y2, x1:x2]
 
         wmse = np.sum(weight_tile * (im_ref - im_deg) ** 2) / np.sum(weight_tile)
@@ -192,7 +192,7 @@ class SegmentsQuality(SegmentsQualityProps):
             self.sph_points_mask = load_sph_file(self.sph_file, shape)
 
         if self.tile == '0' or self.old_tile != self.tile:
-            x1, x2, y1, y2 = self.tile_position()
+            x1, y1, x2, y2 = self.tile_position()
 
             self.mask = self.sph_points_mask[y1:y2, x1:x2]
             self.old_tile = self.tile
