@@ -367,6 +367,23 @@ class MakeSiti(TileDecodeBenchmarkPaths):
         fig.show()
 
 
+class TestSegments(TileDecodeBenchmarkPaths):
+    def __init__(self):
+        for self.video in self.videos_list:
+            for self.tiling in self.tiling_list:
+                for self.quality in self.quality_list:
+                    for turn in range(self.decoding_num):
+                        for self.tile in self.tile_list:
+                            for self.chunk in self.chunk_list:
+                                # print(f'Testing {self.segment_file=}.')
+                                self.worker()
+
+    def worker(self) -> Any:
+        if not self.segment_file.exists():
+            warning(f'  {self.segment_file} not exist..')
+            return
+
+
 class TileDecodeBenchmarkOptions(Enum):
     """Operation 0"""
     PREPARE = 0
@@ -375,6 +392,7 @@ class TileDecodeBenchmarkOptions(Enum):
     DECODE = 3
     COLLECT_RESULTS = 4
     SITI = 5
+    TEST_SEGMENTS = 6
 
     def __repr__(self):
         return str({self.value: self.name})
@@ -386,4 +404,5 @@ class TileDecodeBenchmark(Base):
                   'SEGMENT': Segment,
                   'DECODE': Decode,
                   'COLLECT_RESULTS': Result,
-                  'SITI': MakeSiti}
+                  'SITI': MakeSiti,
+                  'TEST_SEGMENTS': TestSegments}
