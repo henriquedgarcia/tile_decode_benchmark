@@ -1,13 +1,14 @@
 from enum import Enum
-from logging import warning
+from logging import warning, error
 from pathlib import Path
 from typing import Any, Union
+from subprocess import run, STDOUT
 
 from matplotlib import pyplot as plt
 
 from .assets2 import Base, GlobalPaths
 from .siti import SiTi
-from .util2 import splitx, run_command, AutoDict, save_json, load_json
+from .util2 import splitx, AutoDict, save_json, load_json
 
 
 class TileDecodeBenchmarkPaths(GlobalPaths):
@@ -115,6 +116,7 @@ class Prepare(TileDecodeBenchmarkPaths):
     def worker(self, overwrite=False):
         original_file: Path = self.original_file
         lossless_file: Path = self.lossless_file
+        lossless_log: Path = self.lossless_file.with_suffix('.log')
 
         if lossless_file and not overwrite:
             warning(f'  The file {lossless_file=} exist. Skipping.')
@@ -127,20 +129,20 @@ class Prepare(TileDecodeBenchmarkPaths):
         resolution_ = splitx(self.resolution)
         dar = resolution_[0] / resolution_[1]
 
-        cmd = f'ffmpeg '
+        cmd = f'bin/ffmpeg '
         cmd += f'-hide_banner -y '
         cmd += f'-ss {self.offset} '
-        cmd += f'-i {original_file} '
+        cmd += f'-i {original_file.as_posix()} '
         cmd += f'-crf 0 '
         cmd += f'-t {self.duration} '
         cmd += f'-r {self.fps} '
         cmd += f'-map 0:v '
-        cmd += f'-vf "scale={self.resolution},setdar={dar}" '
-        cmd += f'{lossless_file}'
+        cmd += f'-vf scale={self.resolution},setdar={dar} '
+        cmd += f'{lossless_file.as_posix()}'
 
+        cmd = f'bash -c "{cmd}|& tee {lossless_log.as_posix()}"'
         print(cmd)
-        lossless_log: Path = self.lossless_file.with_suffix('.log')
-        run_command(cmd, lossless_log, 'w')
+        run_command(cmd)
 
 
 class Compress(TileDecodeBenchmarkPaths):
@@ -183,8 +185,8 @@ class Compress(TileDecodeBenchmarkPaths):
         cmd = ' '.join(cmd)
 
         compressed_log = self.compressed_file.with_suffix('.log')
-        cmd = f'bash -c "{cmd} &>{compressed_log}"'
-        run_command(cmd, compressed_log, 'w')
+        cmd = f'bash -c "{cmd}|& tee {compressed_log.as_posix()}"'
+        run_command(cmd)
 
 
 class Segment(TileDecodeBenchmarkPaths):
@@ -214,13 +216,12 @@ class Segment(TileDecodeBenchmarkPaths):
 
         cmd = ['MP4Box']
         cmd += ['-split 1']
-        import pathlib
         cmd += [f'{self.compressed_file.as_posix()}']
         cmd += [f'-out {self.segments_folder.as_posix()}/']
         cmd = ' '.join(cmd)
-        cmd = f'bash -c "{cmd}"'
+        cmd = f'bash -c "{cmd} |&tee {segment_log.as_posix()}"'
 
-        run_command(cmd, segment_log, 'w')
+        run_command(cmd)
 
 
 class Decode(TileDecodeBenchmarkPaths):
@@ -244,12 +245,13 @@ class Decode(TileDecodeBenchmarkPaths):
             warning(f'  The file {self.segment_file} not exist. Skipping.')
             return
 
-        cmd = (f'ffmpeg -hide_banner -benchmark '
+        cmd = (f'bin/ffmpeg -hide_banner -benchmark '
                f'-codec hevc -threads 1 '
-               f'-i {self.segment_file} '
+               f'-i {self.segment_file.as_posix()} '
                f'-f null -')
+        cmd = f'bash -c "{cmd}|& tee {self.dectime_log.as_posix()}"'
 
-        run_command(cmd, self.dectime_log, 'a')
+        run_command(cmd)
 
 
 class Result(TileDecodeBenchmarkPaths):
@@ -408,3 +410,12 @@ class TileDecodeBenchmark(Base):
                   'COLLECT_RESULTS': Result,
                   'SITI': MakeSiti,
                   'TEST_SEGMENTS': TestSegments}
+
+
+def run_command(command: str):
+    print(command)
+    process = run(command, shell=True, stderr=STDOUT, encoding='utf-8')
+
+    if process.returncode != 0:
+        error(f'SUBPROCESS ERROR: {command=}\n'
+              f'    {process.returncode = } - {process.stdout = }. Continuing.')
