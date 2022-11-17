@@ -1,6 +1,6 @@
 import json
 import pickle
-from logging import warning
+from logging import warning, error
 from pathlib import Path
 from subprocess import run, STDOUT
 from typing import Union
@@ -53,12 +53,16 @@ def run_command(command: str, log_file: Path = None, mode='w'):
     print(command)
     process = run(command, shell=True, stderr=STDOUT, encoding='utf-8')
 
-    if process.returncode != 0 or process.stdout == '':
-        warning(f'SUBPROCESS ERROR: video {log_file}\n'
+    if process.returncode != 0:
+        error(f'SUBPROCESS ERROR: video {log_file}\n'
                 f'    {process.returncode = } - {process.stdout = }. Continuing.')
+    if not process.stdout or log_file is None:
+        warning(f'LOG FILE ERROR: video {log_file}\n'
+                f'    stdout in (None, '') or/and log_file==None. Continuing.')
+        return
 
     log = log_file.read_text() if log_file.exists() and mode == 'a' else ''
-    log_file.write_text(log + '\n' + command + '\n' + process.stdout)
+    log_file.write_text(log + '\n' + command + '\n' + str(process.stdout))
 
 
 def cart2hcs(x_y_z: np.ndarray) -> np.ndarray:
