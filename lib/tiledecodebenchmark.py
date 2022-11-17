@@ -167,21 +167,23 @@ class Compress(TileDecodeBenchmarkPaths):
         factor = self.config["rate_control"]
 
         cmd = ['bin/ffmpeg -hide_banner -y -psnr']
-        cmd += [f'-i {self.lossless_file}']
+        cmd += [f'-i {self.lossless_file.as_posix()}']
         cmd += [f'-c:v libx265']
-        cmd += [f'-{factor} {self.quality} -tune "psnr"']
+        cmd += [f'-{factor} {self.quality} -tune psnr']
         cmd += [f'-x265-params']
-        cmd += [f'"keyint={self.gop}:'
+        cmd += [f'keyint={self.gop}:'
                 f'min-keyint={self.gop}:'
                 f'open-gop=0:'
                 f'scenecut=0:'
-                f'info=0"']
-        cmd += [f'-vf "crop='
+                f'info=0']
+        cmd += [f'-vf crop='
                 f'w={x2-x1}:h={y2-y1}:'
-                f'x={x1}:y={y1}"']
-        cmd += [f'{self.compressed_file}']
+                f'x={x1}:y={y1}']
+        cmd += [f'{self.compressed_file.as_posix()}']
         cmd = ' '.join(cmd)
+
         compressed_log = self.compressed_file.with_suffix('.log')
+        cmd = f'bash -c "{cmd} &>{compressed_log}"'
         run_command(cmd, compressed_log, 'w')
 
 
