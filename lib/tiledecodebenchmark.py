@@ -214,12 +214,12 @@ class Segment(TileDecodeBenchmarkPaths):
         # ffmpeg -hide_banner -i {compressed_file} -c copy -f segment -segment_t
         # ime 1 -reset_timestamps 1 output%03d.mp4
 
-        cmd = ['MP4Box']
+        cmd = ['bin/MP4Box']
         cmd += ['-split 1']
         cmd += [f'{self.compressed_file.as_posix()}']
-        cmd += [f'-out {self.segments_folder.as_posix()}/']
+        cmd += [f'-out {self.segments_folder.as_posix()}/tile{self.tile}_\$num%03d$.mp4']
         cmd = ' '.join(cmd)
-        cmd = f'bash -c "{cmd} |&tee {segment_log.as_posix()}"'
+        cmd = f"bash -c '{cmd} |&tee {segment_log.as_posix()}'"
 
         run_command(cmd)
 
