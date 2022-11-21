@@ -225,12 +225,23 @@ class Segment(TileDecodeBenchmarkPaths):
 
 
 class Decode(TileDecodeBenchmarkPaths):
+    @property
+    def quality_list(self) -> list[str]:
+        quality_list: list = self.config['quality_list']
+        
+        try:
+            quality_list.remove('0')
+        except ValueError:
+            None
+            
+        return quality_list
+
     def __init__(self):
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
-                    for turn in range(self.decoding_num):
-                        for self.tile in self.tile_list:
+                    for self.tile in self.tile_list:
+                        for turn in range(self.decoding_num):
                             for self.chunk in self.chunk_list:
                                 print(f'Decoding {self.segment_file=}. {turn = }', end='')
                                 self.worker()
