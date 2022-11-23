@@ -37,7 +37,7 @@ class TileDecodeBenchmarkPaths(GlobalPaths):
     def lossless_file(self) -> Path:
         folder = self.project_path / self.lossless_folder
         folder.mkdir(parents=True, exist_ok=True)
-        return folder / f'{self.video}_{self.resolution}_{self.config["fps"]}.mp4'
+        return folder / f'{self.name}_{self.resolution}_{self.config["fps"]}.mp4'
 
     @property
     def compressed_file(self) -> Path:
