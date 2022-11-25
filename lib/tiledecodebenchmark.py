@@ -232,7 +232,7 @@ class Decode(TileDecodeBenchmarkPaths):
         try:
             quality_list.remove('0')
         except ValueError:
-            None
+            pass
             
         return quality_list
 
@@ -414,13 +414,13 @@ class TileDecodeBenchmarkOptions(Enum):
 
 
 class TileDecodeBenchmark(Base):
-    operations = {'PREPARE': Prepare,
-                  'COMPRESS': Compress,
-                  'SEGMENT': Segment,
-                  'DECODE': Decode,
-                  'COLLECT_RESULTS': Result,
-                  'SITI': MakeSiti,
-                  'TEST_SEGMENTS': TestSegments}
+    operations = {'PREPARE': Prepare,               # 0
+                  'COMPRESS': Compress,             # 1
+                  'SEGMENT': Segment,               # 2
+                  'DECODE': Decode,                 # 3
+                  'COLLECT_RESULTS': Result,        # 4
+                  'SITI': MakeSiti,                 # 5
+                  'TEST_SEGMENTS': TestSegments}    # 6
 
 
 def run_command(command: str):
