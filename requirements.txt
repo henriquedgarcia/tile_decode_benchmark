@@ -7,4 +7,5 @@ matplotlib
 cycler
 fitter
 tqdm
-opencv-contrib-python
+opencv
+cython
