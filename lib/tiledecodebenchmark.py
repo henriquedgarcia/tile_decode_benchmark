@@ -260,7 +260,7 @@ class Decode(TileDecodeBenchmarkPaths):
                f'-codec hevc -threads 1 '
                f'-i {self.segment_file.as_posix()} '
                f'-f null -')
-        cmd = f'bash -c "{cmd}|& tee {self.dectime_log.as_posix()}"'
+        cmd = f'bash -c "{cmd}|& tee -a {self.dectime_log.as_posix()}"'
 
         run_command(cmd)
 
