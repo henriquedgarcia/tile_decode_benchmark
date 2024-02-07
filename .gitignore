@@ -1,3 +1,25 @@
 # Project exclude paths
-/original/
-/results/
+__pycache__/
+.idea/
+.vs
+.vscode
+bin/
+build/
+datasets/
+lib/images/
+old/
+original/
+projections/
+results/
+teoria/
+videos-nas/
+results
+*.log
+*.c
+*.pyd
+*.lnk
+*.png
+*.so
+*.old
+*.csv
+*.pickle
