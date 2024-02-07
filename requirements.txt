@@ -1,0 +1,11 @@
+python3>=3.9
+numpy
+pandas
+scikit-video
+scipy
+matplotlib
+cycler
+fitter
+tqdm
+opencv
+cython
