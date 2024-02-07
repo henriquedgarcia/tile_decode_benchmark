@@ -1,0 +1,164 @@
+{
+  "videos_list": {
+    "angel_falls_erp_nas": {
+      "original": "angel_falls_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "5:30",
+      "duration": 60,
+      "group": "MN"
+    },
+    "angel_falls_cmp_nas": {
+      "original": "angel_falls_cmp.mp4",
+      "scale": "3240x2160",
+      "projection": "cmp",
+      "offset": "5:30",
+      "duration": 60,
+      "group": "MN"
+    },
+    "blue_angels_cmp_nas": {
+      "original": "blue_angels_cmp.mp4",
+      "scale": "3240x2160",
+      "projection": "cmp",
+      "offset": "1:00",
+      "duration": 60,
+      "group": "MM"
+    },
+    "blue_angels_erp_nas": {
+      "original": "blue_angels_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "1:00",
+      "duration": 60,
+      "group": "MM"
+    },
+    "cable_cam_erp_nas": {
+      "original": "cable_cam_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:15",
+      "duration": 60,
+      "group": "HS"
+    },
+    "cable_cam_cmp_nas": {
+      "original": "cable_cam_cmp.mp4",
+      "scale": "3240x2160",
+      "projection": "cmp",
+      "offset": "0:15",
+      "duration": 60,
+      "group": "HS"
+    },
+    "chariot_race_cmp_nas": {
+      "original": "chariot_race_cmp.mp4",
+      "scale": "3240x2160",
+      "projection": "cmp",
+      "offset": "0:00",
+      "duration": 60,
+      "group": "HM"
+    },
+    "chariot_race_erp_nas": {
+      "original": "chariot_race_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:00",
+      "duration": 60,
+      "group": "HM"
+    },
+    "closet_tour_erp_nas": {
+      "original": "closet_tour_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:07",
+      "duration": 60,
+      "group": "FS"
+    },
+    "closet_tour_cmp_nas": {
+      "original": "closet_tour_cmp.mp4",
+      "scale": "3240x2160",
+      "projection": "cmp",
+      "offset": "0:07",
+      "duration": 60,
+      "group": "FS"
+    },
+    "drone_chases_car_erp_nas": {
+      "original": "drone_chases_car_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "2:11",
+      "duration": 60,
+      "group": "MS"
+    },
+    "drone_chases_car_cmp_nas": {
+      "original": "drone_chases_car_cmp.mp4",
+      "scale": "3240x2160",
+      "projection": "cmp",
+      "offset": "2:11",
+      "duration": 60,
+      "group": "MS"
+    },
+    "drone_footage_erp_nas": {
+      "original": "drone_footage_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:01",
+      "duration": 60,
+      "group": "HN"
+    },
+    "drone_footage_cmp_nas": {
+      "original": "drone_footage_cmp.mp4",
+      "scale": "3240x2160",
+      "projection": "cmp",
+      "offset": "0:01",
+      "duration": 60,
+      "group": "HN"
+    },
+    "drone_video_erp_nas": {
+      "original": "drone_video_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:15",
+      "duration": 60,
+      "group": "VM"
+    },
+    "drone_video_cmp_nas": {
+      "original": "drone_video_cmp.mp4",
+      "scale": "3240x2160",
+      "projection": "cmp",
+      "offset": "0:15",
+      "duration": 60,
+      "group": "VM"
+    },
+    "drop_tower_erp_nas": {
+      "original": "drop_tower_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "1:11",
+      "duration": 60,
+      "group": "VM"
+    },
+    "drop_tower_cmp_nas": {
+      "original": "drop_tower_cmp.mp4",
+      "scale": "3240x2160",
+      "projection": "cmp",
+      "offset": "1:11",
+      "duration": 60,
+      "group": "VM"
+    },
+    "dubstep_dance_erp_nas": {
+      "original": "dubstep_dance_erp.mp4",
+      "scale": "4320x2160",
+      "projection": "erp",
+      "offset": "0:05",
+      "duration": 60,
+      "group": "FM"
+    },
+    "dubstep_dance_cmp_nas": {
+      "original": "dubstep_dance_cmp.mp4",
+      "scale": "3240x2160",
+      "projection": "cmp",
+      "offset": "0:05",
+      "duration": 60,
+      "group": "FM"
+    }
+  }
+}
