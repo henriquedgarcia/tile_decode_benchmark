@@ -1,8 +1,8 @@
-from multiprocessing import Pool
 import datetime
 from collections import defaultdict
+from multiprocessing import Pool
 from pathlib import Path
-# from time import time
+from time import time
 from typing import Union, Callable
 
 import numpy as np
@@ -10,8 +10,8 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from skimage.metrics import structural_similarity as ssim, mean_squared_error as mse
 
-from .assets import Bcolors, Config, Log, AutoDict
 from ._tiledecodebenchmark import TileDecodeBenchmarkPaths, Utils
+from .assets import Bcolors, Config, Log, AutoDict
 from .transform import hcs2erp, hcs2cmp
 from .util import save_json, load_json, save_pickle, load_pickle, iter_frame
 
@@ -56,6 +56,7 @@ class SegmentsQualityProps(SegmentsQualityPaths, Utils, Log):
     log_text: dict
     _video = None
     _tiling: str = None
+    metric_list = ['MSE', 'SSIM', 'WS-MSE', 'S-MSE']
 
     def init(self, config):
         self.log_text = defaultdict(list)
@@ -123,42 +124,6 @@ class SegmentsQualityProps(SegmentsQualityPaths, Utils, Log):
         return sph_points_mask
 
     @property
-    def video(self):
-        return self._video
-
-    @video.setter
-    def video(self, value):
-        self._video = value
-        self._skip = False
-        self.results = AutoDict()
-        shape = self.video_shape[:2]
-        if self.weight_ndarray.shape != shape:  # suppose that changed projection, the resolution is changed too.
-            self._prepare_weight_ndarray()
-        if self.sph_points_mask.shape != shape:  # suppose that change the projection
-            self.sph_points_mask = self.load_sph_file(shape)
-
-    @property
-    def tiling(self) -> str:
-        return self._tiling
-
-    @tiling.setter
-    def tiling(self, value: str):
-        self._tiling = value
-        self.tile_position = {}
-        for self.tile in self.tile_list:
-            ph, pw = self.video_shape[:2]
-            tiling_m, tiling_n = tuple(map(int, self.tiling.split('x')))
-            tw, th = int(pw / tiling_m), int(ph / tiling_n)
-            tile_x, tile_y = int(self.tile) % tiling_m, int(self.tile) // tiling_m
-            x1, x2 = tile_x * tw, tile_x * tw + tw  # not inclusive
-            y1, y2 = tile_y * th, tile_y * th + th  # not inclusive
-            self.tile_position[self.tile] = [x1, y1, x2, y2]
-
-    @property
-    def metric_list(self) -> list[str]:
-        return ['MSE', 'WS-MSE', 'S-MSE']
-
-    @property
     def quality_list(self) -> list[str]:
         quality_list: list = self.config['quality_list']
         try:
@@ -169,24 +134,20 @@ class SegmentsQualityProps(SegmentsQualityPaths, Utils, Log):
 
 
 class SegmentsQuality(SegmentsQualityProps):
-    def __init__(self, config: Config):
-        self.init(config)
-
-        with self.logger('log_SegmentsQuality'):
-            for self.video in self.videos_list:
-                for self.tiling in self.tiling_list:
-                    for self.quality in self.quality_list:
-                        for self.tile in self.tile_list:
-                            for self.chunk in self.chunk_list:
-                                self.all()
-        print('Finished.')
+    def main(self):
+        for self.video in self.videos_list:
+            for self.tiling in self.tiling_list:
+                for self.quality in self.quality_list:
+                    for self.tile in self.tile_list:
+                        for self.chunk in self.chunk_list:
+                            self.all()
 
     def skip(self):
         try:
             chunk_quality_df = pd.read_csv(self.video_quality_csv, encoding='utf-8')
             if len(chunk_quality_df['frame']) == 30:
-                print(f'\r[{self.vid_proj}][{self.video}][{self.tiling}][CRF{self.quality}][tile{self.tile}][chunk{self.chunk}]] - '
-                      f'EXIST')
+                print(f'[{self.vid_proj}][{self.video}][{self.tiling}][CRF{self.quality}][tile{self.tile}][chunk{self.chunk}]] - '
+                      f'EXIST', end='\r')
                 return True
 
         except FileNotFoundError:
@@ -210,7 +171,7 @@ class SegmentsQuality(SegmentsQualityProps):
 
         print(f'[{self.vid_proj}][{self.video}][{self.tiling}][CRF{self.quality}][tile{self.tile}][chunk{self.chunk}]]')
         chunk_quality = {}
-        # start = time()
+        start = time()
 
         print("\t ssim.")
         with Pool(8) as p:
@@ -230,8 +191,8 @@ class SegmentsQuality(SegmentsQualityProps):
         chunk_quality['WS-MSE'] = wsmse_value
         chunk_quality['S-MSE'] = smse_nn_value
 
-        # print(f'\r[{self.vid_proj}][{self.video}][{self.tiling}][CRF{self.quality}][tile{self.tile}][chunk{self.chunk}]] - '
         pd.DataFrame(chunk_quality).to_csv(self.video_quality_csv, encoding='utf-8', index_label='frame')
+        print(f"\t time={time() - start}.")
 
     @staticmethod
     def _mse(im_ref: np.ndarray, im_deg: np.ndarray) -> float:
@@ -324,19 +285,55 @@ class SegmentsQuality(SegmentsQualityProps):
                 break
         return psnr
 
+    @property
+    def video(self):
+        return self._video
+
+    @video.setter
+    def video(self, value):
+        self._video = value
+        self._skip = False
+        self.results = AutoDict()
+        shape = self.video_shape[:2]
+        if self.weight_ndarray.shape != shape:  # suppose that changed projection, the resolution is changed too.
+            self._prepare_weight_ndarray()
+        if self.sph_points_mask.shape != shape:  # suppose that change the projection
+            self.sph_points_mask = self.load_sph_file(shape)
+
+    @property
+    def tiling(self) -> str:
+        return self._tiling
+
+    @tiling.setter
+    def tiling(self, value: str):
+        self._tiling = value
+        self.tile_position = {}
+        for self.tile in self.tile_list:
+            ph, pw = self.video_shape[:2]
+            tiling_m, tiling_n = tuple(map(int, self.tiling.split('x')))
+            tw, th = int(pw / tiling_m), int(ph / tiling_n)
+            tile_x, tile_y = int(self.tile) % tiling_m, int(self.tile) // tiling_m
+            x1, x2 = tile_x * tw, tile_x * tw + tw  # not inclusive
+            y1, y2 = tile_y * th, tile_y * th + th  # not inclusive
+            self.tile_position[self.tile] = [x1, y1, x2, y2]
+
 
 class CollectResults(SegmentsQualityProps):
-    metric_list = ['MSE', 'SSIM', 'WS-MSE', 'S-MSE']
     _skip: bool
 
-    def __init__(self, config: str):
-        self.init(config)
+    @property
+    def video(self):
+        return self._video
 
-        try:
-            self.get_chunk_value()
-            # self.get_tile_image()
-        finally:
-            pd.DataFrame(self.log_text).to_csv(Path(f'LogCollectResults_{datetime.datetime.now()}.csv'.replace(':', '-')), encoding='utf-8')
+    @video.setter
+    def video(self, value):
+        self._video = value
+        self._skip = False
+        self.results = AutoDict()
+
+    def main(self):
+        self.get_chunk_value()
+        # self.get_tile_image()
 
     def get_chunk_value(self):
         for self.video in self.videos_list:
@@ -406,10 +403,8 @@ class CollectResults(SegmentsQualityProps):
         axes: list[plt.Axes] = list(np.ravel(axes))
         fig: plt.Figure
 
-        metric_list = ['MSE', 'WS-MSE', 'S-MSE', 'PSNR', 'WS-PSNR', 'S-PSNR']
-
         for self.tile in self.tile_list:
-            for i, metric in enumerate(metric_list):
+            for i, metric in enumerate(self.metric_list):
                 try:
                     result = self.get_result(metric)[:]
                 except TypeError:
