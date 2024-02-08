@@ -8,12 +8,11 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-import lib.util
 from .assets import GlobalPaths, Config, Log, AutoDict, Bcolors, Utils, SiTi
-from .util import splitx, save_json, load_json, show
+from .util import splitx, save_json, load_json, show, run_command, decode_file, get_times
 
 
-class TileDecodeBenchmarkPaths(GlobalPaths):
+class TileDecodeBenchmarkPaths(GlobalPaths, Utils, Log):
     # Folders
     original_folder = Path('original')
     lossless_folder = Path('lossless')
@@ -130,10 +129,18 @@ class TileDecodeBenchmarkPaths(GlobalPaths):
         folder.mkdir(parents=True, exist_ok=True)
         return folder / f'{self.video}_siti_results.json'
 
-
-class Prepare(TileDecodeBenchmarkPaths, Utils, Log):
-    def __init__(self, config):
+    def __init__(self, config: str):
         self.config = Config(config)
+        self.start_log()
+        self.print_resume()
+        with self.logger():
+            self.main()
+
+    def main(self): ...
+
+
+class Prepare(TileDecodeBenchmarkPaths):
+    def main(self):
         for self.video in self.videos_list:
             self.worker()
 
@@ -166,26 +173,21 @@ class Prepare(TileDecodeBenchmarkPaths, Utils, Log):
 
         cmd = f'bash -c "{cmd}|& tee {lossless_log.as_posix()}"'
         print(cmd)
-        self.run_command(cmd)
+        run_command(cmd)
 
 
-class Compress(Prepare):
+class Compress(TileDecodeBenchmarkPaths):
+    def main(self):
+        for self.video in self.videos_list:  # if self.video != 'chariot_race_erp_nas': continue
+            for self.tiling in self.tiling_list:
+                with self.multi() as _:
+                    for self.quality in self.quality_list:
+                        for self.tile in self.tile_list:
+                            self.worker()
+
     def clean_compress(self):
         self.compressed_log.unlink(missing_ok=True)
         self.compressed_file.unlink(missing_ok=True)
-
-    def __init__(self, config):
-        self.config = Config(config)
-        self.start_log()
-        self.print_resume()
-
-        with self.logger('log_compress') as _:
-            for self.video in self.videos_list:  # if self.video != 'chariot_race_erp_nas': continue
-                for self.tiling in self.tiling_list:
-                    with self.multi() as _:
-                        for self.quality in self.quality_list:
-                            for self.tile in self.tile_list:
-                                self.worker()
 
     def skip(self, decode=False):
         # first Lossles file
@@ -198,31 +200,25 @@ class Compress(Prepare):
         try:
             compressed_file_size = self.compressed_file.stat().st_size
         except FileNotFoundError:
-            self.log('compressed_file NOT EXIST.', self.compressed_file)
-            return False
-
-        if compressed_file_size <= 0:
-            self.log('compressed_file SIZE 0.', self.compressed_log)
-            print(f'{Bcolors.FAIL}The file {self.compressed_file} compressed_file SIZE 0. Cleaning.{Bcolors.ENDC}')
-            self.clean_compress()
-            return False
+            compressed_file_size = 0
 
         # third Check Logfile
         try:
-            compressed_log = self.compressed_log.read_text()
+            compressed_log_text = self.compressed_log.read_text()
         except FileNotFoundError:
-            print(f'{Bcolors.FAIL}The file {self.compressed_log}  NOT EXIST. Skipping.{Bcolors.ENDC}')
-            self.log('compressed_log NOT EXIST. compressed_file OK.', self.compressed_log)
+            compressed_log_text = ''
+
+        if compressed_file_size == 0 or compressed_log_text == '':
             self.clean_compress()
             return False
 
-        if 'encoded 1800 frames' not in compressed_log:
+        if 'encoded 1800 frames' not in compressed_log_text:
             self.log('compressed_log is corrupt', self.compressed_log)
             print(f'{Bcolors.FAIL}The file {self.compressed_log} is corrupt. Skipping.{Bcolors.ENDC}')
             self.clean_compress()
             return False
 
-        if 'encoder         : Lavc59.18.100 libx265' not in compressed_log:
+        if 'encoder         : Lavc59.18.100 libx265' not in compressed_log_text:
             self.log('CODEC ERROR', self.compressed_log)
             print(f'{Bcolors.FAIL}The file {self.compressed_log} have codec different of Lavc59.18.100 libx265. Skipping.{Bcolors.ENDC}')
             self.clean_compress()
@@ -230,14 +226,14 @@ class Compress(Prepare):
 
         # decodifique os comprimidos
         if decode:
-            stdout = self.decode_file(self.compressed_file)
+            stdout = decode_file(self.compressed_file)
             if "frame= 1800" not in stdout:
                 print(f'{Bcolors.FAIL}Compress Decode Error. Cleaning.{Bcolors.ENDC}.')
                 self.log(f'Compress Decode Error.', self.compressed_file)
                 self.clean_compress()
                 return False
 
-        print(f'{Bcolors.FAIL}The file {self.compressed_file} exist. Skipping.{Bcolors.ENDC}')
+        print(f'{Bcolors.FAIL}The file {self.compressed_file} is OK.{Bcolors.ENDC}')
         return True
 
     def worker(self):
@@ -269,26 +265,35 @@ class Compress(Prepare):
 
         cmd = f'bash -c "{cmd}&> {self.compressed_log.as_posix()}"'
         self.command_pool.append(cmd)
+
+
+class Segment(TileDecodeBenchmarkPaths):
+    def main(self):
+        for self.video in self.videos_list:
+            for self.tiling in self.tiling_list:
+                with self.multi() as _:
+                    for self.quality in self.quality_list:
+                        for self.tile in self.tile_list:
+                            self.worker()
+
+    def worker(self) -> Any:
+        if self.skip():
+            return
+
+        print(f'==== Segment {self.compressed_file} ====')
+        # todo: Alternative:
+        # ffmpeg -hide_banner -i {compressed_file} -c copy -f segment -segment_t
+        # ime 1 -reset_timestamps 1 output%03d.mp4
+
+        cmd = f'bash -k -c '
+        cmd += '"bin/MP4Box '
+        cmd += '-split 1 '
+        cmd += f'{self.compressed_file.as_posix()} '
+        cmd += f"-out {self.segments_folder.as_posix()}/tile{self.tile}_'$'num%03d$.mp4"
+        cmd += f'|& tee {self.segment_log.as_posix()}"'
+
+        self.command_pool.append(cmd)
         # run_command(cmd)
-
-
-class Segment(Compress):
-    def __init__(self, config):
-        self.config = Config(config)
-        self.start_log()
-        self.print_resume()
-        with self.logger('log_segment'):
-            for self.video in self.videos_list:
-                for self.tiling in self.tiling_list:
-                    with self.multi() as _:
-                        for self.quality in self.quality_list:
-                            for self.tile in self.tile_list:
-                                self.worker()
-
-    def clean_segments(self):
-        self.segment_log.unlink(missing_ok=True)
-        for self.chunk in self.chunk_list:
-            self.segment_file.unlink(missing_ok=True)
 
     def skip(self, decode=False):
         # first compressed file
@@ -301,7 +306,7 @@ class Segment(Compress):
         try:
             segment_log = self.segment_log.read_text()
         except FileNotFoundError:
-            print(f'{Bcolors.FAIL}Segmentlog no exist. segment exist. Cleaning.{Bcolors.ENDC}')
+            print(f'{Bcolors.FAIL}Segmentlog no exist. Cleaning.{Bcolors.ENDC}')
             self.log(f'Segmentlog no exist. The file {self.segment_log} exist.', self.segment_log)
             self.clean_segments()
             return False
@@ -327,7 +332,7 @@ class Segment(Compress):
                 self.clean_segments()
                 return False
 
-            if segment_file_size <= 0:
+            if segment_file_size == 0:
                 # um segmento size 0 e o Log diz que está ok. limpeza.
                 print(f'{Bcolors.FAIL}Segmentlog is OK. The file SIZE 0. Cleaning.{Bcolors.ENDC}')
                 self.log(f'Segmentlog is OK. The file {self.segment_file} SIZE 0', self.segment_file)
@@ -336,7 +341,7 @@ class Segment(Compress):
 
             # decodifique os segmentos
             if decode:
-                stdout = self.decode_file(self.segment_file)
+                stdout = decode_file(self.segment_file)
 
                 if "frame=   30" not in stdout:
                     print(f'{Bcolors.FAIL}Segment Decode Error. Cleaning.{Bcolors.ENDC}.')
@@ -347,35 +352,16 @@ class Segment(Compress):
         print(f'{Bcolors.FAIL}The {self.segment_log} IS OK. Skipping.{Bcolors.ENDC}')
         return True
 
-    # noinspection PyAssignmentToLoopOrWithParameter
-    def worker(self) -> Any:
-        if self.skip():
-            return
-
-        print(f'==== Segment {self.compressed_file} ====')
-        # todo: Alternative:
-        # ffmpeg -hide_banner -i {compressed_file} -c copy -f segment -segment_t
-        # ime 1 -reset_timestamps 1 output%03d.mp4
-
-        cmd = f'bash -k -c '
-        cmd += '"bin/MP4Box '
-        cmd += '-split 1 '
-        cmd += f'{self.compressed_file.as_posix()} '
-        cmd += f"-out {self.segments_folder.as_posix()}/tile{self.tile}_'$'num%03d$.mp4"
-        cmd += f'|& tee {self.segment_log.as_posix()}"'
-
-        self.command_pool.append(cmd)
-        # run_command(cmd)
+    def clean_segments(self):
+        self.segment_log.unlink(missing_ok=True)
+        for self.chunk in self.chunk_list:
+            self.segment_file.unlink(missing_ok=True)
 
 
-class Decode(Segment):
+class Decode(TileDecodeBenchmarkPaths):
     turn: int
 
-    def __init__(self, config):
-        self.config = Config(config)
-        self.start_log()
-        self.print_resume()
-
+    def main(self):
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
@@ -402,7 +388,7 @@ class Decode(Segment):
         self.turn = 0
         try:
             content = self.dectime_log.read_text(encoding='utf-8').splitlines()
-            times = self.get_times(content)
+            times = get_times(content)
             self.turn = len(times)
             if self.turn < self.config['decoding_num']:
                 raise FileNotFoundError
@@ -422,12 +408,12 @@ class Decode(Segment):
             return
 
         print(f'Decoding file "{self.segment_file}". Turn {self.turn + 1}')
-        stdout = self.decode_file(self.segment_file, threads=1)
+        stdout = decode_file(self.segment_file, threads=1)
         with self.dectime_log.open('a') as f:
             f.write(f'\n==========\n{stdout}')
 
 
-class GetBitrate(Decode):
+class GetBitrate(TileDecodeBenchmarkPaths):
     """
        The result dict have a following structure:
        results[video_name][tile_pattern][quality][tile_id][chunk_id]
@@ -448,47 +434,50 @@ class GetBitrate(Decode):
     skip_rate: bool
     result_rate: AutoDict
     result_times: AutoDict
+    change_flag: bool
 
-    def __init__(self, config):
-        self.config = Config(config)
-        self.start_log()
-        self.print_resume()
-        with self.logger('log_GetBitrate'):
-            for self.video in self.videos_list:
-                if self.skip1(): return
-                self.result_rate = AutoDict()
+    def main(self):
+        for self.video in self.videos_list:
+            self.result_rate = AutoDict()
+            if self.skip1(): continue
 
-                for self.tiling in self.tiling_list:
-                    for self.quality in self.quality_list:
-                        for self.tile in self.tile_list:
-                            for self.chunk in self.chunk_list:
-                                self.bitrate()
+            for self.tiling in self.tiling_list:
+                for self.quality in self.quality_list:
+                    for self.tile in self.tile_list:
+                        for self.chunk in self.chunk_list:
+                            self.bitrate()
 
+            if self.change_flag:
                 save_json(self.result_rate, self.bitrate_result_json)
 
-    def skip1(self):
+    def skip1(self, check_result=True):
+        self.change_flag = False
         if self.bitrate_result_json.exists():
-            print(f'The file {self.bitrate_result_json} exist and not '
-                  f'overwrite. Skipping.')
-            return True
-
-    def skip2(self):
-        print(f'Collecting {self.segment_file}')
-        if not self.segment_file.exists():
-            print(f'{Bcolors.WARNING}    The chunk Segment not exist.'
-                  f'{Bcolors.ENDC}')
-            self.log('BITRATE_FILE_NOT_FOUND', self.dectime_log)
-            self.result_rate[self.vid_proj][self.name][self.tiling][self.quality][self.tile][self.chunk] = 0
+            print(f'\n[{self.vid_proj}][{self.video}] - The result_json exist.')
+            if check_result:
+                self.result_rate = load_json(self.bitrate_result_json,
+                                             object_hook=AutoDict)
+                return False
             return True
 
     def bitrate(self) -> Any:
-        if self.skip2(): return
+        print(f'\r[{self.vid_proj}][{self.video}][{self.tiling}][CRF{self.quality}][tile{self.tile}][chunk{self.chunk}]]', end='')
 
-        chunk_size = self.segment_file.stat().st_size
-        if chunk_size == 0:
-            self.log('BITRATE_Chunksize==0', self.dectime_log)
+        try:
+            chunk_size = self.segment_file.stat().st_size
+            if chunk_size == 0:
+                self.log('BITRATE==0', self.segment_file)
+                return
+        except FileNotFoundError:
+            self.log('SEGMENT_FILE_NOT_FOUND', self.segment_file)
+            return
 
         bitrate = 8 * chunk_size / self.chunk_dur
+
+        old_bitrate = self.result_rate[self.vid_proj][self.name][self.tiling][self.quality][self.tile][self.chunk]
+        if bitrate == old_bitrate:
+            return
+        if not self.change_flag: self.change_flag = True
         self.result_rate[self.vid_proj][self.name][self.tiling][self.quality][self.tile][self.chunk] = bitrate
 
     @property
@@ -502,7 +491,7 @@ class GetBitrate(Decode):
         return quality_list
 
 
-class GetDectime(GetBitrate):
+class GetDectime(TileDecodeBenchmarkPaths):
     """
        The result dict have a following structure:
        results[video_name][tile_pattern][quality][tile_id][chunk_id]
@@ -524,7 +513,7 @@ class GetDectime(GetBitrate):
     result_rate: AutoDict
     result_times: AutoDict
 
-    def __init__(self, config):
+    def __init__(self, config: str):
         self.log_text = defaultdict(list)
         self.config = Config(config)
         for self.video in self.videos_list:
@@ -579,10 +568,7 @@ class GetDectime(GetBitrate):
 
 
 class MakeSiti(TileDecodeBenchmarkPaths):
-    def __init__(self, config):
-        self.config = Config(config)
-        self.log_text = defaultdict(list)
-
+    def main(self):
         self._make_siti()
         self._scatter_plot_siti()
         pd.DataFrame(self.log_text).to_csv(Path(f'LogTestResultsDectime_{datetime.datetime.now()}.csv'.replace(':', '-')), encoding='utf-8')
