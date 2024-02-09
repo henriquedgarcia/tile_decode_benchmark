@@ -58,14 +58,10 @@ class SegmentsQualityProps(SegmentsQualityPaths, Utils, Log):
     _tiling: str = None
     metric_list = ['MSE', 'SSIM', 'WS-MSE', 'S-MSE']
 
-    def init(self, config):
-        self.log_text = defaultdict(list)
-        self.config = Config(config)
-        self.print_resume()
+    def init(self):
         self.sph_points_mask = np.zeros(0)
         self.weight_ndarray = np.zeros(0)
         self.old_tile = ''
-        self.start_log()
 
     def _prepare_weight_ndarray(self):
         # for self.projection == 'erp' only
@@ -135,6 +131,7 @@ class SegmentsQualityProps(SegmentsQualityPaths, Utils, Log):
 
 class SegmentsQuality(SegmentsQualityProps):
     def main(self):
+        self.init()
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
