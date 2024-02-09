@@ -1,5 +1,4 @@
-import datetime
-from collections import defaultdict
+from multiprocessing import Pool
 from multiprocessing import Pool
 from pathlib import Path
 from time import time
@@ -11,7 +10,7 @@ from matplotlib import pyplot as plt
 from skimage.metrics import structural_similarity as ssim, mean_squared_error as mse
 
 from ._tiledecodebenchmark import TileDecodeBenchmarkPaths, Utils
-from .assets import Bcolors, Config, Log, AutoDict
+from .assets import Bcolors, Log, AutoDict
 from .transform import hcs2erp, hcs2cmp
 from .util import save_json, load_json, save_pickle, load_pickle, iter_frame
 
@@ -146,12 +145,12 @@ class SegmentsQuality(SegmentsQualityProps):
                 print(f'[{self.vid_proj}][{self.video}][{self.tiling}][CRF{self.quality}][tile{self.tile}][chunk{self.chunk}]] - '
                       f'EXIST', end='\r')
                 return True
+            else:
+                self.log('video_quality_csv SMALL. Cleaning.', self.segment_file)
+                self.video_quality_csv.unlink(missing_ok=True)
 
         except FileNotFoundError:
             pass
-
-        self.log('video_quality_csv SMALL. Cleaning.', self.segment_file)
-        self.video_quality_csv.unlink(missing_ok=True)
 
         if not self.segment_file.exists():
             self.log('segment_file NOTFOUND', self.segment_file)
