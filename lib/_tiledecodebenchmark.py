@@ -430,10 +430,7 @@ class GetBitrate(TileDecodeBenchmarkPaths):
     """
     turn: int
     _video: str
-    skip_time: bool
-    skip_rate: bool
     result_rate: AutoDict
-    result_times: AutoDict
     change_flag: bool
 
     def main(self):
@@ -508,40 +505,38 @@ class GetDectime(TileDecodeBenchmarkPaths):
     """
     turn: int
     _video: str
-    skip_time: bool
-    skip_rate: bool
-    result_rate: AutoDict
     result_times: AutoDict
+    change_flag: bool
 
-    def __init__(self, config: str):
-        self.log_text = defaultdict(list)
-        self.config = Config(config)
+    def main(self):
         for self.video in self.videos_list:
-            self.get_dectime()
-        path = Path(f'LogResults_{datetime.datetime.now()}.csv'.replace(':', '-'))
-        pd.DataFrame(self.log_text).to_csv(path, encoding='utf-8')
+            self.result_times = AutoDict()
+            if self.skip1(): continue
 
-    def get_dectime(self):
+            for self.tiling in self.tiling_list:
+                for self.quality in self.quality_list:
+                    for self.tile in self.tile_list:
+                        for self.chunk in self.chunk_list:
+                            self.get_dectime()
+        if self.change_flag:
+            save_json(self.result_times, self.dectime_result_json)
+
+    def skip1(self, check_result=True):
+        self.change_flag = False
         if self.dectime_result_json.exists():
-            print(f'\nThe file {self.dectime_result_json} exist and not '
-                  f'overwrite. Skipping.')
-            return
+            print(f'\n[{self.vid_proj}][{self.video}] - The result_json exist.')
+            if check_result:
+                self.result_times = load_json(self.dectime_result_json,
+                                              object_hook=AutoDict)
+                return False
+            return True
 
-        self.result_times = AutoDict()
-        for self.tiling in self.tiling_list:
-            for self.quality in self.quality_list:
-                for self.tile in self.tile_list:
-                    for self.chunk in self.chunk_list:
-                        self.dectime()
-
-        save_json(self.result_times, self.dectime_result_json)
-
-    def dectime(self) -> Any:
+    def get_dectime(self) -> Any:
         print(f'\rDectime [{self.vid_proj}][{self.name}][{self.tiling}][crf{self.quality}][tile{self.tile}]'
               f'[chunk{self.chunk}] = ', end='')
         try:
             content = self.dectime_log.read_text(encoding='utf-8').splitlines()
-            times = self.get_times(content)
+            times = get_times(content)
         except FileNotFoundError:
             print(f'\n{Bcolors.FAIL}    The dectime log not exist. Skipping.'
                   f'{Bcolors.ENDC}')
