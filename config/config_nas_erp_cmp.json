@@ -2,7 +2,7 @@
   "project": "nasrabadi_28videos_6q_8p_erp_cmp",
   "dataset_name": "nasrabadi_28videos",
   "error_metric": "rmse",
-  "decoding_num": 3,
+  "decoding_num": 5,
   "fov": "110x90",
   "codec": "x265",
   "codec_params": "keyint=30:min-keyint=30:open-gop=0:scenecut=0:info=0",
