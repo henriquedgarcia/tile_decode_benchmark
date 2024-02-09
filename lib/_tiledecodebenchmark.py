@@ -374,7 +374,7 @@ class Decode(TileDecodeBenchmarkPaths):
         for self.video in self.videos_list:
             for self.tiling in self.tiling_list:
                 for self.quality in self.quality_list:
-                    for _ in range(5):
+                    for self.turn in range(5):
                         for self.tile in self.tile_list:
                             for self.chunk in self.chunk_list:
                                 self.worker()
@@ -398,10 +398,10 @@ class Decode(TileDecodeBenchmarkPaths):
         try:
             content = self.dectime_log.read_text(encoding='utf-8').splitlines()
             times = get_times(content)
-            self.turn = len(times)
-            if self.turn < self.decoding_num:
+            turn = len(times)
+            if turn < self.decoding_num:
                 raise FileNotFoundError
-            print(f' Decoded {self.turn}.')
+            print(f' Decoded {turn}.')
             return True
         except FileNotFoundError:
             if self.segment_file.exists():
