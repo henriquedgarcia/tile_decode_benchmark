@@ -235,11 +235,11 @@ class Log:
     chunk: str
 
     @contextmanager
-    def logger(self, name: str):
+    def logger(self):
         try:
             yield
         finally:
-            self.save_log(name)
+            self.save_log()
 
     def start_log(self):
         self.log_text = defaultdict(list)
@@ -254,10 +254,12 @@ class Log:
         self.log_text['parent'].append(f'{filepath.parent}')
         self.log_text['path'].append(f'{filepath.absolute()}')
 
-    def save_log(self, name: str):
-        df = pd.DataFrame(self.log_text)
-        filename = f'{name}_{datetime.datetime.now()}.csv'.replace(':', '-')
-        df.to_csv(Path(filename, encoding='utf-8'))
+    def save_log(self):
+        cls_name = self.__class__.__name__
+        filename = f'log_{cls_name}_{datetime.datetime.now()}.csv'
+        filename = filename.replace(':', '-')
+        df_log_text = pd.DataFrame(self.log_text)
+        df_log_text.to_csv(filename, encoding='utf-8')
 
 
 class Utils:
@@ -265,6 +267,16 @@ class Utils:
     config: Config
     project_path: Path
     segment_file: Path
+    vid_proj: str
+    name: str
+    tiling: str
+    quality: str
+    tile: str
+    chunk: str
+
+    def print_state(self):
+        print(f'Dectime [{self.vid_proj}][{self.name}][{self.tiling}][crf{self.quality}][tile{self.tile}]'
+              f'[chunk{self.chunk}] = ', end='\r')
 
     def print_resume(self):
         print('=' * 70)
