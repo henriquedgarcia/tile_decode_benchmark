@@ -398,27 +398,27 @@ class Decode(TileDecodeBenchmarkPaths):
         try:
             content = self.dectime_log.read_text(encoding='utf-8').splitlines()
             times = get_times(content)
-            turn = len(times)
-            if turn < self.decoding_num:
+            self.turn = len(times)
+            if self.turn < self.decoding_num:
                 raise FileNotFoundError
-            print(f' Decoded {turn}.')
+            print(f' Decoded {self.turn}.')
             return True
         except FileNotFoundError:
             if self.segment_file.exists():
                 return False
             else:
-                print(f'{Bcolors.WARNING}\n    The segment not exist. Skipping.'
+                print(f'{Bcolors.WARNING} The segment not exist. '
                       f'{Bcolors.ENDC}')
                 self.log("segment_file not exist.", self.segment_file)
                 return True
 
     def worker(self) -> Any:
-        print(f'Decoding file "{self.segment_file}". Turn {self.turn + 1} ',
-              end='')
+        print(f'Decoding file "{self.segment_file}". ', end='')
 
         if self.skip():
             return
 
+        print(f'Turn {self.turn + 1}')
         stdout = decode_file(self.segment_file, threads=1)
         with self.dectime_log.open('a') as f:
             f.write(f'\n==========\n{stdout}')
