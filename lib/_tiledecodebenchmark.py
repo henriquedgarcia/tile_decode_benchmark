@@ -1,4 +1,3 @@
-from itertools import combinations
 import datetime
 from collections import defaultdict
 from itertools import combinations
@@ -402,25 +401,28 @@ class Decode(TileDecodeBenchmarkPaths):
             self.turn = len(times)
             if self.turn < self.decoding_num:
                 raise FileNotFoundError
-            print(f'The segment is decoded enough.')
+            print(f' Decoded {self.turn}.')
             return True
         except FileNotFoundError:
             if self.segment_file.exists():
                 return False
             else:
-                print(f'{Bcolors.WARNING}  The segment not exist. Skipping.'
+                print(f'{Bcolors.WARNING}\n    The segment not exist. Skipping.'
                       f'{Bcolors.ENDC}')
                 self.log("segment_file not exist.", self.segment_file)
                 return True
 
     def worker(self) -> Any:
+        print(f'Decoding file "{self.segment_file}". Turn {self.turn + 1} ',
+              end='')
+
         if self.skip():
             return
 
-        print(f'Decoding file "{self.segment_file}". Turn {self.turn + 1}')
         stdout = decode_file(self.segment_file, threads=1)
         with self.dectime_log.open('a') as f:
             f.write(f'\n==========\n{stdout}')
+            print(' OK')
 
 
 class GetBitrate(TileDecodeBenchmarkPaths):
