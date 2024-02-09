@@ -144,6 +144,10 @@ class Factors:
         return self.config['fps']
 
     @property
+    def rate_control(self) -> str:
+        return self.config['rate_control']
+
+    @property
     def gop(self) -> str:
         return self.config['gop']
 
@@ -190,7 +194,7 @@ class GlobalPaths(Factors):
 
     @property
     def project_path(self) -> Path:
-        return Path('../results') / self.config['project']
+        return Path('results') / self.config['project']
 
     def tile_position(self):
         """
@@ -356,9 +360,9 @@ class SiTi:
         :param frame: A luma video frame in numpy ndarray format.
         :return: spatial information and sobel frame.
         """
-        soby = ndimage.sobel(frame, axis=0)
-        sobx = ndimage.sobel(frame, axis=1, mode="wrap")
-        sobel = np.hypot(soby, sobx)
+        sob_y = ndimage.sobel(frame, axis=0)
+        sob_x = ndimage.sobel(frame, axis=1, mode="wrap")
+        sobel = np.hypot(sob_y, sob_x)
         si = sobel.std()
         return si
 
